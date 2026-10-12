@@ -1,0 +1,209 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>用 Unsloth 快速跑通 QLoRA | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="unsloth-qlora">用 Unsloth 快速跑通 QLoRA</h1>
+<p>前两章你搞懂了「微调是改行为」和「数据怎么准备」。这一章我们进入实操：用目前社区最省事、最省显存的库 <strong>Unsloth</strong> 把一次 QLoRA 训练跑起来。目标是先让整条链路「能通」，细节后面几章再补。</p>
+<h2 id="unsloth">为什么是 Unsloth</h2>
+<p>现在微调工具很多（HuggingFace PEFT、LLaMA-Factory、Axolotl……），为什么这一章选 Unsloth？</p>
+<ul>
+<li><strong>省显存、省时间</strong>：Unsloth 在底层对注意力计算做了优化，官方宣传比传统 PEFT 快 2~5 倍、显存占用更低；</li>
+<li><strong>API 友好</strong>：几乎就是 HF Trainer 的「平替」，上手极快；</li>
+<li><strong>生态成熟</strong>：支持绝大多数主流开源模型（Llama、Qwen、DeepSeek 蒸馏、Mistral、MiniCPM 等）。</li>
+</ul>
+<p>它本质上是把「加载 4bit + 挂 LoRA + 训练」这几步封装得特别顺手。</p>
+<h2 id="_1">环境准备</h2>
+<p>微调通常推荐在 Linux + 有 NVIDIA 显卡的环境跑。个人电脑显存不够的话，可以用云 GPU（按小时计费）。</p>
+<pre class="codehilite"><code class="language-bash">pip install &quot;unsloth[cu121]@git+https://github.com/unslothai/unsloth.git&quot;
+# 以及
+pip install trl peft transformers datasets accelerate bitsandbytes
+</code></pre>
+
+<blockquote>
+<p>如果你的显卡驱动较新（CUDA 12+），装 <code>unsloth[cu121]</code> 即可。显存建议：微调 7B 用 QLoRA，8GB 能跑，16GB 更从容。</p>
+</blockquote>
+<h2 id="_2">最小可用代码</h2>
+<p>下面这段就是「跑通」的全部骨架。不要被吓到，每一行后面都解释。</p>
+<pre class="codehilite"><code class="language-python">from unsloth import FastLanguageModel
+import torch
+
+# 1. 加载 4bit 量化 + 准备 LoRA
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=&quot;Qwen/Qwen2.5-7B-Instruct&quot;,   # 基座模型
+    max_seq_length=2048,                      # 最长序列长度
+    dtype=None,
+    load_in_4bit=True,                        # 4bit 量化，省显存
+)
+
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=16,            # LoRA 秩
+    target_modules=[&quot;q_proj&quot;,&quot;k_proj&quot;,&quot;v_proj&quot;,&quot;o_proj&quot;,
+                    &quot;gate_proj&quot;,&quot;up_proj&quot;,&quot;down_proj&quot;],
+    lora_alpha=16,
+    lora_dropout=0,
+    bias=&quot;none&quot;,
+    use_gradient_checkpointing=&quot;unsloth&quot;,
+)
+
+# 2. 定义训练参数
+from trl import SFTTrainer
+from transformers import TrainingArguments
+from datasets import load_dataset
+
+dataset = load_dataset(&quot;json&quot;, data_files=&quot;mydata.json&quot;)[&quot;train&quot;]
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=dataset,
+    dataset_text_field=&quot;text&quot;,     # 数据里放完整模板文本的字段
+    max_seq_length=2048,
+    args=TrainingArguments(
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,
+        warmup_steps=5,
+        max_steps=200,             # 先少跑一点看效果
+        learning_rate=2e-4,
+        output_dir=&quot;outputs&quot;,
+    ),
+)
+
+# 3. 开始训练
+trainer.train()
+
+# 4. 保存 LoRA 权重
+model.save_pretrained(&quot;lora_model&quot;)
+tokenizer.save_pretrained(&quot;lora_model&quot;)
+</code></pre>
+
+<h2 id="_3">逐段拆解关键点</h2>
+<h3 id="4bit-load_in_4bittrue">4bit 量化（<code>load_in_4bit=True</code>）</h3>
+<p>这是 QLoRA 的核心。基座权重被压缩成 4bit（原本是 16bit），显存直接缩到约四分之一，训练时 LoRA 的小矩阵还是正常精度。代价是基座被压缩后精度略降，但对绝大多数任务影响很小，换来的是「消费级显卡也能训大模型」。</p>
+<h3 id="lora-target_modules">LoRA 挂在哪（<code>target_modules</code>）</h3>
+<p><code>q_proj</code>、<code>k_proj</code>、<code>v_proj</code>、<code>o_proj</code> 是注意力层的四个投影矩阵；<code>gate/up/down_proj</code> 是 FFN（前馈）层的三个矩阵。把它们都挂上 LoRA，通常效果更稳。这是微调里最值得动手调的一行——挂的层越多，可训练参数越多，效果上限越高，但也越费显存。</p>
+<h3 id="r-lora_alpha"><code>r</code> 秩与 <code>lora_alpha</code></h3>
+<ul>
+<li><code>r</code>（秩）：控制 LoRA 小矩阵的宽度，一般 8~64；</li>
+<li><code>lora_alpha</code>：缩放系数，控制 LoRA 更新的强度，通常设成和 r 相等或 2 倍。</li>
+</ul>
+<p>社区经验：默认 <code>r=16, lora_alpha=16</code> 起步，大多数场景够用。</p>
+<h3 id="_4">学习率</h3>
+<p>LoRA 的学习率通常比全参数微调大一些，常见 <code>1e-4 ~ 3e-4</code>。太小不收敛，太大易震荡。后面第 9 章讲怎么从 loss 曲线判断。</p>
+<h2 id="_5">训练多久 / 多少步</h2>
+<p>训练步数取决于数据量和模型。原则：</p>
+<ul>
+<li><strong>先小跑验证</strong>：<code>max_steps=200</code> 先跑，看 loss 是不是在降；</li>
+<li><strong>再根据 loss 收敛情况</strong>决定继续跑多久；</li>
+<li>一般「数据量不大」时几百到几千步就够，<strong>不是跑越多越好</strong>——跑太久容易过拟合。</li>
+</ul>
+<h3 id="epochstep">用「epoch」还是「step」思考</h3>
+<p>训练量有两种计量方式，新手常混：</p>
+<ul>
+<li><strong>step（步）</strong>：更新一次参数 = 一步。<code>max_steps</code> 直接指定步数；</li>
+<li><strong>epoch（轮）</strong>：把整个数据集过一遍 = 一轮。</li>
+</ul>
+<p>数据量不同，「跑 1 个 epoch」需要的步数完全不同。经验法则：</p>
+<table>
+<thead>
+<tr>
+<th>数据量</th>
+<th>推荐训练量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>几百条</td>
+<td>3~5 个 epoch（或几百步）</td>
+</tr>
+<tr>
+<td>几千条</td>
+<td>1~3 个 epoch（或一千步内）</td>
+</tr>
+<tr>
+<td>几万条</td>
+<td>0.5~1 个 epoch 往往就够</td>
+</tr>
+</tbody>
+</table>
+<p><strong>重要</strong>：训练量不是越大越好。很多人误以为「训得越久越好」，结果把模型从「学会了」训到「背过了」（过拟合）。正确做法是拿一小块验证集盯 loss，在验证 loss 开始回升前停下。</p>
+<h2 id="_6">训练日志怎么看</h2>
+<p>训练时控制台会不断刷日志，别只看热闹，关键信息在这些字段：</p>
+<pre class="codehilite"><code>{'loss': 1.2345, 'learning_rate': 0.0002, 'epoch': 0.42}
+</code></pre>
+
+<ul>
+<li><strong>loss（损失）</strong>：核心指标。应该随训练逐渐下降，最后趋于平稳；</li>
+<li><strong>learning_rate</strong>：学习率，按你设置的 schedule 变化（warmup 阶段先升后降）；</li>
+<li><strong>epoch</strong>：当前进行到第几轮。</li>
+</ul>
+<p><strong>loss 不降的排查顺序</strong>（这是高频问题）：</p>
+<ol>
+<li>数据问题（最常见）：标签错、口径乱、模板拼错、答案里混入未 mask 的废话；</li>
+<li>学习率问题：太低（降不动）、太高（震荡）；</li>
+<li>模型问题：基座和模板不匹配（第 5 章）；</li>
+<li>显存问题：OOM 会直接报错，不会「不降」。</li>
+</ol>
+<h2 id="_7">在训练中做推理测试</h2>
+<p>训练到一半，怎么知道模型「学成什么样了」？不需要等训完——直接在训练脚本里或另开终端加载 checkpoint 测几轮对话：</p>
+<pre class="codehilite"><code class="language-python">from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=&quot;outputs/checkpoint-100&quot;,   # 加载某个中间 checkpoint
+)
+FastLanguageModel.for_inference(model)
+
+messages = [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;什么是 LoRA？&quot;}]
+inputs = tokenizer.apply_chat_template(messages, tokenize=True, return_tensors=&quot;pt&quot;).to(&quot;cuda&quot;)
+out = model.generate(**inputs, max_new_tokens=128)
+print(tokenizer.decode(out[0]))
+</code></pre>
+
+<p><strong>经验</strong>：训练过程中每隔固定步数做一次推理测试，把回答记下来，能非常直观地看到「模型是怎么一步步变好的」——这是比看 loss 更接近真实的信号。</p>
+<h2 id="_8">保存与恢复：随时能续训</h2>
+<p>长时间训练怕中断？Unsloth / HF Trainer 支持断点续训：</p>
+<ul>
+<li>训练中每 <code>save_steps</code> 会自动存 checkpoint 到 <code>outputs/</code>；</li>
+<li>中断后用 <code>resume_from_checkpoint=True</code> 恢复：</li>
+</ul>
+<pre class="codehilite"><code class="language-python">trainer.train(resume_from_checkpoint=&quot;outputs/checkpoint-500&quot;)
+</code></pre>
+
+<p><strong>实践建议</strong>：
+- 把 <code>save_steps</code> 设小一点（如 100~200），避免白跑；
+- 每训完一版，立即记录「这版数据/参数 + 评测结果」——微调实验管理是工程化的第一步，你会感谢自己的记录。</p>
+<h2 id="_9">常见报错与排查</h2>
+<ul>
+<li><strong>显存 OOM</strong>：把 <code>per_device_train_batch_size</code> 降到 1，<code>max_seq_length</code> 调小，或把 <code>use_gradient_checkpointing</code> 打开（上面代码已开）。</li>
+<li><strong>加载模型失败</strong>：确认模型名拼写正确、模型在 HuggingFace 上确实存在且你已登录/网络可达。</li>
+<li><strong>数据格式报错</strong>：检查你的 JSON 里有没有 <code>text</code> 字段、字段名和 <code>dataset_text_field</code> 是否一致。</li>
+<li><strong>CUDA 版本不匹配</strong>：重装对应 <code>unsloth[cuXXX]</code> 版本。</li>
+<li><strong><code>torch.cuda.OutOfMemoryError</code> 中途炸</strong>：多半是序列长度超了，调短 <code>max_seq_length</code> 或减小 batch。</li>
+</ul>
+<h2 id="_10">小练习</h2>
+<ol>
+<li>在真实环境里（或云 GPU）用 <code>Qwen2.5-7B-Instruct</code> 跑通上面这段代码，记录你显卡的显存占用和训练时长。</li>
+<li>把 <code>r</code> 从 16 改成 4 再跑一次，对比训练速度和 loss 收敛情况有什么不同。</li>
+<li>试着把 <code>target_modules</code> 里的 FFN 层（<code>gate/up/down_proj</code>）去掉，看效果是否明显变差。</li>
+<li>进阶：训练中每隔 50 步做一次推理测试，记录模型回答的「进化过程」，观察它是先学会格式还是先学会内容。</li>
+</ol>
+<p>这一章你让微调「能跑了」。下一章我们把资源账算清楚——<strong>4bit 量化与显存精打细算</strong>。</p></body></html>

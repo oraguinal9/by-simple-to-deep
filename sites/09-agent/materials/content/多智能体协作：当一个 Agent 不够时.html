@@ -1,0 +1,119 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>多智能体协作：当一个 Agent 不够时 | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="agent">多智能体协作：当一个 Agent 不够时</h1>
+<p>单个 Agent 再强也有天花板：让它既当研究员又当程序员还当审稿人，结果常常「样样通、样样松」。现实里的聪明做法是<strong>让多个 Agent 各司其职，像团队一样协作</strong>——这就是多智能体（Multi-Agent）系统。</p>
+<h2 id="agent_1">为什么要多个 Agent</h2>
+<p>想想一个真实团队为什么分工：</p>
+<ol>
+<li><strong>角色专注</strong>：研究员专心搜资料，不会写代码；程序员专心写代码，不被资料淹没。</li>
+<li><strong>上下文隔离</strong>：每个 Agent 的上下文窗口只装自己领域的内容，不会被其他领域的噪声挤爆。</li>
+<li><strong>质量把关</strong>：写完的东西有人审，错误在内部就被拦下。</li>
+<li><strong>并行加速</strong>：互不依赖的任务同时跑，比单 Agent 串行快得多。</li>
+</ol>
+<h2 id="_1">一个经典例子：研究→写作→审查 流水线</h2>
+<p>用「写一篇 AI Agent 市场分析报告」来演示多智能体协作：</p>
+<pre class="codehilite"><code>          ┌─────────┐      ┌─────────┐      ┌─────────┐      ┌─────────┐
+用户 ───&gt; │ 研究员   │ ──&gt; │ 写作者   │ ──&gt; │ 审查员   │ ──&gt; │ 输出    │
+          │Researcher│     │Writer    │     │Reviewer  │     │(报告)   │
+          └─────────┘      └─────────┘      └─────────┘      └─────────┘
+           查资料/摘要       组织成文          挑错/提修改      定稿
+</code></pre>
+
+<ul>
+<li><strong>研究员（Researcher）</strong>：用搜索工具收集 2026 年 AI Agent 市场数据、竞品信息，输出「资料包」。</li>
+<li><strong>写作者（Writer）</strong>：接收资料包，组织成结构清晰的报告初稿。</li>
+<li><strong>审查员（Reviewer）</strong>：检查事实错误、逻辑漏洞、格式问题，返回修改意见。</li>
+<li><strong>写作者（再循环）</strong>：根据意见修改，直到审查通过。</li>
+</ul>
+<p>每一棒之间传递的是<strong>结构化消息</strong>（资料包、草稿、意见），就像团队里的交接文档。</p>
+<h2 id="_2">协作的两种组织方式</h2>
+<h3 id="1-pipeline">1. 流水线（Pipeline）：单向接力</h3>
+<p>上游输出 = 下游输入，顺序执行。适合流程固定的任务（上面的报告流水线就是典型）。优点：结构简单、容易追踪。</p>
+<h3 id="2-blackboard">2. 黑板模式（Blackboard）/ 广播：多向讨论</h3>
+<p>多个 Agent 围绕一份共享的「黑板」（公共状态），谁有补充就往上写，互相辩论、迭代方案。适合开放性问题：</p>
+<pre class="codehilite"><code>【黑板：产品方案 v3】
+- 研究员：竞品 A 主打低价，竞品 B 主打生态。
+- 产品经理：建议主打「本地私有化部署」差异化。
+- 工程师：本地部署在中小客户硬件上跑得动，可行。
+- 安全顾问：注意：本地部署后更新渠道要自建。
+- 产品经理：好，v4 更新定价策略。
+</code></pre>
+
+<p>这种模式更像「头脑风暴会议」，能力上限高，但实现复杂、token 消耗大。</p>
+<h2 id="agent_2">多 Agent 之间怎么「说话」</h2>
+<p>Agent 间的通信方式主要有三种：</p>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>说明</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>直接传参</td>
+<td>上游把结果作为下游的输入（函数调用）</td>
+<td>流水线</td>
+</tr>
+<tr>
+<td>消息队列</td>
+<td>通过队列/总线收发消息，可异步解耦</td>
+<td>大规模系统</td>
+</tr>
+<tr>
+<td>共享状态</td>
+<td>读写同一个状态对象（黑板）</td>
+<td>协作讨论型</td>
+</tr>
+</tbody>
+</table>
+<p>2025 年起，业界还出现了 <strong>A2A（Agent-to-Agent）协议</strong>，目标是让不同厂商的 Agent 能互操作——就像 HTTP 让不同的网站互联。这是多智能体走向标准化的关键一步。</p>
+<h2 id="_3">多智能体的代价（别盲目上）</h2>
+<p>多 Agent 不是越多越好：</p>
+<ul>
+<li><strong>成本暴涨</strong>：每个 Agent 都在调大模型，token 花费成倍增加。</li>
+<li><strong>错误传播</strong>：上游 Agent 的幻觉会顺着流水线放大，审查环节几乎必备。</li>
+<li><strong>协调开销</strong>：Agent 之间沟通本身就有延迟和歧义。</li>
+<li><strong>调试困难</strong>：问题出在哪个环节？比单 Agent 难定位得多。</li>
+</ul>
+<blockquote>
+<p>工程建议：<strong>先从单 Agent + 好提示词开始</strong>，确实忙不过来再拆。拆的时候先从「两个角色」（执行 + 审查）起步，验证有效再逐步加。</p>
+</blockquote>
+<h2 id="_4">主流多智能体框架</h2>
+<ul>
+<li><strong>LangGraph</strong>：把 Agent 建成有向图，节点是 Agent/工具，边是流转逻辑——目前工程界事实标准。</li>
+<li><strong>CrewAI</strong>：以「团队（Crew）+ 角色（Agent）+ 任务（Task）」为核心，上手快。</li>
+<li><strong>AutoGen（微软）</strong>：强调多 Agent 对话式协作。</li>
+<li><strong>OpenClaw / OpenManus</strong>：个人助手型，偏「单主控 + 多工具」。</li>
+</ul>
+<h2 id="_5">本章小结</h2>
+<ul>
+<li>多 Agent 的价值：角色专注、上下文隔离、质量把关、并行加速。</li>
+<li>经典模式：流水线（单向接力）与黑板（共享讨论）。</li>
+<li>通信方式：直接传参 / 消息队列 / 共享状态；A2A 协议推动标准化。</li>
+<li>代价：成本、错误传播、协调开销、调试难——<strong>先单后多，从「执行+审查」起步</strong>。</li>
+<li>主流框架：LangGraph、CrewAI、AutoGen 等。</li>
+</ul>
+<p>下一章，给 Agent 接上「外脑」：<strong>RAG 增强的 Agent</strong>。</p></body></html>

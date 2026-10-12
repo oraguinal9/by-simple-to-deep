@@ -1,0 +1,316 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>文生图工作流：从提示词到一张图 | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="_1">文生图工作流：从提示词到一张图</h1>
+<p>这是本阶最重要的一篇。前面我们装好了 ComfyUI，看到了示例工作流跑出图片——但很多人跑完就卡住了：<strong>我只知道点「Queue」，却不知道电脑到底在干什么。</strong> 这一篇，我们把「从一句提示词到一张图」这条流水线，拆成五个看得见摸得着的环节，每一个环节用什么节点、设置什么参数，全讲清楚。</p>
+<p>目标很具体：<strong>读完这篇，你能自己从零搭出一条文生图工作流，而不是只会加载别人给的模板。</strong></p>
+<h2 id="_2">一、整条流水线：五个环节一个图</h2>
+<p>先把地图铺开。一条最基础、最标准的文生图工作流，包含五个环节，对应五个核心节点：</p>
+<pre class="codehilite"><code class="language-text">加载模型 → 文本编码 → 采样去噪 → 图像解码 → 保存图片
+</code></pre>
+
+<p>对应到 ComfyUI 里的节点，就是：</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>节点名称</th>
+<th>通俗说法</th>
+<th>干了什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1. 加载模型</td>
+<td>Load Checkpoint</td>
+<td>发动引擎</td>
+<td>把第 2 篇讲的 checkpoint 大模型读进显存</td>
+</tr>
+<tr>
+<td>2. 文本编码</td>
+<td>CLIP Text Encode</td>
+<td>翻译提示词</td>
+<td>把文字变成「语义坐标」，供模型理解</td>
+</tr>
+<tr>
+<td>3. 采样去噪</td>
+<td>KSampler</td>
+<td>司机开车</td>
+<td>从噪声出发，走 N 步去噪，得到「潜空间图」</td>
+</tr>
+<tr>
+<td>4. 图像解码</td>
+<td>VAE Decode</td>
+<td>洗出照片</td>
+<td>把潜空间数据还原成肉眼可见的像素图片</td>
+</tr>
+<tr>
+<td>5. 保存图片</td>
+<td>Save Image</td>
+<td>存档</td>
+<td>把图片存到硬盘指定文件夹</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>一句话流程：<strong>引擎（模型）把钥匙（提示词）交给司机（采样器），司机开出一辆「还没洗的底片」（潜空间图），底片在暗房（VAE）里洗出来，才是你看到的照片。</strong></p>
+</blockquote>
+<p>下面我们把每一环讲透，顺便解释途中你一定会碰到的各种参数。</p>
+<h2 id="1load-checkpoint">二、环节 1：加载模型（Load Checkpoint）</h2>
+<p>这个节点只有一个选择动作：在它右上角的下拉框里，选一个你放进 <code>models/checkpoints</code> 目录的模型文件。</p>
+<p>这里必须解释一个新手最容易困惑的现象：<strong>为什么加载一个模型，会同时引出三个输出？</strong> 请看节点右侧，它连出了三个东西——MODEL（模型）、CLIP（文本编码器）、VAE（解码器）。这是因为一个 checkpoint 文件里其实打包了三件套：</p>
+<ul>
+<li><strong>MODEL</strong>：负责「去噪画图」的主力，连给采样器；</li>
+<li><strong>CLIP</strong>：负责「理解文字」，连给文本编码节点；</li>
+<li><strong>VAE</strong>：负责「潜空间→像素」的解码，连给解码节点。</li>
+</ul>
+<blockquote>
+<p>记住：<strong>一个 checkpoint = 模型 + 文本编码器 + 解码器的三合一礼包。</strong> 后面第 8 篇讲「VAE 单独替换」「LoRA 挂载」时，你会再次见到这三个输出——它们是可以分别替换零件的。</p>
+</blockquote>
+<h2 id="2clip-text-encode">三、环节 2：文本编码（CLIP Text Encode）</h2>
+<p>工作流里通常有两个「CLIP Text Encode」节点：一个输入<strong>正向提示词</strong>（positive，想要什么），一个输入<strong>负向提示词</strong>（negative，不想要什么）。两者的输出都连给采样器——采样器会「照着正词走，绕着负词躲」。</p>
+<h3 id="31">3.1 正向提示词怎么写</h3>
+<p>很多人以为提示词是「写一段话」，其实更准确地说，是<strong>列一串名词和形容词</strong>。模型对自然语言的句法不敏感，但对「关键词」非常敏感。一套好用的结构是：</p>
+<pre class="codehilite"><code class="language-text">[主体] + [外貌/细节] + [动作/姿势] + [场景/环境] + [光线/氛围] + [画质/风格词]
+</code></pre>
+
+<p>举个例子：</p>
+<pre class="codehilite"><code class="language-text">一位年轻女子，黑色长发，戴着圆框眼镜，
+坐在窗边看雨，咖啡馆，暖黄色灯光，
+电影感，浅景深，高清，精致细节
+</code></pre>
+
+<p>翻译成「模型视角」，它大概理解成：主体=女子+长发+眼镜，环境=咖啡馆+雨+暖光，风格=电影感+高清。<strong>顺序大体影响权重：靠前的词更重要。</strong></p>
+<p>小技巧：中文提示词能用，但很多模型（尤其海外模型）对<strong>英文关键词</strong>的理解更准。中文+英文混排也完全没问题：</p>
+<pre class="codehilite"><code class="language-text">a cute cat, 戴着草帽, sitting on beach, sunset, 高清
+</code></pre>
+
+<h3 id="32">3.2 负向提示词：给模型踩刹车</h3>
+<p>负向提示词告诉模型「别画什么」。它特别管用，因为扩散模型天生容易犯一些「手滑错误」。通用负向提示词有一串「安全牌」，直接复制即可：</p>
+<pre class="codehilite"><code class="language-text">模糊, 低质量, 畸形手, 多余手指, 水印, 文字, 噪点, 不对称, 变形的脸
+</code></pre>
+
+<p>英文常用版（很多模型对英文负词更敏感）：</p>
+<pre class="codehilite"><code class="language-text">blurry, low quality, deformed hands, extra fingers, watermark, text, noise
+</code></pre>
+
+<blockquote>
+<p>原理简述：负向提示词同样会被编码成语义坐标，但采样器前进时，会<strong>刻意偏离这个坐标</strong>——你写「模糊」，它就不敢往模糊方向走。所以负向词是廉价的「避雷针」。</p>
+</blockquote>
+<h2 id="3-ksampler">四、环节 3：采样器 KSampler —— 参数最多的地方</h2>
+<p>KSampler 是整个工作流的心脏。它有一堆参数，是新手问得最多的区域。我们逐个拆。</p>
+<h3 id="41-steps">4.1 steps（采样步数）</h3>
+<p>去噪要走多少步。就像司机分多少步开到目的地。<strong>步数太少，图糊；步数太多，浪费时间甚至「过冲」出噪点。</strong></p>
+<ul>
+<li>SD 1.5：20~30 步就够；</li>
+<li>SDXL：25~40 步；</li>
+<li>再往上加步数收益趋近于零。</li>
+</ul>
+<blockquote>
+<p>黄金法则：<strong>步数先固定一个常用值（如 30），不要一开始就乱调。</strong></p>
+</blockquote>
+<h3 id="42-cfg">4.2 cfg（提示词强度）</h3>
+<p>CFG 控制「模型有多听话」：数字越大，越严格照着提示词走；数字越小，越自由发挥。区间与效果：</p>
+<table>
+<thead>
+<tr>
+<th>CFG 值</th>
+<th>效果</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3~5</td>
+<td>自由、有艺术感，但可能跑题</td>
+<td>SDXL 常用区间</td>
+</tr>
+<tr>
+<td>6~8</td>
+<td>平衡点</td>
+<td><strong>SD 1.5 常用 7，SDXL 常用 5~6</strong></td>
+</tr>
+<tr>
+<td>9~15</td>
+<td>很听话，但色彩可能过浓发腻</td>
+<td>应急使用</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>提示：<strong>CFG 和 steps 是两个独立的旋钮</strong>——steps 管「精修多少轮」，CFG 管「多听提示词的话」。新手最容易把它们混为一谈。</p>
+</blockquote>
+<h3 id="43-seed">4.3 seed（种子）</h3>
+<p>种子是随机数发生器的一个「编号」。<strong>同一种子 + 同样参数 = 一模一样的图。</strong> 这有两个大用途：</p>
+<ul>
+<li><strong>复现</strong>：看到一张喜欢的图，记录它的种子，改日原样再出；</li>
+<li><strong>微调</strong>：把种子 +1、+2，图会「长得像但不同」，适合在同一个构想上「撒网」批量尝试（第 9 篇会用到）。</li>
+</ul>
+<p>想每次出完全不同的图，把种子设成 <strong>random（随机）</strong> 或留空即可。</p>
+<h3 id="44-width-height">4.4 尺寸（width / height）</h3>
+<p>出图宽高，单位是像素。<strong>必须遵守你所用模型的「原生分辨率」</strong>：</p>
+<ul>
+<li>SD 1.5 原生 512×512，出 768×768 就开始容易崩；</li>
+<li>SDXL 原生 1024×1024，别用 512（太小会让它「画不好」）。</li>
+</ul>
+<blockquote>
+<p>如果你想要更长的图（比如 1536×768 横幅），先用原生尺寸出一张，再在第 6 篇讲的「放大」环节放大，而不是直接改尺寸硬撑——直接改尺寸是「畸形手」的高发原因之一。</p>
+</blockquote>
+<h3 id="45-sampler_name-scheduler">4.5 sampler_name（采样器名）与 scheduler（调度器）</h3>
+<p>采样器我们第 2 篇说过，是「司机开车方式」。调度器是配套的「换挡逻辑」。新手直接照抄这两个组合：</p>
+<pre class="codehilite"><code class="language-text">sampler_name: euler_ancestral   （或 dpmpp_2m）
+scheduler:    karras             （或 normal）
+</code></pre>
+
+<p>不同模型对采样器有微妙偏好，但上面两组在绝大多数模型上都「安全」。<strong>等你有经验了，可以玩味 DPM++ 2M、UniPC、LCM 等不同采样器的区别，现在不用。</strong></p>
+<h3 id="46-denoise">4.6 denoise（降噪强度）</h3>
+<p>这个参数只有图生图才会用到（第 5 篇专讲），文生图时固定为 <strong>1.0</strong>（表示从纯噪声开始）。先认识它的名字就好。</p>
+<h2 id="4-5vae">五、环节 4 与 5：VAE 解码与保存</h2>
+<p>采样器输出的并不是图片，而是一堆「潜空间（latent）」数据——你可以理解成「压缩过的图像底片」：肉眼看不出来，但信息都在。<strong>VAE（变分自编码器）解码节点负责把底片洗成真正的图片。</strong></p>
+<p>之后 Save Image 节点把图片写进硬盘。默认保存目录：</p>
+<pre class="codehilite"><code class="language-text">ComfyUI/output/
+</code></pre>
+
+<p>每次生成的图片和参数信息一起存在这里，出图后直接去这个文件夹里找。</p>
+<blockquote>
+<p>小贴士：也可以把 VAE Decode 的输出用「预览节点」（Preview Image）看一眼，确认满意再保存，省得硬盘里堆一堆废图。</p>
+</blockquote>
+<h2 id="json">六、完整工作流：从零搭一条（含 JSON 思路）</h2>
+<p>现在我们把这些节点串起来。在 ComfyUI 画布上依次做：</p>
+<ol>
+<li><strong>双击空白处</strong>，搜索 <code>Load Checkpoint</code>，放置；选好模型；</li>
+<li>搜索 <code>CLIP Text Encode</code>，放<strong>两个</strong>；一个写正向，一个写负向；把它们的 CLIP 输入端都连到加载模型节点的 CLIP 输出；</li>
+<li>搜索 <code>KSampler</code>，放置；把它的 model 端连到加载模型的 MODEL 输出，positive 端连正向编码节点输出，negative 端连负向编码节点输出；</li>
+<li>搜索 <code>Empty Latent Image</code>（空白潜空间，用来给定画布尺寸），放置；设置宽高（SDXL 就设 1024×1024），把它连到 KSampler 的 latent_image 输入；</li>
+<li>搜索 <code>VAE Decode</code>，放置；它的 samples 端连 KSampler 的 LATENT 输出，vae 端连加载模型的 VAE 输出；</li>
+<li>搜索 <code>Save Image</code>，放置；它的 images 端连 VAE Decode 的 IMAGE 输出。</li>
+</ol>
+<p>拼完，你的画布上就是一张「首尾相连」的图。检查每条线都连对了，点 <strong>Queue</strong>，出图。</p>
+<p>如果别人给了你一个 <code>.json</code> 工作流文件，可以直接拖进浏览器加载。JSON 文件内部记录的其实就是「哪些节点、各自参数、怎样连线」——<strong>你不用会读 JSON，但你可以知道：工作流文件就是一串「乐高搭建说明书」。</strong> 类似这样的一段说明文字可以手工写出来给朋友看：</p>
+<pre class="codehilite"><code class="language-text">工作流说明（示例）：
+1. Load Checkpoint：模型 = sd_xl_base_1.0.safetensors
+2. 正向：a red apple on wooden table, studio lighting
+3. 负向：blurry, low quality, watermark
+4. Empty Latent：1024 x 1024
+5. KSampler：steps=30, cfg=5, sampler=euler_ancestral, scheduler=karras, seed=42
+6. VAE Decode + Save Image
+</code></pre>
+
+<h2 id="_3">七、跑第一张图 + 常见报错</h2>
+<p>按照上面步骤跑一次。如果出了问题，对照下表排查：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>原因</th>
+<th>解决</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>生成了纯黑图</td>
+<td>模型没配对 VAE</td>
+<td>确认 VAE 连的是 checkpoint 的 VAE 输出；或换 VAE</td>
+</tr>
+<tr>
+<td>节点报红：not enough memory</td>
+<td>显存不足</td>
+<td>调小分辨率、降低 steps、用 SD 1.5、看第 8 篇</td>
+</tr>
+<tr>
+<td>提示词没生效</td>
+<td>CFG 太低或正向写得太抽象</td>
+<td>CFG 提到 7；把关键词写具体</td>
+</tr>
+<tr>
+<td>图很糊</td>
+<td>步数太少或分辨率不合原生</td>
+<td>步数调到 30；分辨率调到原生值</td>
+</tr>
+<tr>
+<td>人像的手畸形</td>
+<td>模型对「手」天生弱 + 分辨率乱撑</td>
+<td>负向词加「畸形手」；用原生分辨率；后续可重绘修复（第 6 篇）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>特别提醒「黑图」问题：黑图 90% 是 <strong>VAE 没连好或模型文件损坏</strong>。先把 Load Checkpoint 的 VAE 输出正确接到 VAE Decode，再检查模型是否下载完整（文件大小与页面标注一致）。</p>
+</blockquote>
+<h2 id="_4">八、进阶提示词清单（可收藏）</h2>
+<p>最后送你一份「可以直接抄」的提示词增强清单，方便你第一次就能出好看的图：</p>
+<pre class="codehilite"><code class="language-text">画质类（放最后）：masterpiece, best quality, highly detailed, 8k, sharp focus
+光影类：golden hour, soft lighting, cinematic lighting, volumetric light
+镜头类：close-up, wide angle, shallow depth of field, bokeh
+氛围类：serene, mysterious, cozy, futuristic, vintage
+风格类：anime style, oil painting, watercolor, photorealistic, pixel art
+</code></pre>
+
+<p>举例——把「女子」升级成：</p>
+<pre class="codehilite"><code class="language-text">a woman, black long hair, round glasses,
+sitting by window, raining outside, cozy cafe,
+warm light, cinematic, shallow depth of field,
+masterpiece, best quality, highly detailed
+</code></pre>
+
+<h2 id="_5">九、提示词进阶：权重与一次多张</h2>
+<h3 id="91">9.1 给关键词「加权重」</h3>
+<p>不是所有词都同样重要。你可以用语法调整权重，让模型「更重视」某个词。ComfyUI 与 WebUI 通用的小括号语法：</p>
+<pre class="codehilite"><code class="language-text">(重要内容:1.3)     ← 放大 1.3 倍注意力
+(次要内容:0.8)     ← 降到 0.8 倍注意力
+(内容)             ← 只加小括号约 1.1 倍
+((内容))           ← 双重约 1.21 倍
+</code></pre>
+
+<p>举例，想让「红裙」更突出：</p>
+<pre class="codehilite"><code class="language-text">一位女士, (红色长裙:1.3), 站在海边, 黄昏, 电影感, 高清
+</code></pre>
+
+<blockquote>
+<p>注意别滥用：一堆 <code>:1.5</code> 堆上去，模型容易「过冲」，画面会发腻、糊。<strong>权重在 0.8~1.3 之间浮动最安全。</strong></p>
+</blockquote>
+<h3 id="92-batch-size">9.2 一次出多张：Batch Size</h3>
+<p>KSampler 上方如果接入一个「批量尺寸」参数（batch_size 设为 4），一次 Queue 会同时出 4 张同参数的图——比连按四次按钮更高效，也是第 9 篇「批量生成」的基础。注意它和「批量种子」的区别：批量尺寸是「同一颗种子出一组」，批量种子是「多颗种子各出一张」。</p>
+<h3 id="93">9.3 出图前的自检清单</h3>
+<p>每换一个模型、或遇到效果不佳，按清单自查一遍：</p>
+<pre class="codehilite"><code class="language-text">□ 尺寸是不是模型的「原生分辨率」？
+□ 正向词里有没有明确主体、场景、画质词？
+□ 负向词里有没有「畸形手、模糊、水印」？
+□ steps 是否在 20~40？cfg 是否在 5~7？
+□ 采样器是不是 euler_ancestral / dpmpp_2m？
+</code></pre>
+
+<p>五条全过还是丑，多半是模型风格问题——换模型，而不是继续调参。</p>
+<h2 id="_6">十、本篇小结</h2>
+<ul>
+<li>文生图流水线 = <strong>加载模型 → 文本编码（正/负提示词）→ 采样去噪 → VAE 解码 → 保存</strong>；</li>
+<li>checkpoint 是三合一套装：<strong>MODEL + CLIP + VAE</strong>；</li>
+<li>正向提示词按「主体→细节→场景→光→画质」组织，负向提示词是「避雷针」，通用安全词可直接抄；</li>
+<li>KSampler 关键参数：<strong>steps（20~40）、CFG（5~7）、seed（复现/微调）、尺寸（用原生分辨率）、采样器（euler_ancestral + karras 起步）</strong>；</li>
+<li>黑图查 VAE，畸形手查负向词和尺寸；</li>
+<li>工作流可保存为 <code>.json</code> 文件分享，也可以手写文字说明复现。</li>
+</ul>
+<p>你已经有能力独立拼出第一条文生图流水线了。下一篇，我们给这条流水线加装「方向盘」和「贴纸」——图生图与 ControlNet，让你从「出图」升级到「出我要的图」。</p>
+<blockquote>
+<p>相关篇章：参数背后是 SD 版本差异，见 <a href="content/本地图像生成基础：SD 与 SDXL.html">本地图像生成基础：SD 与 SDXL</a>；不懂节点操作回看 <a href="content/ComfyUI 入门：节点式工作流.html">ComfyUI 入门：节点式工作流</a>。</p>
+</blockquote></body></html>

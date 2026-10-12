@@ -1,0 +1,189 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第十章 动手实践与进阶路线 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="_1">第十章 动手实践与进阶路线</h1>
+<p>前面九章，我们把 RAG 与 Agent 的来龙去脉讲透了。最后一章，做两件事：①给你<strong>能看懂的最小代码骨架</strong>，把抽象流程落到代码层面；②给出<strong>全系列进阶路线</strong>，告诉你学完本阶后，下一站去哪。</p>
+<blockquote>
+<p>说明：下面代码是<strong>教学示意</strong>，重点在"结构对不对"，不绑定具体库版本。真要跑，请按你选用的 embedding/向量库/模型 SDK 的当前文档替换细节。</p>
+</blockquote>
+<h2 id="rag">一、最小 RAG：五步骨架</h2>
+<p>一个能跑的 RAG，核心就五步。下面用伪代码把骨架画出来：</p>
+<pre class="codehilite"><code class="language-python"># ---- 第 1 步：准备资料（切块）----
+docs = load_pdf(&quot;公司手册.pdf&quot;)
+chunks = chunk_text(docs, size=500, overlap=50)   # 第二章
+
+# ---- 第 2 步：每块变向量，存入向量库 ----
+embedder = EmbeddingModel(&quot;bge-zh&quot;)               # 第三章
+vectors = [embedder.encode(c.text) for c in chunks]
+vector_db.add(vectors, chunks)                    # 第四章
+
+# ---- 第 3 步：用户提问时，检索 top-k ----
+question = &quot;出差打车能报销吗？&quot;
+q_vec = embedder.encode(question)
+top_chunks = vector_db.search(q_vec, top_k=3)      # 向量检索 + 排序
+
+# ---- 第 4 步：拼装提示词 ----
+prompt = f&quot;&quot;&quot;
+你是严谨的报销助手。只根据【资料】回答，没有就明说&quot;查不到&quot;，禁止编造。
+【资料】
+{format_with_refs(top_chunks)}    # 每块带 [编号] 和出处  第五章
+【问题】{question}
+&quot;&quot;&quot;
+
+# ---- 第 5 步：生成回答 ----
+answer = llm.generate(prompt)
+print(answer)
+</code></pre>
+
+<p><strong>这就是 RAG 的全部骨架</strong>。真实工程只是在这五步上做厚：切块更智能、检索加 rerank/混合（第六章）、提示词更严谨（第五章）、评估常态化（第六章）。</p>
+<h2 id="agentreact">二、最小 Agent：ReAct 循环骨架</h2>
+<p>Agent 的核心是一个"思考-行动-观察"的<strong>循环</strong>。示意如下：</p>
+<pre class="codehilite"><code class="language-python">tools = {
+    &quot;get_weather&quot;: get_weather_fn,     # 函数说明见第八章
+    &quot;search_products&quot;: search_products_fn,
+}
+
+history = []                           # 短期记忆（第九章）
+user_goal = &quot;北京今天适合穿啥？&quot;
+
+for step in range(MAX_STEPS):          # 防死循环：步数上限
+    # 把目标 + 历史 + 工具清单 交给模型
+    resp = llm.react(goal=user_goal, history=history, tools=tools)
+    if resp.has_final_answer:          # 模型判断事办完了
+        print(resp.answer); break
+
+    # 模型给出一个 Action（Function Calling）
+    action = resp.action               # 如 get_weather(city=&quot;北京&quot;)
+    if action.name not in tools:       # 防幻觉函数名
+        history.append(&quot;错误：函数不存在&quot;); continue
+    obs = tools[action.name](**action.args)   # 程序真正执行
+    history.append(Thought=resp.thought, Action=action, Observation=obs)
+
+# 循环结束后，history 里完整记录了&quot;它怎么一步步办成的&quot;
+</code></pre>
+
+<p>看懂这两段，你就掌握了 RAG 与 Agent 的<strong>工程骨架</strong>。剩下的都是在这上面"加厚"（更聪明的检索、更稳的工具、更好的规划）。</p>
+<h2 id="rag-agent">三、RAG × Agent 联合调试清单</h2>
+<p>遇到回答不好，按顺序查（融合前两章）：</p>
+<ol>
+<li><strong>资料里有没有答案？</strong>（没有就去补库）</li>
+<li><strong>检索召回了吗？</strong> 打印 top-k，看正确答案块在不在、排第几（加 rerank/混合检索）。</li>
+<li><strong>切块合理吗？</strong> 答案被切散？调大小/重叠。</li>
+<li><strong>Embedding 适合中文吗？</strong> 换中文优调模型。</li>
+<li><strong>提示词约束了吗？</strong> "只依据资料、没有就说查不到"。</li>
+<li><strong>Agent 卡死/循环？</strong> 加步数上限、校验函数名、失败回填。</li>
+<li><strong>工具清单写清了吗？</strong> 每个工具的 description/参数要准确。</li>
+</ol>
+<h2 id="_2">四、全系列进阶路线（由简入深）</h2>
+<p>你正在走的，是一套"由简入深"的 AI 学习阶梯。本阶（L4 RAG 与 Agent）之前之后分别是：</p>
+<table>
+<thead>
+<tr>
+<th>阶</th>
+<th>主题</th>
+<th>站点</th>
+<th>状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L1</td>
+<td>AI 入门 · Prompt</td>
+<td>ai101.zbjh.top</td>
+<td>✅ 已上线</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>大模型原理</td>
+<td>llm.zbjh.top</td>
+<td>✅ 已上线</td>
+</tr>
+<tr>
+<td><strong>L3</strong></td>
+<td><strong>深度学习基础</strong></td>
+<td><strong>dl.zbjh.top</strong></td>
+<td>✅ 已上线</td>
+</tr>
+<tr>
+<td><strong>L4</strong></td>
+<td><strong>RAG 与 Agent</strong></td>
+<td><strong>rag.zbjh.top</strong></td>
+<td>✅ 本阶（你在这）</td>
+</tr>
+<tr>
+<td>L5</td>
+<td>微调与部署</td>
+<td>finetune.zbjh.top</td>
+<td>待建</td>
+</tr>
+<tr>
+<td>L6</td>
+<td>RLHF 对齐</td>
+<td>rlhf.zbjh.top</td>
+<td>待建</td>
+</tr>
+<tr>
+<td>L7</td>
+<td>扩散 · AIGC</td>
+<td>aigc.zbjh.top</td>
+<td>待建</td>
+</tr>
+<tr>
+<td>L8</td>
+<td>多模态 · MCP</td>
+<td>mcp.zbjh.top</td>
+<td>待建</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议的下一步</strong>：
+- 想让模型<strong>掌握你们自己的知识</strong> → 回头把 L4 的 RAG 真落地到你的资料；
+- 想让模型<strong>学会新技能/新风格</strong>（而不只是查资料）→ 去 <strong>L5 微调与部署</strong>；
+- 想让模型<strong>更听话、更安全、更符合人类偏好</strong> → 去 <strong>L6 RLHF 对齐</strong>；
+- 想玩<strong>画图/视频生成</strong> → 去 <strong>L7 扩散与 AIGC</strong>；
+- 想让模型<strong>连接真实软件生态（接各种工具/服务）</strong> → 去 <strong>L8 多模态与 MCP</strong>。</p>
+<blockquote>
+<p>一句话路线感：<strong>L1~L2 懂 AI 是什么 → L3 懂模型怎么学 → L4 让模型有知识会做事 → L5~L6 让模型更专属更对齐 → L7~L8 让模型会创作会连接世界。</strong></p>
+</blockquote>
+<h2 id="_3">五、给动手派的三条建议</h2>
+<ol>
+<li><strong>先搭最小可用，再优化</strong>。别一上来就上 rerank、混合检索、多 Agent。先把"五步 RAG"和"ReAct 循环"跑通，再按第六章清单逐个加料。</li>
+<li><strong>检索侧优先于生成侧</strong>。80% 的问题在检索，先修"找得准"，再纠结"答得美"。</li>
+<li><strong>务必保留日志</strong>。把每次的 top-k、Thought/Action/Observation 存下来，这是你调试和向别人解释"它为什么这么干"的唯一依据。</li>
+</ol>
+<h2 id="_4">六、本章小结</h2>
+<ul>
+<li>最小 RAG = 切块 → Embedding → 向量检索 top-k → 拼提示词 → 生成（五步骨架）。</li>
+<li>最小 Agent = "思考→行动→观察"的 ReAct 循环 + 工具清单 + 步数上限/函数名校验。</li>
+<li>调试按"检索侧优先"的清单逐层排查。</li>
+<li>全系列 L1→L8 由简入深：本阶 L4 是"让模型有知识、会做事"的关键一跃。</li>
+<li>学习心法：先最小可用、检索优先、留好日志。</li>
+</ul>
+<h2 id="_5">七、小练习</h2>
+<ol>
+<li>把"最小 RAG 五步"对应回前面章节：第 3 步"检索 top-k"主要讲自哪几章？第 4 步"拼提示词"对应第几章？</li>
+<li>在"最小 Agent 循环"里，<code>if action.name not in tools</code> 这行在防什么风险？（提示：第九章）</li>
+<li>你打算先用 RAG 接哪份自己的资料？用本章五步骨架，在纸上写出第一步"切块"会对这份资料产生什么结果。</li>
+</ol>
+<hr />
+<p><em>恭喜你走完 L4（RAG 与 Agent）。现在你不仅知道 RAG 怎么让模型"开卷"，也知道 Agent 怎么让模型"动手"。下一站，去 L5 看模型如何"学会新本事"——微调与部署。</em></p></body></html>

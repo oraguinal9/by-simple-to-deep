@@ -1,0 +1,306 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>知识库评测与调优 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="_1">知识库评测与调优</h1>
+<p>第 8 篇我们跑通了 RAGFlow，能问答了。但"能回答"和"答得好"之间隔着一条鸿沟。你怎么知道这个知识库好不好？哪里差？该往哪个方向调？凭感觉乱调是调不出好系统的——本篇文章就给你一套<strong>科学的评测方法</strong>和<strong>有依据的调优流程</strong>。</p>
+<h2 id="91">9.1 先立一个观念：评测先行</h2>
+<p>很多团队的做法是"先上线，用着再说，有问题再修"。这在知识库场景是灾难：你根本不知道"用着怎么样"，因为没有客观标尺；用户说"答得不对"，你也说不清是检索错、分块错还是模型错。</p>
+<p>正确的做法是<strong>评测先行</strong>：建一个小而精的"评测集"，每次改动都用同一套题目打分，用分数说话。就像考试一样——<strong>没有考试，你永远不知道学生到底学会了没有</strong>。</p>
+<p>评测集怎么建？三条原则：</p>
+<ul>
+<li><strong>用真实问题</strong>：从用户日志、客服记录里收集最常被问的 50–100 个问题，这才是"考纲"。</li>
+<li><strong>标准答案 + 来源</strong>：每个问题人工标注：标准答案是什么、依据在哪个文档哪一页。</li>
+<li><strong>难题要覆盖</strong>：混入一些刁钻问题（简称、编号、跨文档、库里没有答案的），别全放简单题。</li>
+</ul>
+<pre class="codehilite"><code class="language-text">评测集示例（CSV 或 JSON）：
+问题：&quot;年假能休几天？&quot;
+期望答案要点：按工龄 5–15 天
+依据文档：员工手册_2024.pdf 第 12 页
+难度：简单
+
+问题：&quot;HT-2024-008 归档了吗？&quot;
+期望答案要点：已归档，日期 2024-06-15
+依据文档：合同台账.xlsx
+难度：中（考编号检索）
+
+问题：&quot;食堂几点开门？&quot;
+期望答案要点：知识库无此内容，应回答&quot;未找到&quot;
+依据文档：无
+难度：难（考&quot;承认不知道&quot;）
+</code></pre>
+
+<h2 id="92-recallk-mrr">9.2 召回质量怎么评：Recall@K 与 MRR</h2>
+<p>知识库好不好，第一层看<strong>检索环节</strong>：该捞的块，捞到了吗？最常用的两个指标：</p>
+<p><strong>Recall@K（前 K 个结果中的召回率）</strong>：一个问题，系统返回前 K 个块，里面包含正确块的比例。比如 <code>Recall@5 = 0.8</code>，意思是 80% 的问题，正确答案在前 5 个结果里。</p>
+<p><strong>MRR（平均倒数排名）</strong>：看正确答案排得有多靠前。如果正确答案排第 1 位，得 1 分；排第 3 位，得 1/3 分；排第 10 位，得 1/10 分。把所有问题的得分取平均。<strong>它比 Recall 更严格</strong>——不只是"有没有捞到"，还要求"排得够前"。</p>
+<pre class="codehilite"><code class="language-text">例：三个问题，正确答案的实际排名分别是 1、3、50
+MRR = (1/1 + 1/3 + 1/50) / 3 ≈ (1 + 0.333 + 0.02) / 3 ≈ 0.451
+理想值是 1.0，企业级建议：MRR 至少做到 0.7 以上
+</code></pre>
+
+<p>这两个指标都在<strong>检索阶段</strong>（大模型介入之前）就能算，用现成的评测库（如 <code>Ragas</code>、<code>LlamaIndex</code> 的评估工具）或自己写几十行脚本都能算。</p>
+<h2 id="93">9.3 生成质量怎么评：忠实度与相关性</h2>
+<p>检索捞得好，不代表答案就好。第二层要看<strong>大模型生成的回答</strong>，核心两个维度：</p>
+<p><strong>忠实度（Faithfulness）</strong>：答案里的每一句，是不是都能在参考资料里找到依据？有没有"脑补"？这是 RAG 的命门——<strong>防止幻觉</strong>。比如资料说"年假 5–15 天"，模型却答"年假 30 天"，忠实度就崩了。</p>
+<p><strong>相关性（Relevance）</strong>：答案是不是真的回答了用户的问题？答非所问（用户问年假，它讲年假审批流程）就是相关性差。</p>
+<p>这两个指标的计算方式有点特别：<strong>让另一个大模型当"考官"（LLM-as-judge）</strong>。这也是业界当前的标准做法。流程是：把"参考答案 + 系统回答"交给评判模型，让它按打分规则逐项评分。</p>
+<pre class="codehilite"><code class="language-python">judge_prompt = &quot;&quot;&quot;你是严格的评测员。请判断模型回答的忠实度。
+
+参考资料：{reference_context}
+模型回答：{model_answer}
+
+判断规则：
+- 忠实度：回答的每一句是否都能在参考资料中找到依据？
+  每发现一句无依据的表述，扣 1 分。
+- 输出格式：忠实度得分（0-1）+ 一句评语&quot;&quot;&quot;
+
+score = judge_llm(judge_prompt)   # 用另一个大模型当考官
+print(score)
+</code></pre>
+
+<blockquote>
+<p>呼应 L16 的思路：<strong>LLM-as-judge（大模型当裁判）</strong> 虽然不如人工严谨，但胜在快、便宜、可重复，特别适合在调优迭代中反复跑。用评分模型（如 GPT-4o、DeepSeek 等强模型）评判生产模型（小模型）的产出，是当下主流实践。</p>
+</blockquote>
+<h2 id="94">9.4 人工评测：不要完全交给机器</h2>
+<p>机器评测快，但有些东西机器看不出来。建议保留一轮<strong>人工抽检</strong>，覆盖机器测不了的维度：</p>
+<ul>
+<li><strong>事实正确性</strong>：评委是懂业务的人，能判断"这家公司的年假规则到底是几天"——机器判不出来。</li>
+<li><strong>引用是否对得上</strong>：标注的"第 12 页"是否真能定位到那句话。</li>
+<li><strong>语气与合规</strong>：有没有不适合对外表达的表述。</li>
+<li><strong>用户体验</strong>：回答是不是啰嗦、晦涩。</li>
+</ul>
+<p>一个可行的分工：<strong>每天/每次大改动后，抽 20 条问答做人工抽检</strong>；日常迭代用机器评分全量跑。人机结合，既不累又能守住质量底线。</p>
+<h2 id="95">9.5 常见问题诊断表</h2>
+<p>评测发现了问题，怎么定位是哪一环的锅？一张诊断表帮你"对号入座"：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>最可能的原因</th>
+<th>排查动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>答非所问（内容不相关）</td>
+<td>检索召回太差</td>
+<td>看检索日志：召回的块里有没有正确块？没有 → 查分块/Embedding</td>
+</tr>
+<tr>
+<td>检索到正确块但答错</td>
+<td>生成环节问题</td>
+<td>看上下文是否完整拼进提示词；换更强的模型；优化提示词</td>
+</tr>
+<tr>
+<td>产生幻觉（编造内容）</td>
+<td>提示词约束不足 / 上下文不充分</td>
+<td>强化"只依据资料"指令；增加检索块；加忠实度校验</td>
+</tr>
+<tr>
+<td>老找不到资料</td>
+<td>分块太大或太碎 / 块没进库</td>
+<td>检查解析结果、分块参数（第 3 篇）；看有没有块在解析时丢了</td>
+</tr>
+<tr>
+<td>编号、型号检索失败</td>
+<td>只用了向量检索，没有 BM25</td>
+<td>确认是否开启混合检索（第 5 篇）</td>
+</tr>
+<tr>
+<td>相似问题答案不稳定</td>
+<td>检索结果波动 / 模型温度过高</td>
+<td>检查召回稳定性；调低模型 temperature 参数</td>
+</tr>
+<tr>
+<td>回答引用点不进去</td>
+<td>元数据缺失</td>
+<td>回查入库时的元数据是否带文档名和页码（第 2 篇）</td>
+</tr>
+</tbody>
+</table>
+<p>记住这个排查顺序：<strong>先查"检索到的块对不对"，再查"提示词和模型"</strong>。因为 80% 的 RAG 问题出在检索环节，而不是模型环节。</p>
+<h2 id="96">9.6 调优清单：从低成本到高成本</h2>
+<p>发现问题后，按"从便宜到贵"的顺序尝试调优——别一上来就换模型，那是最后的手段。</p>
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>调优动作</th>
+<th>成本</th>
+<th>针对问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>检查并清理文档解析结果</td>
+<td>低</td>
+<td>一切质量问题的根源</td>
+</tr>
+<tr>
+<td>2</td>
+<td>调整分块大小与重叠（第 3 篇）</td>
+<td>低</td>
+<td>检索召回差、块太碎</td>
+</tr>
+<tr>
+<td>3</td>
+<td>加自定义分词词典（第 5 篇）</td>
+<td>低</td>
+<td>行业黑话检索不到</td>
+</tr>
+<tr>
+<td>4</td>
+<td>开启/调整混合检索权重</td>
+<td>低</td>
+<td>编号、专名检索失败</td>
+</tr>
+<tr>
+<td>5</td>
+<td>加 rerank 或换更强的 rerank 模型</td>
+<td>中</td>
+<td>排序不精、答非所问</td>
+</tr>
+<tr>
+<td>6</td>
+<td>优化 Prompt 模板（第 7 篇）</td>
+<td>低</td>
+<td>幻觉、格式差、引用乱</td>
+</tr>
+<tr>
+<td>7</td>
+<td>换更强/更合适的大模型</td>
+<td>中-高</td>
+<td>生成质量整体上不去</td>
+</tr>
+<tr>
+<td>8</td>
+<td>换更好的 Embedding 模型（第 4 篇）</td>
+<td>中</td>
+<td>语义检索普遍不准</td>
+</tr>
+<tr>
+<td>9</td>
+<td>优化数据本身（补文档、改结构）</td>
+<td>高</td>
+<td>库内容缺失、老旧错误</td>
+</tr>
+</tbody>
+</table>
+<p><strong>每次只改一个变量，改完重跑评测集，对比分数</strong>。一次改三个参数，出问题了你都不知道是哪步调的。这是调优的铁律。</p>
+<h2 id="97">9.7 一个完整的调优迭代示例</h2>
+<p>把整套方法论走一遍，你会更有体感。假设系统上线后用户普遍反映"问编号查不到"：</p>
+<pre class="codehilite"><code class="language-text">第 1 轮评测：MRR = 0.52，编号类问题 Recall@5 仅 0.3
+诊断：日志显示系统只用了向量检索，无关键词路
+动作：开启混合检索（BM25 + RRF 融合），重跑评测
+
+第 2 轮评测：编号问题 Recall@5 升到 0.75，但答案里引用错页
+诊断：块里的页码元数据在解析时丢了
+动作：修解析脚本，补齐页码元数据；重跑
+
+第 3 轮评测：MRR = 0.71，编号问题达标；剩余问题集中在口语化提问
+动作：加问题改写模块（第 7 篇），重跑
+
+第 4 轮评测：整体 MRR = 0.76，达标；人工抽检 20 条通过
+结论：本轮调优结束，沉淀文档，记入评测基线
+</code></pre>
+
+<p>每次改动都有分数记录，这就是"数据驱动的调优"，而不是"玄学调优"。</p>
+<h2 id="98">9.8 评测工具怎么选</h2>
+<p>评测不必从零造轮子，开源社区有现成工具。三档选择按需取用：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>特点</th>
+<th>适合场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>自写脚本</td>
+<td>灵活、可定制，几十行搞定</td>
+<td>想完全掌控、规模不大</td>
+</tr>
+<tr>
+<td><code>Ragas</code></td>
+<td>开源 RAG 评测框架，内置忠实度/相关性等指标</td>
+<td>想用现成指标快速出报告</td>
+</tr>
+<tr>
+<td><code>LangSmith</code> / <code>Langfuse</code></td>
+<td>带 UI 的评测与追踪平台</td>
+<td>团队协作、要长期沉淀评测资产</td>
+</tr>
+</tbody>
+</table>
+<p>以 <code>Ragas</code> 为例，把评测集和回答喂进去，就能自动算出各项分数：</p>
+<pre class="codehilite"><code class="language-python">from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_precision
+from datasets import Dataset
+
+# 评测集：问题、标准答案、系统回答、检索到的上下文
+data = {
+    &quot;question&quot;: [&quot;年假能休几天？&quot;],
+    &quot;answer&quot;: [&quot;满 1 年 5 天，满 5 年 15 天。&quot;],
+    &quot;ground_truth&quot;: [&quot;按工龄 5-15 天&quot;],
+    &quot;contexts&quot;: [[&quot;员工手册第12页：满1年5天……&quot;]],
+}
+dataset = Dataset.from_dict(data)
+result = evaluate(dataset, metrics=[faithfulness, answer_relevancy, context_precision])
+print(result)
+</code></pre>
+
+<p>建议的分工：<strong>开发期用自写脚本或 Ragas 快速迭代，上线后用带 UI 的平台长期积累</strong>。别在评测工具上花太多时间纠结——工具是手段，评测集才是核心资产。</p>
+<h2 id="99">9.9 上线后的持续监控：三个看板指标</h2>
+<p>评测集是"考试"，上线后还要有"体检"——用线上真实数据持续监控。三个值得每天看的指标：</p>
+<p><strong>指标一：无答案率（No-hit Rate）。</strong> 用户的问题里，有多大比例触发了"检索不到"兜底？过高（比如超过 30%）说明知识库覆盖不足，要么补文档，要么提示词把问题判定过严了。</p>
+<p><strong>指标二：负反馈率。</strong> 在问答界面加一个"这个回答有用吗？👍/👎"按钮，每天统计差评比例和差评问题。<strong>差评是最好的评测集种子</strong>——把差评问题定期加入评测集，就等于永远在考最难的题。</p>
+<p><strong>指标三：检索点击率 / 引用打开率。</strong> 用户愿不愿意点开引用去看原文？如果引用展示出来了却没人点，可能有两种情况：答案确实好到不用核对（好兆头），或者引用根本是摆设、点开也没用（要排查）。结合负反馈一起看更准。</p>
+<pre class="codehilite"><code class="language-text">一个简单的监控看板（每周更新）：
+日期 | 总问答数 | 无答案率 | 负反馈率 | MRR | 主要问题TOP5
+08/04 |  1,204   |  18%     |   6%     | 0.73 | 编号查询仍弱…
+08/11 |  1,388   |  15%     |   5%     | 0.76 | 新制度未入库…
+</code></pre>
+
+<p>有了这张表，每周的调优会就变成"对着数字改系统"，而不是"凭感觉修修补补"。</p>
+<h2 id="910-ab">9.10 A/B 测试：改参数要"双盲"</h2>
+<p>改一个参数（比如分块大小）前后，怎么确认是它带来的提升，而不是运气？用 <strong>A/B 对比</strong>：同一套评测集，分别用"旧配置"和"新配置"各跑一遍，对比分数。</p>
+<pre class="codehilite"><code class="language-text">配置 A（当前线上）：分块 400 字，overlap 60，RRF 融合
+配置 B（候选改动）：分块 600 字，overlap 100，RRF 融合
+
+同一评测集跑两遍：
+A：MRR 0.73，Recall@5 0.81
+B：MRR 0.71，Recall@5 0.78
+结论：B 更差，回滚到 A，这次改动不生效
+</code></pre>
+
+<p>A/B 测试的纪律：<strong>一次只改一个变量、其余全部固定、用同一评测集</strong>。这套纪律看似笨，却能保证你的每一次改动都"有据可查"，最终沉淀出一条清晰的"参数演化史"——什么时候改了啥、效果如何，一目了然。这也是团队协作时最容易被忽略、却最值钱的做法。</p>
+<h2 id="911">9.11 本篇小结</h2>
+<ul>
+<li><strong>评测先行</strong>：先建 50–100 题的评测集，用分数说话。</li>
+<li>检索质量看 <strong>Recall@K 与 MRR</strong>；生成质量看<strong>忠实度与相关性</strong>（可用 <strong>LLM-as-judge</strong> 机器评分 + 人工抽检兜底）。</li>
+<li>问题诊断顺序：<strong>先查检索，再查生成</strong>。</li>
+<li>调优按"从便宜到贵"的顺序，<strong>一次只改一个变量</strong>，每改必测。</li>
+</ul>
+<p>评测与调优是知识库持续变好的引擎。下一篇，也是本阶最后一篇，我们把这些年的所有套路汇成一份可以照做的<a href="content/实战路线：搭一个公司内部问答机器人.html">实战路线图</a>。</p></body></html>

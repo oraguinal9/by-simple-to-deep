@@ -1,0 +1,113 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第六章 RAG 实战问题与优化：重排序与混合检索 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="rag">第六章 RAG 实战问题与优化：重排序与混合检索</h1>
+<p>前几章我们已经跑通了一个"能用"的 RAG：切块 → Embedding → 向量检索 top-k → 拼提示词 → 生成。但现实中，<strong>"能跑"和"答得准"之间，隔着一整套优化</strong>。</p>
+<p>本章直面 RAG 最常见的痛点，并给出可落地的优化手段。记住一句贯穿全篇的话：</p>
+<blockquote>
+<p><strong>���索质量决定 RAG 的上限，生成只是把上限兑现出来。</strong></p>
+</blockquote>
+<h2 id="rag_1">一、RAG 最常见的三大痛点</h2>
+<h3 id="1">痛点 1：检索召回不到正确答案</h3>
+<p>用户问 A，但 top-k 里根本没有包含答案的那块资料。后面生成再聪明也是"巧妇难为无米之炊"。
+- 可能原因：切块太大/太小、embedding 模型不匹配、查询表述和资料表述差异大。</p>
+<h3 id="2">痛点 2：检索召回了，但正确答案"排得太靠后"</h3>
+<p>top-k 里其实有正确资料，但它排在第 8 位，而我们只取前 3 送进提示词——正确资料被截断丢弃。
+- 这说明"粗排"不够准，需要"精排"补一刀。</p>
+<h3 id="3">痛点 3：答非所问 / 被无关资料带偏</h3>
+<p>检索到了一堆沾边但不核心的资料，模型抓错重点。
+- 需要更精准的排序，或先对资料做质量过滤。</p>
+<p>下面三把"优化武器"逐一拆解。</p>
+<h2 id="1_1">二、武器 1：查询改写（让问题和资料"说同一种话"）</h2>
+<p>前面说过，向量检索比的是"语义方向"。但如果用户问题写得很口语、很简略，而资料写得很书面，二者方向可能偏掉。</p>
+<p>解决方法：<strong>查询改写（Query Rewriting）</strong>——先用一个小模型把用户问题"翻译"成更适合检索的表述。例如：</p>
+<ul>
+<li>原问题："猫掉毛能吃鸡不？"</li>
+<li>改写后："猫咪脱毛期间是否可以食用鸡肉 宠物护理"</li>
+</ul>
+<p>改写后再去检索，命中率显著提升。进阶还有 <strong>HyDE（假设性文档嵌入）</strong>：让模型先"假设性"写一段它心目中的答案，再用这段答案去检索——因为答案和资料同属"资料语体"，反而比原问题更容易对齐。</p>
+<h2 id="2-rerank">三、武器 2：重排序 Rerank（先粗召，再精排）</h2>
+<p>这是<strong>性价比最高的一招</strong>，一定要掌握。</p>
+<p>思路分两步：
+1. <strong>粗召（召回）</strong>：用向量检索先捞出较多候选，比如 top-20（宁可多捞，别漏）；
+2. <strong>精排（rerank）</strong>：用一个专门的<strong>重排序模型</strong>（cross-encoder 类，如 bge-reranker），对"问题 + 每块资料"成对打分，重新排序，取最前面的 top-3~5 送进提示词。</p>
+<p>为什么有效？因为：
+- 向量检索是"问题和资料各自变向量再比距离"，二者没真正"对照"过；
+- rerank 模型是<strong>同时看到问题和资料</strong>，判断"这段到底回答没回答这个问题"，精度高得多。</p>
+<p>代价是 rerank 比向量检索慢一点（要逐对计算），所以通常只对在粗召的几十个候选上跑，性能可接受。</p>
+<blockquote>
+<p>一句话：<strong>向量检索负责"广撒网"，rerank 负责"去粗取精"</strong>。两者配合，是工业级 RAG 的标配。</p>
+</blockquote>
+<h2 id="3_1">四、武器 3：混合检索（关键词 + 向量）</h2>
+<p>纯向量检索有个软肋：<strong>专名、编号、精确短语</strong>它反而容易漏。比如用户搜"订单号 SO-2026-8832 的退款状态"，向量检索可能觉得"订单号"这种无意义字符串不重要，结果漏掉。但关键词匹配（如 BM25）恰恰擅长精确命中这些字面串。</p>
+<p><strong>混合检索（Hybrid Search）</strong> = 向量检索 + 关键词检索（BM25）并行，再把两边结果融合（比如 RRF 倒数排名融合）：</p>
+<pre class="codehilite"><code>用户问题
+  ├─→ 向量检索  → 候选集 A（擅长语义/同义）
+  └─→ BM25 检索 → 候选集 B（擅长专名/精确词）
+            ↓ 融合排序
+       最终 top-k
+</code></pre>
+
+<p>这样"猫主子掉毛"（语义）和"SO-2026-8832"（精确）都能稳稳命中。</p>
+<h2 id="_1">五、元数据过滤���先缩小范围再检索</h2>
+<p>很多时候，检索前就能用<strong>元数据</strong>把范围砍小。比如用户问"《报销制度》里差旅标准"，与其在全库百万块里找，不如先过滤 <code>source == 报销制度</code>，再在子集里做向量检索——又快又准，还避免跨文档干扰。</p>
+<p>元数据过滤特别适合：按部门、按时间、按文档类型、按权限隔离。</p>
+<h2 id="rag_2">六、怎么知道"优化见效了"：评估 RAG</h2>
+<p>优化不能靠"感觉"，要能量化。最实用的两个指标：</p>
+<ul>
+<li><strong>检索召回率（Recall@k）</strong>：标准答案应该引用的资料块，有没有出现在 top-k 里？覆盖率越高越好。</li>
+<li><strong>回答相关性 / 忠实度</strong>：生成的答案，是否真的基于资料、有没有编造？可用 LLM 当评委（LLM-as-judge）打分，或人工抽检。</li>
+</ul>
+<p>建议做法：攒一批<strong>真实问答对</strong>（问题 + 标准应引用的资料 + 标准答案要点），每次改了切块/embedding/rerank 后重跑，看指标变化。这就是 RAG 的"回归测试"。</p>
+<h2 id="rag_3">七、RAG 调试清单（遇事不决照着查）</h2>
+<p>回答不好时，按顺序排查：</p>
+<ol>
+<li><strong>资料里到底有没有答案？</strong>（没有就去补知识库，别怪模型）</li>
+<li><strong>检索召回了吗？</strong> 打印 top-k，看正确答案块在不在、排第几。</li>
+<li><strong>切块合理吗？</strong> 答案被切散了？块太大噪声多？调大小/重叠。</li>
+<li><strong>embedding 模型适合中文吗？</strong> 换中文优调模型试试。</li>
+<li><strong>加查询改写 / rerank / 混合检索</strong> 任一，看召回是否提升。</li>
+<li><strong>提示词对吗？</strong> 有没有"只依据资料、没有就说查不到"的约束？资料矛盾处理了吗？</li>
+<li><strong>生成本身烂？</strong> 换更强模型或调温度/系统指令。</li>
+</ol>
+<blockquote>
+<p>80% 的 RAG 问题出在 1~5（检索侧），不在生成。先修检索，再动生成。</p>
+</blockquote>
+<h2 id="_2">八、本章小结</h2>
+<ul>
+<li><strong>检索质量决定 RAG 上限</strong>，生成只是兑现上限。</li>
+<li>三大痛点：召回不到、排太靠后、被无关带偏。</li>
+<li><strong>查询改写 / HyDE</strong>：让问题和资料"说同一种语体"，提升对齐。</li>
+<li><strong>Rerank（重排序）</strong>：向量粗召 top-N + rerank 精排 top-k，工业级标配，性价比最高。</li>
+<li><strong>混合检索</strong>：向量（语义）+ BM25（精确/专名）融合，专治"订单号类"查询。</li>
+<li><strong>元数据过滤</strong>：先缩小范围再检索，更快更准。</li>
+<li>用<strong>召回率 + 忠实度</strong>量化评估；遇事按"调试清单"从检索侧往上查。</li>
+</ul>
+<h2 id="_3">九、小练习</h2>
+<ol>
+<li>用户问"订单 SO-2026-8832 的退款到哪了"，纯向量检索可能为什么漏？混合检索怎么补？</li>
+<li>为什么说"先向量粗召 top-20，再 rerank 取 top-3"通常比"直接向量取 top-3"更好？</li>
+<li>给你一个 RAG 系统，回答总答非所问。你打开日志发现：正确答案块其实在 top-20 里、但排第 15，而系统只取了前 3。问题出在哪一步？该加什么优化？</li>
+</ol>
+<hr />
+<p><em>到此，RAG 这条线讲完了。接下来切换到本站的另一个主角——</em><em>Agent（智能体）</em><em>。如果说 RAG 让模型"有知识"，那 Agent 让模型"会做事"。下一章见。</em></p></body></html>

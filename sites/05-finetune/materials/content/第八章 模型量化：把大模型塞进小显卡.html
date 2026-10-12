@@ -1,0 +1,103 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第八章 模型量化：把大模型塞进小显卡 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="_1">第八章 模型量化：把大模型塞进小显卡</h1>
+<p>训练完，你可能面临一个尴尬：模型文件几十 GB，但你的显卡只有 24GB，甚至要部署到一张 8GB 的卡上。<strong>量化（Quantization）</strong>就是来解决"减肥不瘦身能力"的。</p>
+<h2 id="_2">为什么模型这么大？</h2>
+<p>模型本质是一堆<strong>浮点数权重</strong>。最常见的是 FP16（16-bit 浮点），一个 7B 模型：</p>
+<pre class="codehilite"><code>7,000,000,000 参数 × 2 字节(FP16) ≈ 14 GB
+</code></pre>
+
+<p>若是 FP32（4 字节）则约 28GB。光"装进显存"就要这么多，还没算推理时的激活值。</p>
+<h2 id="_3">量化的核心思想</h2>
+<p>量化 = 把<strong>高精度数字</strong>（如 FP16）用<strong>更少的比特</strong>表示（如 INT8、INT4），从而砍内存、提速。</p>
+<table>
+<thead>
+<tr>
+<th>精度</th>
+<th>每参数字节</th>
+<th>7B 模型大小</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FP32</td>
+<td>4 B</td>
+<td>~28 GB</td>
+<td>训练常用</td>
+</tr>
+<tr>
+<td>FP16 / BF16</td>
+<td>2 B</td>
+<td>~14 GB</td>
+<td>推理基线</td>
+</tr>
+<tr>
+<td>INT8</td>
+<td>1 B</td>
+<td>~7 GB</td>
+<td>几乎无损、提速明显</td>
+</tr>
+<tr>
+<td>INT4 / NF4</td>
+<td>0.5 B</td>
+<td>~3.5 GB</td>
+<td>显存杀手锏，略损能力</td>
+</tr>
+</tbody>
+</table>
+<p>打个比方：FP16 像用"精确到分"记账（占地方但准），INT4 像只记"大概几块"（省地方，偶尔有误差）。对大模型这种"参数量巨大、单参数精度不敏感"的东西，记个大概往往够用。</p>
+<h2 id="int8">INT8：稳妥的第一步</h2>
+<p>把权重从 FP16 压到 8-bit 整数。对绝大多数模型，<strong>INT8 几乎看不出质量下降</strong>，但显存和带宽减半、推理更快。是生产环境最常开的"免费午餐"。</p>
+<h2 id="int4-nf4">INT4 / NF4：消费级显卡的救星</h2>
+<ul>
+<li><strong>INT4</strong>：每个参数 4 bit，7B 压到约 3.5GB，一张 8GB 卡就能跑推理。</li>
+<li><strong>NF4（NormalFloat 4-bit）</strong>：QLoRA 提出，专门为"权重近似正态分布"设计的 4-bit 格式，比普通 INT4 更贴合分布，<strong>压得狠还更保真</strong>。</li>
+</ul>
+<blockquote>
+<p>这就是第三章说的：QLoRA 用 NF4 把底座量化到 4-bit，再挂 LoRA 训练；部署时这个 4-bit 底座也能直接推理，显存门槛骤降。</p>
+</blockquote>
+<h2 id="_4">量化不是万能：几点注意</h2>
+<ul>
+<li><strong>太低会掉点</strong>：压到 2-bit 基本就废了，4-bit 是当前"甜点"，再低需谨慎。</li>
+<li><strong>不同层敏感度不同</strong>：有些层（如切词嵌入、某些归一化）对精度更敏感，高级量化会"分层处理"（敏感层保留高精度），但新手用现成工具即可。</li>
+<li><strong>推理框架要支持</strong>：vLLM、llama.cpp、GPTQ/AWQ 等工具链负责把量化真正跑起来。</li>
+</ul>
+<h2 id="vs">训练 vs 推理的量化</h2>
+<ul>
+<li><strong>训练时量化（QAT / QLoRA 的 4-bit 底座）</strong>：在量化后的权重上继续学，省训练显存。</li>
+<li><strong>推理时量化（PTQ）</strong>：训练完，部署前再把模型压一下，省部署显存——最常见、最省事。</li>
+</ul>
+<h2 id="_5">本章小结</h2>
+<ul>
+<li>量化 = 用更少比特表示权重，砍显存、提速。</li>
+<li>阶梯：FP16(14GB) → INT8(7GB，几乎无损) → INT4/NF4(3.5GB，甜点)。</li>
+<li>NF4 是 QLoRA 的关键，专为权重分布优化。</li>
+<li>太低会明显掉点；用成熟工具链（vLLM/llama.cpp/AWQ）落地。</li>
+</ul>
+<h2 id="_6">小练习</h2>
+<ol>
+<li>一张 8GB 显卡想跑 7B 模型推理，FP16 装不下。你会选 INT8 还是 INT4？为什么？</li>
+<li>为什么"权重近似正态分布"这个信息，能让 NF4 比普通 INT4 压得更狠还更准？</li>
+</ol></body></html>

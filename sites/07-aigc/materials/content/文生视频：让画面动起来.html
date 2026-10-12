@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>文生视频：让画面动起来 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="_1">第九章 文生视频：让画面动起来</h1>
+<p>前面八章都在讲「生成一张图」。这一章把维度加一：从 <strong>2D 图像</strong> 走向 <strong>带时间轴的视频</strong>。文生视频（Text-to-Video）是 2024 年后最火热的方向，代表有 Sora、可灵、Runway、Pika 等。</p>
+<p>它的核心难题只有一个字：<strong>稳</strong>——让连续帧之间「动得合理、又不乱跳」。本章讲清它怎么借力扩散模型，又比图像多了哪些巧思。</p>
+<h2 id="91">9.1 视频比图像难在哪</h2>
+<p>一段 3 秒、每秒 24 帧、512×512 的视频，是 <strong>72 张图</strong>。难点不在「单帧好看」，而在：</p>
+<ul>
+<li><strong>时序一致性</strong>：第 1 帧的猫和第 24 帧的猫得是同一只猫，不能忽大忽小、忽有忽无；</li>
+<li><strong>合理运动</strong>：猫该迈腿而不是瞬间瞬移；水流该连续而非闪烁；</li>
+<li><strong>算力爆炸</strong>：数据量是图像的几十倍，训练和推理都贵得多。</li>
+</ul>
+<p>所以文生视频 = 「会动的文生图」+「时序约束」。</p>
+<h2 id="92">9.2 主思路一：在潜空间里加「时间维」</h2>
+<p>最自然的延伸，是把 Stable Diffusion 的潜空间从「2D 特征图」扩成 <strong>3D（时间 × 高 × 宽）特征体</strong>。</p>
+<p>具体做法（以扩散类视频模型为例）：</p>
+<ol>
+<li>文本编码器把提示变成语义向量；</li>
+<li>UNet 不再只处理单帧潜变量，而是处理<strong>一整段视频的潜变量立方体</strong>；</li>
+<li>在 UNet 里除了空间的卷积/注意力，再加入<strong>沿时间轴的卷积/注意力</strong>，让模型学会「这一帧的特征要和上一帧对齐」；</li>
+<li>反复去噪后，VAE 解码器把整个潜变量立方体解码成连续视频帧。</li>
+</ol>
+<p>一句话：<strong>把扩散从「在一张图上雕刻」升级为「在一块会变化的果冻上雕刻」</strong>。</p>
+<h2 id="93">9.3 主思路二：图像模型「加时间层」蒸馏</h2>
+<p>另一条务实路线：拿已经很强的文生图模型，往里<strong>插入时间维度的层</strong>（叫 temporal layer），再用大量「文本-视频」对微调这些新层。这样既能复用图像模型的高质量，又学会运动。</p>
+<p>这就像先培养出一个顶级画家（文生图），再单独教他「怎么让笔下的东西动起来」（时间层），而不用从零重练画画。</p>
+<h2 id="94">9.4 怎么保证「动得合理」：光流与一致性损失</h2>
+<p>训练时，除了「每帧要清晰」的扩散损失，还会加：</p>
+<ul>
+<li><strong>时序一致性损失</strong>：相邻帧的特征变化要平滑，别突变；</li>
+<li><strong>运动先验（如光流）</strong>：用现成模型估计真实视频里物体的运动方向，让生成视频的运动朝合理方向走；</li>
+<li><strong>关键帧锚定</strong>：指定首帧/尾帧，模型保证从 A 平滑过渡到 B。</li>
+</ul>
+<p>这些约束共同压制了「闪烁、跳变、物体凭空消失」等视频特有的崩坏。</p>
+<h2 id="95">9.5 图生视频与视频编辑</h2>
+<p>和图像侧的 img2img 对应，视频侧也有：</p>
+<ul>
+<li><strong>图生视频（image2video）</strong>：给一张首帧图 + 文字（「镜头缓缓右移」），生成连贯动画。适合把静态海报变动态。</li>
+<li><strong>视频编辑</strong>：给一段已有视频 + 文字（「把白天改成雪夜」），只改风格不动主体运动。</li>
+<li><strong>相机运动控制</strong>：用文字或轨迹指定「推、拉、摇、移」，控制镜头语言。</li>
+</ul>
+<h2 id="96">9.6 当前局限（诚实地说）</h2>
+<p>文生视频仍年轻，常见短板：</p>
+<ul>
+<li><strong>时长短</strong>：多数模型一次只生成几秒到十几秒；</li>
+<li><strong>复杂语义易崩</strong>：多人对话、精细手部动作仍会出错；</li>
+<li><strong>成本高</strong>：算力需求是图像的几十倍，迭代慢；</li>
+<li><strong>可控性弱</strong>：精确指定「第 3 秒谁出场」还较难。</li>
+</ul>
+<p>但这些都在快速改善，理解原理能帮你判断「什么现在能做、什么再等等」。</p>
+<h2 id="97">9.7 本章小结</h2>
+<ul>
+<li>视频 = 会动的图 + <strong>时序一致性</strong>，难点在「稳」不在「美」。</li>
+<li>主流做法：把潜空间扩成 3D（时间×高×宽），UNet 加时间维卷积/注意力。</li>
+<li>另一条路：文生图模型插入 temporal layer 再微调，复用高质量+学运动。</li>
+<li>靠一致性损失、光流先验、关键帧锚定压制闪烁与跳变。</li>
+<li>支持图生视频、视频编辑、相机运动控制；当前仍受限于时长/成本/复杂语义。</li>
+</ul>
+<blockquote>
+<p>下一章我们收尾：动手实践路线、工具生态，以及你作为创作者该注意的伦理与版权问题。</p>
+</blockquote></body></html>

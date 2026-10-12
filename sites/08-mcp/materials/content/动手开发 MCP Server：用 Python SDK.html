@@ -1,0 +1,149 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>动手开发 MCP Server：用 Python SDK | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="mcp-server-python-sdk">动手开发 MCP Server：用 Python SDK</h1>
+<p>前面都是概念，这一章我们写代码。我会用 <strong>MCP 官方 Python SDK（<code>mcp</code> 包）</strong>，从零写一个最小的「计算器 + 问候」MCP Server，跑在 STDIO 模式下，让你亲眼看到它是怎么被 Host 连上的。</p>
+<blockquote>
+<p>说明：本章代码是为了<strong>讲清原理</strong>的最小示例，真实项目请用 SDK 的最新 API。运行时需 <code>pip install mcp</code>。</p>
+</blockquote>
+<h2 id="server">一、先想清楚这个 Server 提供什么</h2>
+<p>我们做一个教学 Server，暴露两个 Tool：</p>
+<ol>
+<li><code>add(a, b)</code> —— 两数相加；</li>
+<li><code>greet(name)</code> —— 向某人问好。</li>
+</ol>
+<p>就这么简单，但足以覆盖「定义工具 → 被调用 → 返回结果」的全链路。</p>
+<h2 id="server_1">二、最小 Server 代码</h2>
+<p>下面是使用 <code>mcp</code> Python SDK 的写法（基于 <code>FastMCP</code> 高层接口，最易读）：</p>
+<pre class="codehilite"><code class="language-python"># server.py
+from mcp.server.fastmcp import FastMCP
+
+# 创建一个 MCP Server 实例（名字随意）
+mcp = FastMCP(&quot;demo-server&quot;)
+
+@mcp.tool()
+def add(a: int, b: int) -&gt; int:
+    &quot;&quot;&quot;把两个整数相加，返回它们的和。&quot;&quot;&quot;
+    return a + b
+
+@mcp.tool()
+def greet(name: str) -&gt; str:
+    &quot;&quot;&quot;向给定名字的人问好，返回一句问候语。&quot;&quot;&quot;
+    return f&quot;你好，{name}！欢迎使用 MCP。&quot;
+
+# 以 STDIO 方式启动（默认从 stdin 读、往 stdout 写）
+if __name__ == &quot;__main__&quot;:
+    mcp.run()
+</code></pre>
+
+<p>就这么多。你不需要手写 JSON-RPC、不用管消息怎么编码——SDK 帮你把 <code>@mcp.tool()</code> 装饰的函数，<strong>自动变成 MCP 协议里的 Tool</strong>：函数名 → tool 的 <code>name</code>，docstring → <code>description</code>，类型注解 → <code>input_schema</code>。</p>
+<h2 id="_1">三、这背后发生了什么</h2>
+<p>当 Host 连上这个 Server 并问 <code>tools/list</code> 时，SDK 会根据你的装饰器自动生成类似：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;tools&quot;: [
+    {
+      &quot;name&quot;: &quot;add&quot;,
+      &quot;description&quot;: &quot;把两个整数相加，返回它们的和。&quot;,
+      &quot;input_schema&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;properties&quot;: {
+          &quot;a&quot;: {&quot;type&quot;: &quot;integer&quot;},
+          &quot;b&quot;: {&quot;type&quot;: &quot;integer&quot;}
+        },
+        &quot;required&quot;: [&quot;a&quot;, &quot;b&quot;]
+      }
+    },
+    {
+      &quot;name&quot;: &quot;greet&quot;,
+      &quot;description&quot;: &quot;向给定名字的人问好，返回一句问候语。&quot;,
+      &quot;input_schema&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;properties&quot;: {&quot;name&quot;: {&quot;type&quot;: &quot;string&quot;}},
+        &quot;required&quot;: [&quot;name&quot;]
+      }
+    }
+  ]
+}
+</code></pre>
+
+<p>模型看到这份清单，就知道「哦，有 add 和 greet 可以用」。</p>
+<p>当模型决定调 <code>add(3, 5)</code>，SDK 会：
+1. 收到 JSON-RPC 调用请求；
+2. 匹配到 <code>add</code> 函数，用参数 <code>a=3, b=5</code> 调用；
+3. 把返回值 <code>8</code> 包成 JSON-RPC 响应发回去。</p>
+<p><strong>你只写了业务逻辑（<code>return a + b</code>），协议细节全交给 SDK。</strong></p>
+<h2 id="host-stdio">四、怎么让 Host 连上它（STDIO 配置示例）</h2>
+<p>以 Claude Desktop 为例，在它的配置文件里加一段（示意）：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;demo&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;/绝对路径/server.py&quot;]
+    }
+  }
+}
+</code></pre>
+
+<p>Host 启动时，会执行 <code>python /绝对路径/server.py</code>，把这个脚本当作<strong>子进程</strong>拉起来，然后经 stdin/stdout 跟它说 MCP 协议。这就把前面第五章讲的 STDIO 模式落地了。</p>
+<h2 id="resource">五、加一个 Resource 试试</h2>
+<p>Resource 也很容易。我们加一个「服务器启动时间」的资源：</p>
+<pre class="codehilite"><code class="language-python">@mcp.resource(&quot;meta://uptime&quot;)
+def uptime() -&gt; str:
+    &quot;&quot;&quot;返回 Server 的就绪提示。&quot;&quot;&quot;
+    return &quot;demo-server 已就绪，可调用 add / greet。&quot;
+</code></pre>
+
+<p>Host 或用户可以通过 <code>meta://uptime</code> 这个 URI 把这段内容注入上下文。注意 Resource 是「被读取的」，不像 Tool 那样由模型主动调。</p>
+<h2 id="prompt">六、加一个 Prompt 模板</h2>
+<pre class="codehilite"><code class="language-python">@mcp.prompt()
+def summarize(text: str) -&gt; str:
+    &quot;&quot;&quot;生成一段要求模型总结文本的提示词。&quot;&quot;&quot;
+    return f&quot;请用三句话总结以下内容，并列出两个要点：\n\n{text}&quot;
+</code></pre>
+
+<p>用户选中这个 Prompt、填入 <code>text</code>，Host 就拿到一段现成的总结指令发给模型。</p>
+<h2 id="_2">七、开发时的关键注意事项</h2>
+<ol>
+<li><strong>STDIO 下别往 stdout 打日志</strong>：会破坏协议流。要打日志请用 <code>logging</code> 到文件或 stderr；</li>
+<li><strong>docstring 要认真写</strong>：它就是模型看到的 description，写清楚「干嘛、何时用、参数含义」；</li>
+<li><strong>类型注解别偷懒</strong>：SDK 靠它生成 <code>input_schema</code>，错了模型就填错参数；</li>
+<li><strong>危险操作加闸门</strong>：写文件、删数据、发消息前，加权限判断或要求确认（见第九章）；</li>
+<li><strong>先本地 STDIO 跑通，再考虑远程</strong>：别一上来就折腾 HTTP+SSE。</li>
+</ol>
+<h2 id="_3">八、从「能跑」到「能上线」</h2>
+<p>教学 Server 跑通后，真实项目通常是：
+- 把业务逻辑换成真实的（调数据库、调 API）；
+- 补充错误处理（参数非法、外部超时）；
+- 加权限与审计日志；
+- 如需多人用，再封装成 HTTP+SSE 远程 Server。</p>
+<h2 id="_4">九、本章小结</h2>
+<ul>
+<li>用 <code>mcp</code> Python SDK 的 <code>FastMCP</code>，一个 <code>@mcp.tool()</code> 就能把函数变成 MCP Tool；</li>
+<li>docstring → description，类型注解 → input_schema，SDK 自动生成协议声明；</li>
+<li>Host 通过 STDIO 把 Server 当子进程拉起，经 stdin/stdout 通信；</li>
+<li>Resource（<code>@mcp.resource(uri)</code>）提供可读取数据，Prompt（<code>@mcp.prompt()</code>）提供模板；</li>
+<li>开发纪律：STDIO 日志走 stderr、写好 description、危险操作加闸门、先 STDIO 后远程。</li>
+</ul>
+<p>下一章我们看主流 <strong>Host 怎么接入这些 Server</strong>：Claude Desktop、Cursor，以及你自己写的应用该怎么接。</p>
+<hr />
+<p><em>小练习：基于上面的 <code>server.py</code>，试着加一个 <code>multiply(a, b)</code> 工具，并写出它的 docstring 和类型注解。想一想，如果要让模型「读某个 URL 的内容」，这个函数该怎么设计参数？</em></p></body></html>

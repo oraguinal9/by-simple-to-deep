@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP 模型上下文协议 L8 · 由简入深</title>
+<style>
+  :root{
+    --l1:#3b82f6; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#fff5fa; --ink:#3b0a26; --sub:#8a4a68;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#fff5fa,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l8);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#db2777,#ec4899 55%,#f472b6);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(219,39,119,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:640px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#ffe0ef;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,var(--l8))}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:var(--l8);display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #ffd6ea;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(219,39,119,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(219,39,119,.16);border-color:var(--l8)}
+  .card .day{font-size:12px;color:var(--l8);font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #ffb3d6;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:var(--l8);border-color:var(--l8)}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #ffd6ea;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(219,39,119,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:var(--l8)}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#fff5fa;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #ffc4e0}
+  .btn{background:var(--l8);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#be185d}
+  .btn.ghost{background:#fff;color:var(--l8);border:1px solid var(--l8)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#ffe3f1;color:#be185d;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+  .node{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #ffc4e0;font-weight:600}
+  .node.on{background:var(--l8);color:#fff;border-color:var(--l8)}
+  .arrow{color:#db2777;font-weight:700}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#2b0a1c;color:#ffd6ea;padding:2px 7px;border-radius:6px;font-size:12px}
+  .opt{display:block;width:100%;text-align:left;background:#fff;border:1px solid #ffc4e0;border-radius:10px;
+    padding:10px 13px;margin:7px 0;font-size:14px;cursor:pointer;transition:.15s}
+  .opt:hover{border-color:var(--l8);background:#fff5fa}
+  .opt.right{border-color:#16a34a;background:#f0fdf4}
+  .opt.wrong{border-color:#dc2626;background:#fef2f2}
+  .confirm{background:#fff0f7;border:1px solid #ffb3d6;border-radius:12px;padding:14px;margin-top:12px}
+  .confirm .act{font-weight:700;color:#be185d}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#fff0f7;border:1px solid #ffc4e0;border-radius:12px;padding:12px 16px;font-size:13px;color:#9d3a66;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L8 · 由简入深 AI 学习路线</div>
+  <h1>🧩 MCP 模型上下文协议</h1>
+  <p>让 AI 模型安全地连接真实世界：统一标准、插上即用，从「只会说」到「能动手」。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · mcp</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「为什么需要 MCP」到「多 Server 组合实战」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里理解 MCP 的核心机制。</p>
+    <div class="demos">
+
+      <!-- 演示1 协议握手 -->
+      <div class="demo">
+        <h3>① 协议握手可视化台</h3>
+        <p class="sub">一步步看 Host → Client → Server 怎么建立连接、发现能力。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">下一步 ▶</button>
+          <button class="btn ghost" id="reset1">重置</button>
+        </div>
+      </div>
+
+      <!-- 演示2 工具路由 -->
+      <div class="demo">
+        <h3>② 工具调用路由台</h3>
+        <p class="sub">给定用户问题，从工具清单里挑出模型应该调用的那一个。</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn" id="next2">换一个问题 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示3 权限确认 -->
+      <div class="demo">
+        <h3>③ 权限确认台（人在回路）</h3>
+        <p class="sub">危险操作必须由你确认——体验 MCP 的安全闸门。</p>
+        <div class="stage" id="stage3"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示均为原理可视化，不调用真实外部服务。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · <b>mcp</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L8</b> · MCP 模型上下文协议 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"MCP 是什么：让 AI 模型连接真实世界的「USB 接口」"},
+  {no:"第2天", t:"为什么需要 MCP：Function Calling 的混乱与重复造轮子"},
+  {no:"第3天", t:"工具调用基础：模型如何「动手」"},
+  {no:"第4天", t:"MCP 架构：Host、Client、Server 三大角色"},
+  {no:"第5天", t:"传输层：STDIO 与 HTTP+SSE 两种通信方式"},
+  {no:"第6天", t:"三大原语：Tools、Resources、Prompts"},
+  {no:"第7天", t:"动手开发 MCP Server：用 Python SDK"},
+  {no:"第8天", t:"主流客户端接入：Claude Desktop、Cursor 与自研"},
+  {no:"第9天", t:"安全与权限：模型能做什么的边界"},
+  {no:"第10天", t:"实战与进阶：组合多个 Server 与未来"},
+];
+const KEY = "mcp_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：协议握手 ============ */
+(function(){
+  const steps = [
+    {nodes:["Host"],txt:"① Host（如 Claude Desktop）启动，准备连接外部能力。"},
+    {nodes:["Host","Client"],txt:"② Host 内部启动一个 MCP <b>Client</b>。"},
+    {nodes:["Host","Client","Server"],txt:"③ Client 把 MCP <b>Server</b> 拉起（STDIO 子进程 / 远程连接）。"},
+    {nodes:["Host","Client","Server"],txt:'④ Client 发送 <span class="tok">tools/list</span> 做<b>能力发现</b>。'},
+    {nodes:["Host","Client","Server"],txt:'⑤ Server 返回它会的能力清单（Tools / Resources / Prompts）。'},
+    {nodes:["Host","Client","Server"],txt:"⑥ 握手完成！模型此后即可在对话中调用这些能力。"},
+  ];
+  let i = -1;
+  const stage = document.getElementById("stage1");
+  function render(){
+    if(i<0){
+      stage.innerHTML = '<div class="muted">点击「下一步」观看 Host 与 Server 如何握手建立连接。</div>';
+      return;
+    }
+    const s = steps[i];
+    const flow = ['Host','Client','Server'].map(n=>{
+      const on = s.nodes.includes(n) ? " on" : "";
+      return '<span class="node'+on+'">'+n+'</span>';
+    }).join('<span class="arrow">→</span>');
+    stage.innerHTML = '<div class="flow" style="margin-bottom:12px">'+flow+'</div><div>'+s.txt+'</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{
+    i = Math.min(i+1, steps.length-1);
+    render();
+    if(i>=steps.length-1) document.getElementById("next1").disabled = true;
+  };
+  document.getElementById("reset1").onclick = ()=>{
+    i=-1; document.getElementById("next1").disabled=false; render();
+  };
+  render();
+})();
+
+/* ============ 演示2：工具路由 ============ */
+(function(){
+  const cases = [
+    {q:"帮我查一下北京今天天气怎么样？", tools:[
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"send_email", d:"发送邮件"},
+      {n:"read_file", d:"读取本地文件"},
+    ], ans:"get_weather"},
+    {q:"把这份报告发给团队所有人。", tools:[
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"send_email", d:"发送邮件"},
+      {n:"read_file", d:"读取本地文件"},
+    ], ans:"send_email"},
+    {q:"读一下我桌面上 notes.txt 的内容。", tools:[
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"send_email", d:"发送邮件"},
+      {n:"read_file", d:"读取本地文件"},
+    ], ans:"read_file"},
+    {q:"帮我总结这篇长文档的要点。", tools:[
+      {n:"summarize", d:"总结文本要点"},
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"run_tests", d:"运行测试"},
+    ], ans:"summarize"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage2");
+  function render(){
+    const c = cases[ci];
+    let html = '<div style="margin-bottom:10px"><b>用户问题：</b><span class="tok" style="background:#fce7f3;color:#be185d">'+c.q+'</span></div>';
+    html += '<div class="muted" style="margin-bottom:8px">从下面挑出模型应该调用的工具：</div>';
+    c.tools.forEach(t=>{
+      html += '<button class="opt" data-n="'+t.n+'"><b>'+t.n+'</b> — '+t.d+'</button>';
+    });
+    stage.innerHTML = html;
+    stage.querySelectorAll(".opt").forEach(b=>{
+      b.onclick = ()=>{
+        const right = b.dataset.n === c.ans;
+        b.classList.add(right?"right":"wrong");
+        stage.querySelectorAll(".opt").forEach(x=>x.disabled=true);
+        const tip = document.createElement("div");
+        tip.style.marginTop="10px";
+        tip.innerHTML = right
+          ? '<span class="ok">✓ 正确！</span> 模型会把调用意图返回，由 Client 转发给 '+c.ans+' 对应的 Server 执行。'
+          : '<span class="bad">✗ 不太对。</span> 这个问题更应该用 <b>'+c.ans+'</b>。工具 description 写得越清楚，模型越容易选准。';
+        stage.appendChild(tip);
+      };
+    });
+  }
+  document.getElementById("next2").onclick = ()=>{
+    ci = (ci+1)%cases.length;
+    render();
+  };
+  render();
+})();
+
+/* ============ 演示3：权限确认 ============ */
+(function(){
+  const stage = document.getElementById("stage3");
+  const reqs = [
+    {act:"读取 Desktop/notes.txt", risk:"低", ok:true},
+    {act:"删除 /projects/old 目录", risk:"高", ok:false},
+    {act:"向团队群发送周报", risk:"中", ok:true},
+    {act:"执行 shell: rm -rf /", risk:"极高", ok:false},
+  ];
+  let i = 0;
+  function render(){
+    if(i>=reqs.length){
+      stage.innerHTML = '<div class="ok" style="font-size:15px">✓ 全部演示完毕。记住：写/删/发类操作默认要「人在回路」确认。</div>'
+        +'<div class="row"><button class="btn ghost" id="again3">重新演示</button></div>';
+      document.getElementById("again3").onclick=()=>{i=0;render();};
+      return;
+    }
+    const r = reqs[i];
+    const color = r.risk==="低" ? "#16a34a" : (r.risk==="中"?"#d97706":"#dc2626");
+    stage.innerHTML =
+      '<div class="confirm"><div>模型请求执行：</div>'
+      +'<div class="act">'+r.act+'</div>'
+      +'<div style="margin-top:6px">风险等级：<b style="color:'+color+'">'+r.risk+'</b></div>'
+      +'<div class="row">'
+      +'<button class="btn" id="allow3">允许执行</button>'
+      +'<button class="btn ghost" id="deny3">拒绝</button>'
+      +'</div></div>';
+    document.getElementById("allow3").onclick = ()=>{
+      if(r.ok){
+        stage.innerHTML = '<div class="ok">✓ 已授权，Server 执行该操作（低风险读/发常可放行）。</div>'
+          +'<div class="row"><button class="btn" id="cont3">下一条 ▶</button></div>';
+      }else{
+        stage.innerHTML = '<div class="bad">⚠ 你刚刚放行了一个高风险操作！</div>'
+          +'<div class="muted">现实中，这类操作要么应被 Host 强制拦截，要么需多重确认。演示里我们提醒你：慎用「全部允许」。</div>'
+          +'<div class="row"><button class="btn" id="cont3">下一条 ▶</button></div>';
+      }
+      document.getElementById("cont3").onclick=()=>{i++;render();};
+    };
+    document.getElementById("deny3").onclick = ()=>{
+      stage.innerHTML = '<div style="color:#be185d;font-weight:700">✋ 已拒绝。</div>'
+        +'<div class="muted">Server 收到拒绝，调用中止，并把这个情况告知模型——这就是「人在回路」的安全闸门。</div>'
+        +'<div class="row"><button class="btn" id="cont3">下一条 ▶</button></div>';
+      document.getElementById("cont3").onclick=()=>{i++;render();};
+    };
+  }
+  render();
+})();
+</script>
+</body>
+</html>

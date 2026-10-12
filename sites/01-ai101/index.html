@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 入门 · 提示词 | 7 天从零会用 AI</title>
+<style>
+  :root {
+    --bg: #f5f7fa; --card:#fff; --ink:#1f2430; --muted:#6b7280; --line:#e5e7eb;
+    --accent:#0ea5e9; --accent2:#6366f1; --accent-soft:#e0f2fe;
+    --green:#16a34a; --green-soft:#dcfce7; --amber:#d97706;
+    --demo-bg:#0f172a; --demo-ink:#e2e8f0;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.65;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+  nav{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;}
+  nav .brand{font-weight:800;color:var(--accent);margin-right:auto;}
+  nav a{color:var(--muted);font-size:14px;}
+  nav a:hover{color:var(--accent);}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 60px;}
+  .hero{background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;border-radius:18px;padding:30px 32px;margin-bottom:26px;}
+  .hero h1{margin:0 0 8px;font-size:26px;}
+  .hero p{margin:6px 0;opacity:.95;}
+  .hero .tip{background:rgba(255,255,255,.15);padding:10px 14px;border-radius:10px;margin-top:14px;font-size:14px;}
+  .badge-l1{display:inline-block;background:rgba(255,255,255,.2);padding:3px 10px;border-radius:999px;font-size:12px;margin-bottom:8px;}
+  section{margin-bottom:40px;}
+  h2{font-size:21px;border-left:5px solid var(--accent);padding-left:12px;margin:0 0 16px;}
+  .progress-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .bar{height:14px;background:#eef0f4;border-radius:999px;overflow:hidden;margin:10px 0;}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--green),#4ade80);transition:width .4s;}
+  .progress-meta{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted);}
+  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:9px;font-size:13px;}
+  .btn:hover{background:var(--accent-soft);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:.2s;}
+  .day.done{border-color:var(--green);box-shadow:0 0 0 2px var(--green-soft) inset;}
+  .day summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
+  .day summary::-webkit-details-marker{display:none;}
+  .badge{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:800;display:grid;place-items:center;}
+  .day.done .badge{background:var(--green);color:#fff;}
+  .day h3{margin:0;font-size:16px;} .day .dur{font-size:12px;color:var(--muted);margin-top:2px;}
+  .day .body{padding:0 16px 16px;border-top:1px dashed var(--line);margin-top:4px;}
+  .day .body h4{font-size:13px;margin:14px 0 6px;color:var(--accent);}
+  .day ul{margin:4px 0;padding-left:18px;font-size:14px;} .day li{margin:3px 0;}
+  .chk{margin-top:14px;display:flex;align-items:center;gap:8px;font-size:14px;}
+  .chk input{width:17px;height:17px;accent-color:var(--green);}
+  .mat a{display:inline-block;margin:2px 6px 2px 0;font-size:13px;background:var(--accent-soft);color:var(--accent);padding:2px 9px;border-radius:999px;}
+  /* 演示 */
+  .demo{background:var(--demo-bg);color:var(--demo-ink);border-radius:14px;padding:20px;margin-bottom:18px;}
+  .demo h3{margin:0 0 4px;color:#fff;}
+  .demo .sub{font-size:13px;color:#94a3b8;margin-bottom:14px;}
+  .demo label{font-size:13px;color:#cbd5e1;display:block;margin:10px 0 4px;}
+  .demo textarea,.demo input[type=text]{width:100%;padding:9px 11px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:14px;font-family:inherit;}
+  .demo textarea{min-height:84px;resize:vertical;}
+  .demo .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;align-items:center;}
+  .demo .btn2{cursor:pointer;border:none;background:var(--accent);color:#fff;padding:9px 16px;border-radius:8px;font-size:14px;}
+  .demo .btn2.ghost{background:#334155;}
+  .demo .btn2:hover{filter:brightness(1.1);}
+  .panel{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:12px 14px;margin-top:12px;font-size:14px;white-space:pre-wrap;}
+  .tag{display:inline-block;background:#334155;color:#e2e8f0;padding:2px 9px;border-radius:999px;font-size:12px;margin:2px 4px 2px 0;}
+  .tag.ok{background:#14532d;color:#bbf7d0;} .tag.no{background:#7f1d1d;color:#fecaca;}
+  .col2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:640px){.col2{grid-template-columns:1fr;}}
+  .score-big{font-size:34px;font-weight:800;color:#fff;}
+  .note{background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:20px;}
+  footer{color:var(--muted);font-size:13px;text-align:center;padding:20px;}
+</style>
+</head>
+<body>
+<header>
+  <nav>
+    <span class="brand">🚀 AI 入门 · 提示词</span>
+    <a href="#plan">每日计划</a>
+    <a href="#demo">互动演示</a>
+    <a href="#res">教程目录</a>
+    <a href="https://llm.zbjh.top/" target="_blank" rel="noopener">下一站：L2 原理 →</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <span class="badge-l1">L1 · 由简入深系列 · 零基础起点</span>
+    <h1>7 天，从「不会用」到「用得好」AI</h1>
+    <p>全程中文 · 不写代码 · 进度自动保存在本机 · 配可玩提示词演示</p>
+    <div class="tip">📌 这是 L1（入门）。学完你会安全、有效地使用 AI，并写出高质量提示词；想继续懂原理，下一站是 <b>llm.zbjh.top</b>（大模型原理）。</div>
+  </div>
+
+  <div class="note">
+    💡 <b>怎么用：</b>每天点开对应卡片，读教程 + 玩演示；学完勾选「我已掌握」，上方进度条会自动增长。所有教程都是站内中文页面，点链接直接看，国内可直连。
+  </div>
+
+  <section id="progress">
+    <h2>📊 我的学习进度</h2>
+    <div class="progress-card">
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="progress-meta">
+        <span id="progText">已完成 0 / 7 天</span>
+        <button class="btn" onclick="resetProgress()">重置进度</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>🗓️ 每日学习计划（7 天）</h2>
+    <div class="grid" id="dayGrid"></div>
+  </section>
+
+  <section id="demo">
+    <h2>🎮 互动演示 · Prompt 对比 playground</h2>
+    <p style="color:var(--muted);margin-top:-6px">不用装任何环境，下面两个演示直接用浏览器跑，帮你建立「好提示词长什么样」的肌肉记忆。</p>
+
+    <!-- 演示1：提示词评分器 -->
+    <div class="demo">
+      <h3>1. 提示词「体检台」</h3>
+      <div class="sub">把你的提示词粘进来，看它缺哪几块（角色/任务/背景/格式/约束），并给出分数与改进建议。</div>
+      <label>你的提示词：</label>
+      <textarea id="pcInput" placeholder="例如：帮我写个产品介绍"></textarea>
+      <div class="row">
+        <button class="btn2" onclick="checkPrompt()">🔍 体检一下</button>
+        <button class="btn2 ghost" onclick="document.getElementById('pcInput').value='';document.getElementById('pcOut').innerHTML=''">清空</button>
+      </div>
+      <div class="panel" id="pcOut" style="min-height:60px">把提示词粘进来，点「体检一下」试试 👆</div>
+    </div>
+
+    <!-- 演示2：模糊 vs 结构化 对照 -->
+    <div class="demo">
+      <h3>2. 模糊写法 vs 结构化写法（对照台）</h3>
+      <div class="sub">输入一个任务，分别看「模糊提示词」和「结构化提示词」下，模型可能的回答倾向（示意）。</div>
+      <label>你要 AI 做的任务：</label>
+      <input type="text" id="cmpTask" value="写一段朋友圈文案" />
+      <div class="row">
+        <button class="btn2" onclick="comparePrompt()">▶ 看两种写法对比</button>
+      </div>
+      <div class="col2" id="cmpOut" style="margin-top:12px">
+        <div class="panel" style="white-space:normal"><b style="color:#fca5a5">① 模糊写法</b><br><span id="cmpWeak"></span></div>
+        <div class="panel" style="white-space:normal"><b style="color:#86efac">② 结构化写法</b><br><span id="cmpStrong"></span></div>
+      </div>
+      <div style="color:#94a3b8;font-size:12px;margin-top:8px">※ 为便于理解，两种写法的「回答」为示意示例，用于展示提示词质量对结果的影响，并非真实模型输出。</div>
+    </div>
+  </section>
+
+  <section id="res">
+    <h2>📚 教程目录（站内中文）</h2>
+    <div class="progress-card">
+      <p class="mat" style="margin:6px 0">
+        <a href="materials/content/第一章%20什么是人工智能与大模型.html">第1章 什么是AI与大模型</a>
+        <a href="materials/content/第二章%20怎么和聊天机器人对话.html">第2章 怎么对话</a>
+        <a href="materials/content/第三章%20什么是提示词.html">第3章 什么是提示词</a>
+        <a href="materials/content/第四章%20提示词编写核心技巧.html">第4章 提示词技巧</a>
+        <a href="materials/content/第五章%20AI%20能做什么、不能做什么.html">第5章 能做什么/不能</a>
+        <a href="materials/content/第六章%20幻觉与安全风险.html">第6章 幻觉与安全</a>
+        <a href="materials/content/第七章%20动手练习与进阶路线.html">第7章 练习与进阶</a>
+      </p>
+      <h4 style="margin:14px 0 6px">由简入深 · 全系列（规划中）</h4>
+      <p style="font-size:14px;color:var(--muted);margin:6px 0">
+        L1 你在这里 ✅ → <a href="https://llm.zbjh.top/" target="_blank" rel="noopener">L2 大模型原理</a> → L3 深度学习 → L4 RAG/Agent → L5 微调部署 → L6 RLHF → L7 AIGC → L8 多模态/MCP
+      </p>
+    </div>
+  </section>
+
+  <footer>由 WorkBuddy 生成 · L1 原创入门教程 · 进度仅保存在你本地浏览器 · 下一站 llm.zbjh.top</footer>
+</div>
+
+<script>
+/* ============ 每日计划数据 ============ */
+const days = [
+  { t:"什么是 AI 与大模型", d:"约 40 分钟", goal:"用大白话说清 AI / 机器学习 / 深度学习 / 大模型的关系，理解「预测下一个词」",
+    points:["AI 是个大范畴，不是单个程序","机器学习→深度学习→大模型的套娃关系","大模型核心能力：预测下一个词","常见误区：它不联网、不像人『懂』、会出错"],
+    mat:[["第1章 什么是AI与大模型","content/第一章 什么是人工智能与大模型.md"]],
+    quiz:["用一句话向朋友解释：大模型为什么有时会胡说八道？"] },
+
+  { t:"怎么和聊天机器人对话", d:"约 40 分钟", goal:"掌握 3 个立刻好用的对话习惯，把它当协作者",
+    points:["一次说清背景比泛泛而谈强","给角色让语气更专业稳定","不满意就多轮『接着改'","知道对话的长度上限与边界"],
+    mat:[["第2章 怎么对话","content/第二章 怎么和聊天机器人对话.md"]],
+    quiz:["你最近一次用 AI 结果不满意，是背景没说清还是没给角色？"] },
+
+  { t:"什么是提示词（Prompt）", d:"约 35 分钟", goal:"理解提示词=你给模型的『开头』，并记住 6 大组成部分",
+    points:["提示词就是你输给 AI 的那段话","模型不变，变的是你给的开头","角色/任务/背景/格式/约束/示例","口诀：缺哪块补哪块"],
+    mat:[["第3章 什么是提示词","content/第三章 什么是提示词.md"]],
+    quiz:["把『推荐一部电影』补全成含角色+背景+格式的结构化提示词"] },
+
+  { t:"提示词编写核心技巧", d:"约 50 分钟", goal:"掌握 6 个技巧与万能模板，能写出高质量提示词",
+    points:["给角色、说具体任务、交代背景","规定输出格式、加约束、给示例","万能模板：角色+任务+背景+格式+约束+示例","先写一版→看结果→缺哪补哪"],
+    mat:[["第4章 提示词技巧","content/第四章 提示词编写核心技巧.md"]],
+    quiz:["用万能模板写一条『整理会议要点为待办清单』的提示词"] },
+
+  { t:"AI 能做什么、不能做什么", d:"约 40 分钟", goal:"建立务实预期，知道边界，用得巧不翻车",
+    points:["擅长：写初稿/改写/总结/头脑风暴/解释","不擅长：精确计算、实时事实、专业责任领域","判断框架：错了代价大不大？要实时数据吗？","AI 是副驾驶，你才是司机"],
+    mat:[["第5章 能力边界","content/第五章 AI 能做什么、不能做什么.md"]],
+    quiz:["列出你 3 个可用 AI 提速的任务，标出哪个错了代价大"] },
+
+  { t:"幻觉与安全风险", d:"约 40 分钟", goal:"识别并规避幻觉，养成安全用 AI 的习惯",
+    points:["幻觉=看似合理实则编造的内容","原因：它『猜下一个词』而非查数据库","4 招减少：给资料/要来源/亲自核对/拆细","安全清单：隐私不上传、关键自己查"],
+    mat:[["第6章 幻觉与安全","content/第六章 幻觉与安全风险.md"]],
+    quiz:["让 AI 写财报分析发群里，至少要加哪两道防护？"] },
+
+  { t:"动手练习与进阶路线", d:"约 45 分钟", goal:"完成 7 日练习，看清由简入深的下一站",
+    points:["7 日递进练习（角色→迭代→模板→总结→识幻觉→核实→固化）","综合任务：向长辈讲清 AI","由简入深阶梯 L1→L8","下一站 L2 大模型原理（llm.zbjh.top）"],
+    mat:[["第7章 练习与进阶","content/第七章 动手练习与进阶路线.md"]],
+    quiz:["用一句话说明：AI 为何会胡说、以及你怎么防"] },
+];
+
+/* ============ 渲染每日卡片 ============ */
+function toMat(p){
+  if(!p || p.startsWith('http') || p.startsWith('#')) return p;
+  if(p.startsWith('content/')){
+    let r = 'materials/' + p;
+    if(r.endsWith('.md')) return r.slice(0,-3)+'.html';
+  }
+  return p;
+}
+const grid = document.getElementById('dayGrid');
+days.forEach((d, i) => {
+  const n = i + 1;
+  const det = document.createElement('details');
+  det.className = 'day';
+  det.dataset.day = n;
+  det.innerHTML = `
+    <summary>
+      <span class="badge">${n}</span>
+      <span><h3>第 ${n} 天 · ${d.t}</h3><div class="dur">⏱ ${d.d}</div></span>
+    </summary>
+    <div class="body">
+      <h4>🎯 今日目标</h4>
+      <div style="font-size:14px">${d.goal}</div>
+      <h4>📖 核心知识点</h4>
+      <ul>${d.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+      <h4>🔗 学习资料（点开即看）</h4>
+      <p class="mat">${d.mat.map(m=>`<a href="${toMat(m[1])}">${m[0]}</a>`).join('')}</p>
+      <h4>✅ 自测题</h4>
+      <ul>${d.quiz.map(q=>`<li>${q}</li>`).join('')}</ul>
+      <label class="chk"><input type="checkbox" onchange="toggleDay(${n}, this)"> 我已掌握这一天</label>
+    </div>`;
+  grid.appendChild(det);
+});
+
+/* ============ 进度 ============ */
+const KEY = 'ai101_progress_v1';
+function loadProg(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+function saveProg(p){ localStorage.setItem(KEY, JSON.stringify(p)); }
+function toggleDay(n, el){
+  const p = loadProg();
+  if(el.checked) p[n]=true; else delete p[n];
+  saveProg(p);
+  el.closest('.day').classList.toggle('done', !!p[n]);
+  refreshBar();
+}
+function refreshBar(){
+  const p = loadProg();
+  const done = Object.keys(p).length;
+  document.getElementById('barFill').style.width = (done/7*100)+'%';
+  document.getElementById('progText').textContent = `已完成 ${done} / 7 天`;
+  document.querySelectorAll('.day').forEach(d=>{
+    const n = d.dataset.day; const ok = !!p[n];
+    d.classList.toggle('done', ok);
+    const cb = d.querySelector('input[type=checkbox]');
+    if(cb) cb.checked = ok;
+  });
+}
+function resetProgress(){ localStorage.removeItem(KEY); refreshBar(); }
+refreshBar();
+
+/* ============ 演示1：提示词体检台 ============ */
+function checkPrompt(){
+  const txt = document.getElementById('pcInput').value.trim();
+  const out = document.getElementById('pcOut');
+  if(!txt){ out.textContent = '先粘一段提示词进来～'; return; }
+  // 六个维度检测（基于关键词/句式，演示用）
+  const checks = [
+    { key:'角色', hit: /你(是|作为一名|是一位|扮演)|作为(一名|一个)|role/i.test(txt), tip:'加「你是一名XX」设定身份' },
+    { key:'任务', hit: /(帮我|请|写|生成|分析|总结|列出|解释|翻译|计划|做)/.test(txt), tip:'用动词明确你要它做什么' },
+    { key:'背景', hit: /(背景|场景|情况|我是|我们|用户是|面向)/.test(txt), tip:'交代你的真实场景/信息' },
+    { key:'格式', hit: /(表格|列表|要点|分段|json|字数|字以内|句|条|%)/.test(txt), tip:'规定输出长什么样' },
+    { key:'约束', hit: /(不要|不能|必须|避免|仅|只|不超过|用口语|用专业)/.test(txt), tip:'明确「不要什么/必须什么」' },
+    { key:'示例', hit: /(例如|比如|示例|像这样|样板)/.test(txt), tip:'给 1~3 个样例让它照学' },
+  ];
+  const hitN = checks.filter(c=>c.hit).length;
+  const score = Math.round(hitN/checks.length*100);
+  const color = score>=80?'#86efac':score>=50?'#fcd34d':'#fca5a5';
+  let html = `<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
+      <span class="score-big" style="color:${color}">${score}</span>
+      <span>分 / 100（覆盖 ${hitN}/6 个关键块）</span></div><div>`;
+  html += checks.map(c=>`<span class="tag ${c.hit?'ok':'no'}">${c.hit?'✓':'✗'} ${c.key}</span>`).join('');
+  html += `</div>`;
+  const miss = checks.filter(c=>!c.hit);
+  if(miss.length){
+    html += `\n\n🛠 <b>改进建议</b>（补上缺失的块）：\n` + miss.map(c=>'· '+c.tip).join('\n');
+  } else {
+    html += `\n\n🎉 很完整！可直接使用，或再迭代润色。`;
+  }
+  out.innerHTML = html;
+}
+
+/* ============ 演示2：模糊 vs 结构化 对照 ============ */
+function comparePrompt(){
+  const task = document.getElementById('cmpTask').value.trim() || '写一段文案';
+  // 模糊写法：直接丢任务
+  const weak = `提示词：「${task}。」\n\n模型可能返回：泛泛而谈、方向随机、需要你反复改。例如「快来体验，超好用！」——没有针对性，谁都能套。`;
+  // 结构化写法：角色+背景+格式+约束
+  const strong = `提示词：「你是一位资深社群运营。背景：我们是家刚开业的手冲咖啡馆，想吸引周边上班族午间来喝。任务：${task}。要求：突出『午间放松/提神』、口语化、带一个 emoji、不超过 30 字。」\n\n模型可能返回：方向明确、可直接用的内容，例如「☕ 午间小逃亡，一杯手冲满血复活～」`;
+  document.getElementById('cmpWeak').textContent = weak;
+  document.getElementById('cmpStrong').textContent = strong;
+}
+comparePrompt();
+</script>
+</body>
+</html>

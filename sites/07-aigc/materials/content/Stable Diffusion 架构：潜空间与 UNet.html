@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Stable Diffusion 架构：潜空间与 UNet | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="stable-diffusion-unet">第五章 Stable Diffusion 架构：潜空间与 UNet</h1>
+<p>前面我们把扩散模型讲成了「在像素上反复去噪」。但工业级的 Stable Diffusion 其实聪明得多：它<strong>不在像素上直接去噪，而是在一个压缩后的「潜空间」里去噪</strong>，最后才放大回图像。这一章拆开 Stable Diffusion 的四大组件，看清一张图是怎么被「拼」出来的。</p>
+<p>读完你会理解：为什么它比纯像素扩散快那么多、以及「潜空间」到底省了什么。</p>
+<h2 id="51-stable-diffusion">5.1 Stable Diffusion 的四件套</h2>
+<p>一张 Stable Diffusion 图，由四个部件协作完成：</p>
+<ol>
+<li><strong>文本编码器（CLIP Text Encoder）</strong>：把提示词变成语义向量（第四章已讲）。</li>
+<li><strong>VAE 编码器（Encoder）</strong>：把真实图像压缩到潜空间（一个小得多的张量）。</li>
+<li><strong>UNet（去噪核心）</strong>：在潜空间里反复预测并减去噪声，是扩散真正发生的地方。</li>
+<li><strong>VAE 解码器（Decoder）</strong>：把去噪后的潜表示放大回像素图像。</li>
+</ol>
+<p>训练时：原图 → VAE 编码到潜空间 → 加噪 → UNet 学去噪。推理时：纯噪声潜变量 → UNet 去噪 → VAE 解码成图。</p>
+<h2 id="52-90">5.2 为什么要「潜空间」：省掉的 90% 计算</h2>
+<p>还记得第二章说的吗？一张 512×512 彩图是 78 万个数字。在它上面做 50 步去噪，每步 UNet 都要处理 78 万个数——算力爆炸。</p>
+<p>Stable Diffusion 的诀窍：<strong>先用 VAE 把图压到 64×64×4 的潜表示</strong>（约 1.6 万个数，只有原图的 2%）。UNet 只在这么小的潜空间里去噪，最后 VAE 解码器一次性「放大」回清晰大图。</p>
+<p>好处立竿见影：</p>
+<ul>
+<li>去噪处理的数字量降到原来的约 <strong>1/48</strong>；</li>
+<li>生成速度大幅提升，消费级显卡也能跑；</li>
+<li>VAE 解码器自带的「上采样」，还顺带让结果更平滑。</li>
+</ul>
+<p>代价是：潜空间丢了一些最细的像素级细节，所以 SD 图放大后偶尔会有轻微的不自然——这催生了后续「高清修复（Hires. fix）」等后处理。</p>
+<h2 id="53-unet">5.3 UNet：去噪的主角</h2>
+<p>UNet 是一种<strong>对称的下采样-上采样结构</strong>，名字来自它像字母 U 的形状：</p>
+<ul>
+<li><strong>下采样（Encoder 侧）</strong>：逐步缩小尺寸、增加通道，捕捉图像的「全局结构」（比如猫在哪、整体构图）。</li>
+<li><strong>瓶颈层</strong>：最压缩处，融合全局信息。</li>
+<li><strong>上采样（Decoder 侧）</strong>：逐步放大、恢复细节（耳朵的绒毛、眼睛的高光）。</li>
+</ul>
+<p>关键是中间的<strong>跳跃连接（skip connection）</strong>：下采样时提取的细节，直接「抄近路」传给上采样对应层，避免细节在压缩中丢失。</p>
+<p>在 Stable Diffusion 里，UNet 的每一层都带着<strong>交叉注意力</strong>（第四章）——图像特征去查文本向量，实现文字控制。</p>
+<h2 id="54-unet">5.4 一步去噪在 UNet 里发生了什么</h2>
+<p>给定「潜空间带噪图 + 步数 + 文本向量」，UNet 输出「预测的噪声」。然后：</p>
+<p>$$z_{t-1} = \text{去噪一步}(z_t,\; t,\; \text{文本向量})$$</p>
+<p>这个公式和第三章的像素版完全对应，只是现在 $z$ 是潜变量而不是像素。重复约 20–50 次，得到干净的潜变量 $z_0$，再交给 VAE 解码器变成图。</p>
+<h2 id="55">5.5 把四件套串成一条流水线</h2>
+<p>用一句话串起来（推理时）：</p>
+<blockquote>
+<p>随机噪声 → 进潜空间 → UNet 在文本向量指引下反复去噪 → 干净潜变量 → VAE 解码 → 像素图。</p>
+</blockquote>
+<p>你可以把这套架构记成「<strong>编码降维 → 在压缩空间雕刻 → 解码还原</strong>」。它和 JPEG 压缩的思想有异曲同工之妙：先压、再处理、再解。</p>
+<h2 id="56-stable">5.6 为什么叫「Stable」</h2>
+<p>Stable Diffusion 的「Stable」来自发布方 Stability AI。相比同期一些需要巨量算力、难以复现的模型，它：</p>
+<ul>
+<li>开源权重，社区可本地部署；</li>
+<li>在潜空间操作，消费级显卡可跑；</li>
+<li>架构模块化（换文本编码器、换 VAE、换 UNet 都相对独立）。</li>
+</ul>
+<p>这三点让它催生了海量二次开发（插件、微调、ControlNet，见第八章），成为今天 AIGC 生态的事实标准底座。</p>
+<h2 id="57">5.7 本章小结</h2>
+<ul>
+<li>Stable Diffusion = 文本编码器 + VAE（编/解码）+ UNet（去噪），四件套协作。</li>
+<li><strong>潜空间</strong>是关键创新：先压缩到 1/48 大小，在压缩空间去噪，再解码回图，大幅提速。</li>
+<li><strong>UNet</strong> 是去噪核心，靠下采样抓结构、上采样补细节、跳跃连接保信息。</li>
+<li>文字通过 UNet 内的交叉注意力，在每一步指引去噪方向。</li>
+<li>开源 + 潜空间 + 模块化，让它成为 AIGC 生态的底座。</li>
+</ul>
+<blockquote>
+<p><strong>提示</strong>：理解了潜空间，你就懂了为什么 SD 出图快、以及为什么需要「高清修复」。下一章我们讲怎么用文字把这张图「指挥」得更好看——提示词工程。</p>
+</blockquote></body></html>

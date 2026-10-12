@@ -1,0 +1,127 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>思维链的取舍：什么时候该用什么时候不该用 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="_1">思维链的取舍：什么时候该用什么时候不该用</h1>
+<p>推理模型很强大，但<strong>不是所有问题都值得「想」</strong>。这一章教你做决策：什么场景开思维链/推理模型，什么场景用普通模型就够，以及为什么「无脑上推理模型」是常见的成本灾难。</p>
+<h2 id="_2">核心原则：按「问题难度」匹配「思考强度」</h2>
+<p>一个简单的决策框架：</p>
+<pre class="codehilite"><code>问题需要多步推理吗？
+  ├─ 是 → 用推理模型 / 开思维链
+  └─ 否 → 普通模型就够，别浪费
+</code></pre>
+
+<p>判断「需要多步推理」的信号：</p>
+<ul>
+<li>问题里有「计算、比较、条件、逻辑链」；</li>
+<li>答案不能凭记忆直接给出，要现场推导；</li>
+<li>一步错满盘皆输（高容错要求）。</li>
+</ul>
+<h2 id="_3">该用推理模型的场景（详细版）</h2>
+<p><strong>1. 数学与计算</strong>
+从四则运算到概率统计。推理模型每一步写下来，不容易漏算。</p>
+<p><strong>2. 代码</strong>
+算法设计、复杂 bug 定位、多文件逻辑推理。代码测试能提供客观反馈，是 RL 训练的理想场景。</p>
+<p><strong>3. 逻辑与谜题</strong>
+条件推理、真假判断、找规律。这类题「直接答」的准确率很低。</p>
+<p><strong>4. 规划与决策</strong>
+任务拆解、资源分配、方案对比。推理模型能列出权衡并逐项分析。</p>
+<p><strong>5. 高容错场景</strong>
+医疗、金融、法律等「答错代价高」的场景——宁可慢一点，也要准确率高。</p>
+<h2 id="_4">不该用推理模型的场景（同样重要）</h2>
+<p><strong>1. 常识问答</strong>
+「中国的首都是哪」「什么是 RAG」——直接答，推理纯属浪费时间。</p>
+<p><strong>2. 创意与聊天</strong>
+写文案、闲聊、头脑风暴。思维链会让回答变得「僵化、像在交作业」，体验反而差。</p>
+<p><strong>3. 翻译与改写</strong>
+直接产出结果，不需要「先推理怎么翻译」。</p>
+<p><strong>4. 检索问答（有知识源）</strong>
+RAG 场景里答案就在资料里，普通模型 + 检索就够。用推理模型是「杀鸡用牛刀」。</p>
+<p><strong>5. 低延迟场景</strong>
+实时客服、流式聊天——用户等不了几十秒的「思考」。</p>
+<h2 id="_5">一个反直觉的发现：思维链可能降低创造力</h2>
+<p>研究与实践都发现：<strong>强制思维链对创意类任务有负面效果</strong>。</p>
+<ul>
+<li>写诗、写文案时，「一步一步想」会让输出变得机械、套路化；</li>
+<li>头脑风暴时，思维链会让模型「钻进一条思路」而不是发散；</li>
+<li>用户也不喜欢看「思考过程」出现在创意回答里。</li>
+</ul>
+<p><strong>教训</strong>：思维链是「收敛工具」（把思路收敛到正确答案），而创意需要「发散」。<strong>用错地方会适得其反。</strong></p>
+<h2 id="_6">成本视角的取舍</h2>
+<p>推理模型的成本是普通模型的数倍到十几倍（第 8 章细算）。从 ROI 角度看：</p>
+<pre class="codehilite"><code>问题价值高（关键决策、高容错）→ 值得用贵的推理模型
+问题价值低（闲聊、简单查询）→ 用便宜的普通模型
+</code></pre>
+
+<p><strong>架构铁律</strong>：大部分流量走普通模型，只有「值得」的流量走推理模型。用「分流」控制成本（第 6 章的简单/复杂分流）。</p>
+<h2 id="_7">实用决策清单</h2>
+<p>给一张可以贴在工位上的速查表：</p>
+<pre class="codehilite"><code>遇到问题先问三件事：
+1. 需要多步推理吗？   否 → 普通模型
+2. 答错代价高吗？     否 → 普通模型（省成本）
+3. 延迟敏感吗？       是 → 普通模型（或轻量思维链）
+
+三个都指向「推理」→ 用推理模型 / 开思维链
+</code></pre>
+
+<p><strong>特例</strong>：如果你「不确定」要不要用，可以先试普通模型；答错了再升级推理模型——<strong>别默认用最贵的</strong>。</p>
+<h2 id="_8">思维链的「强度」也可以分级</h2>
+<p>不是非黑即白，思考强度可以按需调节（第 4 章的 test-time scaling）：</p>
+<pre class="codehilite"><code>轻量：提示词加「请一步步想」（便宜，提升有限）
+中等：推理模型的默认模式
+深度：推理模型 + 高 reasoning_effort / 自洽性多数投票
+</code></pre>
+
+<p><strong>选择逻辑</strong>：先轻后重，用「最便宜的足够方案」——答不对再升级。</p>
+<h2 id="_9">场景实战：三类典型应用的取舍设计</h2>
+<p>把取舍原则落到真实应用上，看三种典型产品怎么设计：</p>
+<p><strong>产品 1：智能客服</strong>
+- 90% 问题是「查政策、问流程」→ 普通模型 + 知识库（快、便宜）；
+- 10% 是「复杂投诉、多步骤咨询」→ 才升级推理模型；
+- 理由：用户等不起，答错 90% 的问题代价也低（重答即可）。</p>
+<p><strong>产品 2：AI 编程助手</strong>
+- 补全、简单重构 → 普通模型（秒回，体验关键）；
+- 算法设计、复杂 bug 定位 → 推理模型（代码错了代价高）；
+- 理由：代码「错不起」，但也不是每行代码都值得深度思考。</p>
+<p><strong>产品 3：教育解题</strong>
+- 简单题 → 普通模型（学生要快）；
+- 中难题 → 推理模型（教错了会误导）；
+- 压轴题 → 推理模型 + 自洽性（准确率优先）；
+- 理由：教育「错不起」，但成本也要分层控制（第 10 章完整实现）。</p>
+<p><strong>共同规律</strong>：三种产品都是「按难度/价值分流」——<strong>取舍不是二选一，而是分层</strong>。</p>
+<h2 id="_10">一个容易被忽略的因素：用户预期</h2>
+<p>技术上的取舍还要考虑「用户预期」：</p>
+<ul>
+<li><strong>用户期待「快」的场景</strong>（聊天、客服）→ 别让思维链拖慢节奏；</li>
+<li><strong>用户期待「准」的场景</strong>（解题、代码）→ 展示思考过程反而加分（「它真的认真想了」）；</li>
+<li><strong>用户期待「专业」的场景</strong>（咨询、分析）→ 适度展示推理能提升信任感。</li>
+</ul>
+<p><strong>思考过程展示 ≠ 答案的一部分</strong>：展示给用户看的是「可信度」，不是「草稿」。这个度要拿捏（第 6 章讲过思考过程的展示策略）。</p>
+<h2 id="_11">小练习</h2>
+<ol>
+<li>列出你手头 5 个真实场景，用「三问清单」判断各自该用普通还是推理模型。</li>
+<li>找一个创意任务（写文案），对比「加思维链」和「不加」的输出差异，验证「思维链降低创造力」。</li>
+<li>估算：如果某应用每天 10 万次调用，其中 90% 是闲聊，你会怎么设计「分流」？为什么？</li>
+<li>进阶：读一篇关于「CoT 对创意任务负面影响」的文章，总结它给出的证据。</li>
+<li>进阶：挑一个你熟悉的应用（如外卖客服、词典 App），画出它的「普通/推理模型分流设计」。</li>
+</ol>
+<p>取舍想清楚了。下一章算一笔更细的账——<strong>推理成本与延迟</strong>。</p></body></html>

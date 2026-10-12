@@ -1,0 +1,313 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>RAG 问答链路：从检索到回答的完整流程 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="rag">RAG 问答链路：从检索到回答的完整流程</h1>
+<p>前面的五篇文章，我们像搭积木一样一块块准备好了：文档解析、分块、Embedding、向量库、混合检索、重排序。这一篇，要把所有积木<strong>拼成一个能真正问答的系统</strong>——也就是完整的 RAG 问答链路。你会看到：问题进来之后，系统在后台悄悄做的那一连串动作，以及为什么每一步都缺不得。</p>
+<h2 id="71">7.1 全景链路：一个问题的一生</h2>
+<p>用一个生活化的比喻开场。你去政务大厅办事，柜台的办事员（大模型）很热情，但他不知道你家的情况，也没法记住所有政策。你交上问题后，真正专业的系统是这样运转的：</p>
+<ol>
+<li><strong>问题改写</strong>：你的问题可能说得含糊，系统先帮你把问题"翻译"成更利于查资料的说法。</li>
+<li><strong>混合检索</strong>：系统同时用"关键词"和"语义"两套办法，在政策库里翻找相关材料。</li>
+<li><strong>重排序</strong>：翻出一堆材料后，按"哪份最可能解答你的问题"重新排个序，只留最相关的几份。</li>
+<li><strong>拼上下文</strong>：把这几份材料整齐地摆到办事员桌上，附上一句"只准用这些材料回答"。</li>
+<li><strong>生成</strong>：办事员看完材料，给你一份有凭有据的回答。</li>
+<li><strong>引用</strong>：回答末尾标注"本答复依据《XX 政策》第 3 条"，你随时可以回去核对。</li>
+</ol>
+<p>流程图画出来就是：</p>
+<pre class="codehilite"><code class="language-text">用户问题
+   │
+   ▼
+① 问题改写（Query Rewrite）── 改写：消歧、补全、拆解
+   │
+   ▼
+② 混合检索 ──► BM25 路（关键词）──┐
+   │           向量路（语义）  ────┴─► 合并（RRF）→ Top-50
+   │
+   ▼
+③ 重排序（Rerank）── Cross-encoder 逐对打分 → Top-5
+   │
+   ▼
+④ 上下文拼装 ──► Prompt 模板 + 检索到的块 + 元数据
+   │
+   ▼
+⑤ LLM 生成 ──► 基于给定上下文回答
+   │
+   ▼
+⑥ 答案 + 引用来源（文档名、页码、块内容）
+</code></pre>
+
+<h2 id="72-query-rewrite">7.2 第一步：问题改写（Query Rewrite）</h2>
+<p>很多人忽略这一步，但它直接影响检索质量。用户的原始问题常常"不适合检索"：</p>
+<ul>
+<li><strong>太口语</strong>："那个年假的事，公司咋规定的来着？" —— "那个""咋"都是噪声。</li>
+<li><strong>有指代</strong>："上面那条提到的 4.3 款，和后面冲突吗？" —— "上面那条"是什么？系统不知道。</li>
+<li><strong>太宽泛</strong>："说说安全制度。" —— 范围太大，检索会返回一堆乱七八糟的块。</li>
+</ul>
+<p>问题改写就是用一个小模型（或大模型本身）把问题加工一下：</p>
+<pre class="codehilite"><code class="language-python">rewrite_prompt = &quot;&quot;&quot;你是检索助手。请把用户的提问改写成一个：
+1) 简洁的；2) 含有关键专有名词的；3) 便于在知识库中检索的查询。
+只输出改写结果，不要解释。
+
+用户提问：{question}&quot;&quot;&quot;
+
+query = llm.chat(rewrite_prompt.format(question=raw_question))
+# 示例输出：&quot;公司的年假政策，特别是年假天数与未休处理规定&quot;
+</code></pre>
+
+<p>改写不是必需的，但<strong>成本极低、收益明显</strong>。对口语化严重的内部问答场景，强烈建议加上。高级的改写还能做<strong>多路改写</strong>（拆成"年假天数"和"年假未休"两个子问题分别检索，再合并结果），覆盖更全面。</p>
+<h2 id="73">7.3 第四步：上下文拼装技巧</h2>
+<p>检索到的 Top-5 块怎么"喂"给大模型，是有讲究的。拼装的核心目标是：<strong>让模型只信上下文、别乱编、还能给出引用</strong>。</p>
+<p>一个可靠的中文 Prompt 模板长这样（呼应 L11 的提示词设计）：</p>
+<pre class="codehilite"><code class="language-text">【系统指令】
+你是一个企业知识库问答助手。你的知识完全来自下面提供的参考资料，
+绝不允许使用参考资料之外的信息作答。
+
+规则：
+1. 只依据参考资料回答，资料里没有的信息，明确回答&quot;资料中未找到&quot;。
+2. 回答要简洁、分点，直接给出结论。
+3. 每句话末尾用【来源】标注出处：文档名 + 页码。
+4. 多个资料互相矛盾时，如实说明矛盾，不要强行调和。
+
+【参考资料】
+[来源：员工手册，第 12 页]
+{块1 的内容}
+
+[来源：员工手册，第 13 页]
+{块2 的内容}
+
+[来源：休假制度 2024 版，第 5 页]
+{块3 的内容}
+
+【用户问题】
+{改写后的查询}
+</code></pre>
+
+<p>拼装时的四个实战技巧：</p>
+<ol>
+<li><strong>每块都带元数据标签</strong>（来源、页码、标题）——这是"引用"能实现的根基，在第 2 篇我们已经存下了这些信息。</li>
+<li><strong>控制块数</strong>：默认 5 块，每块 400 字左右，上下文总量别超模型窗口的 1/4，留出思考空间。</li>
+<li><strong>按相关度排序拼接</strong>：最相关的块放最前面。模型对"前面内容"注意力更强，这能提升命中率。</li>
+<li><strong>块之间加分隔符</strong>（<code>---</code> 或编号），避免块边界混淆，让模型分清"这是一份资料结束、另一份开始"。</li>
+</ol>
+<h2 id="74">7.4 "检索不到就承认"的工程实现</h2>
+<p>这是企业知识库的<strong>尊严所在</strong>：宁可说"不知道"，也不许编。工程上至少有三道保险：</p>
+<p><strong>第一道：Rerank 分数阈值。</strong> 在拼上下文之前，检查 Top-1 块的 rerank 分数。低于阈值（如 0.3）就判定"库里无答案"：</p>
+<pre class="codehilite"><code class="language-python">if top_score &lt; 0.3:
+    return &quot;抱歉，知识库中暂未找到与该问题直接相关的内容。\
+您可以换个说法再问，或联系知识库管理员补充资料。&quot;
+</code></pre>
+
+<p><strong>第二道：Prompt 指令约束。</strong> 就是上面模板里的规则 1："资料里没有的信息，明确回答'资料中未找到'"。指令约束不是万能的，但它能把"编造"的概率大幅压下去。</p>
+<p><strong>第三道：生成后的忠实度校验。</strong> 在答案返回给用户前，用一个小模型（或规则）检查答案的每一句，是不是都"能在参考资料里找到依据"。找不到依据的句子打上标记或直接删掉。这道防线最严，第 9 篇会展开讲。</p>
+<p>三道保险，从"进料口"（阈值）到"加工间"（指令）再到"质检口"（校验），层层设卡。</p>
+<h2 id="75">7.5 端到端流程：伪代码</h2>
+<p>把整个链路浓缩成一份可读的伪代码，你可以照着它搭自己的第一版系统：</p>
+<pre class="codehilite"><code class="language-python">def answer_question(user_question: str) -&gt; Answer:
+    # ① 问题改写
+    query = rewrite(user_question)
+
+    # ② 混合检索：两路并行召回
+    vec_hits = vector_search(query, top_k=50)      # 向量路
+    bm25_hits = bm25_search(tokenize(query), top_k=50)  # 关键词路
+    candidates = rrf_merge(vec_hits, bm25_hits)    # 合并，去重，Top-50
+
+    # ③ 重排序
+    ranked = rerank(query, candidates)             # 逐对打分
+    top_5 = ranked[:5]
+    top_score = ranked[0].score
+
+    # ④ 若检索太弱，直接承认不知道
+    if top_score &lt; 0.3:
+        return Answer(text=&quot;知识库中未找到直接相关内容。&quot;,
+                      citations=[], no_hit=True)
+
+    # ④ 拼装上下文（带来源标签）
+    context = build_context(top_5)
+
+    # ⑤ 生成（用 7.3 的 Prompt 模板）
+    final_prompt = RAG_PROMPT.format(context=context, question=query)
+    raw_answer = llm.generate(final_prompt)
+
+    # ⑥ 提取引用（让模型输出结构化引用，或事后用规则对齐）
+    answer, citations = parse_answer_with_citations(raw_answer)
+    return Answer(text=answer, citations=citations)
+</code></pre>
+
+<p>注意第 ⑥ 步的"引用提取"：让模型在回答时<strong>同时输出 JSON 格式的来源标记</strong>（比让模型写"见第 12 页"更稳），再用规则解析，实现"引用可点击跳转"。</p>
+<h2 id="76">7.6 引用来源：企业级信任的基石</h2>
+<p>最后单独说说"引用"，因为它是企业 RAG 和普通"聊天机器人"最本质的区别。</p>
+<p>实现引用需要三个环节配合：</p>
+<ol>
+<li><strong>入库时</strong>：每个块带上完整的元数据（第 2 篇做过）：文档名、版本、页码、作者、入库时间。</li>
+<li><strong>检索时</strong>：块的元数据跟着块一起进上下文（7.3 已做）。</li>
+<li><strong>展示时</strong>：前端把模型标注的来源渲染成"第 12 页 &gt;"的可点击链接，点开直接跳到原文。</li>
+</ol>
+<pre class="codehilite"><code class="language-json">{
+  &quot;answer&quot;: &quot;根据员工手册，满 5 年工龄的员工可享受 15 天年假。&quot;,
+  &quot;citations&quot;: [
+    {&quot;doc&quot;: &quot;员工手册_2024.pdf&quot;, &quot;page&quot;: 12, &quot;chunk&quot;: &quot;满 5 年……15 天年假。&quot;},
+    {&quot;doc&quot;: &quot;员工手册_2024.pdf&quot;, &quot;page&quot;: 13, &quot;chunk&quot;: &quot;年假申请流程……&quot;}
+  ]
+}
+</code></pre>
+
+<p>有了这份 JSON，前端想怎么展示都行。<strong>当每一个结论都能追溯到具体文档和页码时，用户才会真正信任这个系统</strong>——这也正是知识库相比"直接问大模型"不可替代的价值。</p>
+<h2 id="77-history">7.7 多轮对话：上下文（History）怎么处理</h2>
+<p>真实的企业问答很少是"问一句答一句"，大多是聊天式的多轮对话：</p>
+<pre class="codehilite"><code class="language-text">用户：年假能休几天？
+系统：满 1 年 5 天，满 5 年 15 天……
+用户：那我入职刚满两年呢？
+</code></pre>
+
+<p>第二个问题单独拎出来，"我""那"指代不明，直接检索必然抓瞎。正确的做法是<strong>把多轮历史合并成一个"当前问题"再检索</strong>：</p>
+<pre class="codehilite"><code class="language-python">def resolve_current_question(history, latest_question):
+    # 让大模型结合历史对话，把当前问题补全成独立可检索的问题
+    prompt = f&quot;&quot;&quot;以下是对话历史：
+{history}
+
+用户最新提问：{latest_question}
+
+请把最新提问改写成一个&quot;不含指代、可独立检索&quot;的完整问题。
+只输出改写结果。&quot;&quot;&quot;
+    return llm.chat(prompt)
+
+# 示例：
+# 历史：&quot;年假能休几天？&quot; → &quot;满1年5天，满5年15天。&quot;
+# 最新：&quot;那我入职刚满两年呢？&quot;
+# 改写结果：&quot;入职满两年的员工年假有几天？&quot;
+</code></pre>
+
+<p>几个实操要点：</p>
+<ul>
+<li><strong>历史窗口要截断</strong>：只保留最近 3–5 轮，太长既费 token 又引入噪声。</li>
+<li><strong>历史只用于"改写问题"，不参与检索</strong>：检索和上下文拼装用的都是改写后的"独立问题"。</li>
+<li><strong>会话隔离</strong>：每个用户有独立的会话 ID，历史不要串人——既避免张冠李戴，也符合数据隐私要求。</li>
+</ul>
+<h2 id="78">7.8 多路检索：当一个"问题"其实是一堆问题</h2>
+<p>用户的一句话里可能藏着多个子问题："年假怎么算？还有没休完的怎么处理？" 单独一个查询向量去检索，可能只覆盖到其中一个。</p>
+<p>进阶做法是<strong>多路改写（Multi-Query）</strong>：把一个问题拆成多个查询，分别检索再合并结果：</p>
+<pre class="codehilite"><code class="language-python">queries = llm.chat(&quot;把下面问题拆成最多3个独立子查询：\n&quot; + question)
+# 示例输出：
+# ['年假天数怎么计算', '年假未休完怎么处理', '年假申请流程']
+
+all_candidates = []
+for q in queries:
+    hits = rrf_merge(vector_search(q), bm25_search(q))
+    all_candidates.extend(hits)
+deduped = dedupe_by_id(all_candidates)   # 按块 ID 去重
+ranked = rerank(question, deduped)       # 用原始问题做精排
+</code></pre>
+
+<p>好处是覆盖更全，代价是检索次数变多、延迟上升。<strong>适合：问题宽泛、答案分散的场景</strong>；不适合：问题明确、要求秒回的高并发场景。按需启用，别默认开启。</p>
+<h2 id="79">7.9 系统级健壮性：超时、重试与降级</h2>
+<p>生产系统不能"一次问崩、全盘皆崩"。问答链路里每个环节都可能失败，要提前设计好应对策略：</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>可能失败</th>
+<th>应对策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>问题改写</td>
+<td>模型超时</td>
+<td>降级：直接使用原始问题检索</td>
+</tr>
+<tr>
+<td>混合检索</td>
+<td>向量库/BM25 挂了</td>
+<td>降级：只走其中一路</td>
+</tr>
+<tr>
+<td>Rerank</td>
+<td>模型不可用</td>
+<td>降级：跳过重排，用融合排名</td>
+</tr>
+<tr>
+<td>生成</td>
+<td>大模型超时/限流</td>
+<td>重试 1 次 → 返回"服务繁忙，请稍后再试"</td>
+</tr>
+<tr>
+<td>引用解析</td>
+<td>模型没按格式输出</td>
+<td>用规则兜底：从答案中抽取文档名</td>
+</tr>
+</tbody>
+</table>
+<pre class="codehilite"><code class="language-python">def safe_answer(question):
+    try:
+        q = rewrite(question)          # 失败则 q = question
+    except Exception:
+        q = question
+    try:
+        hits = hybrid_search(q)        # 失败则只走向量路
+    except Exception:
+        hits = vector_search(q)
+    ...
+    try:
+        answer = llm.generate(prompt)  # 失败则返回友好提示
+    except Exception:
+        return &quot;服务暂时不可用，请稍后再试。&quot;
+</code></pre>
+
+<p>原则只有一条：<strong>任何一环失败，都要有"降级路径"，绝不能让用户看到报错堆栈</strong>。企业级系统的稳，就是靠这一层层"安全网"托起来的。</p>
+<h2 id="710">7.10 回答的结构化输出：从"一段话"到"可编程"</h2>
+<p>企业系统里，问答结果不能只是一段话——前端要渲染、要跳转、要做操作，后端要记录、要分析。所以推荐的实践是：<strong>让模型输出结构化 JSON</strong>，再用代码解析。</p>
+<pre class="codehilite"><code class="language-python">output_schema = &quot;&quot;&quot;请按以下 JSON 格式回答，不要输出其他内容：
+{
+  &quot;answer&quot;: &quot;对用户问题的最终回答（简洁分点）&quot;,
+  &quot;confidence&quot;: &quot;high|medium|low&quot;,          // 检索充分程度
+  &quot;citations&quot;: [
+    {&quot;doc&quot;: &quot;文档名&quot;, &quot;page&quot;: &quot;页码&quot;, &quot;snippet&quot;: &quot;引用原文片段&quot;}
+  ],
+  &quot;unanswerable&quot;: true|false                 // 资料不足时为 true
+}&quot;&quot;&quot;
+
+raw = llm.generate(RAG_PROMPT.format(schema=output_schema, ...))
+import json
+try:
+    result = json.loads(raw)                 # 解析为字典
+except json.JSONDecodeError:
+    result = fallback_parse(raw)             # 模型偶尔不听话，做容错
+</code></pre>
+
+<p>结构化输出的四个好处：</p>
+<ol>
+<li><strong>引用可编程</strong>：<code>citations</code> 数组直接渲染成可点击列表，不必再从大段文字里正则提取。</li>
+<li><strong>前端好做状态</strong>：<code>unanswerable=true</code> 时前端展示"未找到资料"的引导卡片，而不是一段尴尬的回答。</li>
+<li><strong>方便评测</strong>：第 9 篇的忠实度评测，需要"答案句子"和"引用片段"逐句对应，结构化输出天然提供。</li>
+<li><strong>方便审计</strong>：<code>confidence</code> 字段让系统能识别"低置信度回答"，单独标记、重点复核。</li>
+</ol>
+<p><strong>容错设计</strong>：大模型偶尔不按格式输出（少了括号、多了解释），一定要做 <code>fallback_parse</code>（用正则抽关键字段，或干脆降级为普通文本回答）。宁可让格式偶尔退化为纯文本，也不能让一次解析异常搞垮整个接口。</p>
+<h2 id="711">7.11 本篇小结</h2>
+<p>完整的 RAG 问答链路六步走：<strong>改写 → 混合检索 → 重排 → 拼上下文 → 生成 → 引用</strong>。</p>
+<ul>
+<li>问题改写：让口语问题更利于检索，成本低收益高。</li>
+<li>上下文拼装：<strong>带来源标签 + 排序 + 限制数量 + 明确指令</strong>，防止乱编。</li>
+<li>"检索不到就承认"：三道保险——分数阈值、指令约束、忠实度校验。</li>
+<li>引用是信任的基石：入库存元数据、检索带元数据、展示可跳转。</li>
+</ul>
+<p>到这里，你已经从原理上完整掌握了企业级 RAG。接下来的两篇是"动手篇"：先用开源项目 <a href="content/用 RAGFlow 搭建企业知识库.html">RAGFlow</a> 把整套系统跑起来，再学怎么<a href="content/知识库评测与调优.html">评测与调优</a>。</p></body></html>

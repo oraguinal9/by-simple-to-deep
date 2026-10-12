@@ -1,0 +1,163 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>中文小模型实战：MiniMind 从零训练 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="minimind">中文小模型实战：MiniMind 从零训练</h1>
+<p>前面的章节用的是别人的库（Unsloth）。这一章我们用 <strong>MiniMind</strong> 这个极简的中文小模型，把「从零训练/微调一个能聊天的模型」这件事彻底搞清楚。MiniMind 由国内开发者开源，代码极其精简，非常适合教学——你几乎能看懂每一行在干嘛。</p>
+<h2 id="minimind_1">MiniMind 是什么</h2>
+<p>MiniMind 是一个<strong>为中文教学和研究设计的小型开源 LLM</strong>，特点：</p>
+<ul>
+<li><strong>模型极小</strong>：有 26M、52M、104M 等超小规模，普通 CPU/小显存就能跑；</li>
+<li><strong>代码极简</strong>：核心训练代码几百行，去掉了一切工业化的复杂封装；</li>
+<li><strong>全程中文</strong>：数据、示例、文档都是中文，对中文学习者极其友好；</li>
+<li><strong>流程完整</strong>：预训练、指令微调、对话推理全都有。</li>
+</ul>
+<p>用它做教学，你能看到「一个 LLM 到底是怎么从数据训练出来的」，而不只是「调一个库」。</p>
+<h2 id="_1">训练一个模型的两大步</h2>
+<h3 id="pre-training">第一步：预训练（Pre-training）</h3>
+<p>让模型学会「中文长什么样」——词与词的搭配、语法、常识。这步用海量无标注文本，训练目标是「预测下一个 token」。</p>
+<p>MiniMind 预训练输出的是一堆「原始文本生成器」：它知道中文怎么读着顺，但还不会「有问有答」。</p>
+<h3 id="sftsupervised-fine-tuning">第二步：指令微调（SFT，Supervised Fine-Tuning）</h3>
+<p>用「指令—回答」对，让模型学会「问什么答什么」。这才是我们前面一直在说的「微调」。它让模型从「会写中文」变成「会对话、会执行指令」。</p>
+<h2 id="minimind_2">打开 MiniMind 的代码看结构</h2>
+<p>MiniMind 的仓库结构大致如下（不同版本略有差异）：</p>
+<pre class="codehilite"><code>MiniMind/
+├── model.py          # 模型结构定义（Transformer）
+├── train.py          # 预训练脚本
+├── sft.py            # 指令微调脚本
+├── generate.py       # 推理/生成脚本
+├── config.py         # 配置（模型大小、路径等）
+└── data/             # 数据
+</code></pre>
+
+<p><strong>关键收获</strong>：一个完整的 LLM 训练项目，本质上就这几块——模型定义、训练循环、数据、配置、推理。</p>
+<h2 id="_2">从「原理」看懂一条训练样本</h2>
+<p>在 MiniMind 里，一条指令微调样本最终也是一段 token 序列，用特殊的模板标记角色。它的思路和 ChatML 类似，只是标记符号不同。</p>
+<p>训练时模型做的依然是「下一个 token 预测」：给定前面的 token，预测下一个 token。通过海量样本，它逐渐学会「看到 user 的问题，就接着生成 assistant 的回答」。</p>
+<p>你可能会问：那怎么让它「回答」而不是「把问题复述一遍」？靠的就是<strong>只对 assistant 段算 loss</strong>（mask 机制），第 5 章讲过了。MiniMind 的 sft 脚本里也有对应的 mask 逻辑。</p>
+<h2 id="minimind_3">实操：跑通 MiniMind 微调</h2>
+<p>以最小的 26M 模型为例，大致流程：</p>
+<pre class="codehilite"><code class="language-bash">git clone https://github.com/jingyaogong/minimind.git
+cd minimind
+
+# 1. 配置里把模型大小设到最小
+# 2. 准备你的指令数据（JSON）
+# 3. 跑指令微调
+python sft.py
+</code></pre>
+
+<p>跑完后，<code>generate.py</code> 就能加载微调后的权重做对话：</p>
+<pre class="codehilite"><code class="language-bash">python generate.py
+</code></pre>
+
+<p>你会得到：<strong>一个真的在本地、用你自己数据、能跟你对话的中文小模型</strong>。虽然它很笨（26M 参数能力有限），但它是「你自己训练出来的」，这个理解价值远超一个大模型的 demo。</p>
+<h2 id="_3">为什么先从小模型学</h2>
+<p>有人会问：我直接学 7B 不就行了吗？为什么要先玩 26M 的玩具？</p>
+<p>三个理由：</p>
+<ol>
+<li><strong>看得见全过程</strong>：26M 模型在 CPU 上几分钟就能训完，你能反复试「改数据 → 重训 → 看效果」，这个反馈循环是学习的关键；</li>
+<li><strong>概念通用</strong>：小模型和大模型的训练机制完全一样，只是规模不同。你在这里搞懂的 mask、模板、loss，放大到 7B 一字不差；</li>
+<li><strong>省钱省心</strong>：不烧显存，犯错成本极低。</li>
+</ol>
+<p>等你在 MiniMind 上把「训练」这件事真正搞明白，回到 Unsloth 跑大模型只是「换了个更大的模型」而已。</p>
+<h2 id="vs">预训练 vs 指令微调：别搞混</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>预训练</th>
+<th>指令微调（SFT）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据</td>
+<td>海量无标注文本</td>
+<td>指令-回答对</td>
+</tr>
+<tr>
+<td>目标</td>
+<td>学会语言本身</td>
+<td>学会听从指令/对话</td>
+</tr>
+<tr>
+<td>模型产出</td>
+<td>文本生成器</td>
+<td>对话助手</td>
+</tr>
+<tr>
+<td>成本</td>
+<td>高（算力大）</td>
+<td>相对低</td>
+</tr>
+<tr>
+<td>你实际要做的</td>
+<td>通常是「用现成的」</td>
+<td><strong>这才是你日常说的「微调」</strong></td>
+</tr>
+</tbody>
+</table>
+<p>大多数个人微调场景，你<strong>不需要</strong>从头预训练——直接用现成的开源模型（Qwen 等）做指令微调即可。MiniMind 让你看到预训练的样子，是为了让你理解全貌，不是让你真去预训练一个生产模型。</p>
+<h2 id="_4">训练日志：小模型也能看到「学习」的瞬间</h2>
+<p>用 MiniMind 训练时，多留意训练日志里的 loss。你会观察到一些有意思的现象：</p>
+<ul>
+<li><strong>前几十步 loss 掉得飞快</strong>：模型在「见世面」，快速学会数据的整体规律；</li>
+<li><strong>之后下降变缓</strong>：进入精调阶段，学细节；</li>
+<li><strong>loss 平台期</strong>：暂时不降了，可能过一会儿继续降，也可能到头了。</li>
+</ul>
+<p><strong>对小模型的额外收获</strong>：因为训练快，你能用「改数据 → 重训 → 看效果」循环快速验证假设。比如：把「你是谁」这类身份问答加进去，重训后再问，看它是不是学会了——这种「亲手制造行为变化」的体验，比任何讲解都深刻。</p>
+<h2 id="minimind_4">用 MiniMind 理解「模型大小」意味着什么</h2>
+<p>同一份数据，分别训 26M 和 104M 的 MiniMind，你会直观感受到：</p>
+<ul>
+<li><strong>26M</strong>：训练快、显存几乎为零，但回答经常前言不搭后语，记不住复杂规则；</li>
+<li><strong>104M</strong>：训练稍慢，但明显「更聪明」——能更稳定地学会格式和简单逻辑。</li>
+</ul>
+<p>这直观地验证了第 1 章的观点：<strong>模型大小决定能力天花板，数据决定在这个天花板内能学到什么</strong>。参数是「容器」，数据是「水」，容器不够大，水再多也装不下。</p>
+<h2 id="minimind_5">常见的 MiniMind 上手问题</h2>
+<p>新手跑 MiniMind 常遇到这几个问题，提前给你答案：</p>
+<p><strong>Q1：克隆下来直接跑 sft.py 报错？</strong>
+答：多半是路径或依赖问题。按 README 要求装依赖（<code>requirements.txt</code>），确认数据文件路径和 config 里的一致。</p>
+<p><strong>Q2：训完 generate.py 问它，回答是乱的？</strong>
+答：先看训练有没有真的收敛（loss 有没有降到很低）；再看推理时的 prompt 格式是否和训练模板一致。小模型对格式更敏感。</p>
+<p><strong>Q3：26M 模型太笨，是不是我数据问题？</strong>
+答：不一定是。26M 就是很弱，把模型换成 104M 再试，你会在对比中理解「参数量的意义」。</p>
+<p><strong>Q4：能不能直接拿 MiniMind 做生产？</strong>
+答：不能。MiniMind 是教学玩具，生产至少用 1B+ 的模型。它的价值是「看懂」，不是「投产」。</p>
+<h2 id="minimind_6">从 MiniMind 到真实项目：你的理解迁移清单</h2>
+<p>学完 MiniMind，把下面这些「小模型上验证过的理解」带到真实项目里：</p>
+<ul>
+<li>[ ] 我理解「下一个 token 预测」是训练的底层逻辑；</li>
+<li>[ ] 我知道 mask 只让 assistant 段参与 loss；</li>
+<li>[ ] 我见过 loss 曲线的正常与异常形态；</li>
+<li>[ ] 我知道模板/特殊 token 必须匹配模型；</li>
+<li>[ ] 我亲手造过「数据改变行为」的实验；</li>
+<li>[ ] 我理解预训练和 SFT 的区别，知道日常说的「微调」是 SFT。</li>
+</ul>
+<p>全部打勾，你就具备了「看懂任何训练框架」的底子——Unsloth、LLaMA-Factory 在你眼里都只是「同一件事的工程化封装」。</p>
+<h2 id="_5">小练习</h2>
+<ol>
+<li>把 MiniMind 克隆到本地，跑通 26M 模型的指令微调，记录训练时长和 loss 变化。</li>
+<li>给你的数据加 5 条「你是谁？你叫什么名字？」这种身份类问答，微调后再问模型，看它是否学会自我介绍。</li>
+<li>对比 MiniMind 的 sft 和 Unsloth 的 SFTTrainer，找出它们在「数据组织、loss mask」上做法的共同点。</li>
+<li>进阶：分别训 26M 和 104M 两个版本，用同一批问题对比回答质量，写 3 句话总结「参数量带来的差异」。</li>
+</ol>
+<p>下一章，我们回到真实生产场景，直面那个纠结的问题——<strong>全参数微调 vs LoRA，到底该怎么选</strong>。</p></body></html>

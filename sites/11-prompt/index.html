@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>提示词工程 L11 · 由简入深</title>
+<style>
+  :root{
+    --l1:#3b82f6; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#fffbeb; --ink:#431407; --sub:#92600a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#fffbeb,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#b45309,#f59e0b 55%,#fcd34d);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(245,158,11,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#fef3c7;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#f59e0b)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#d97706;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #fde68a;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(245,158,11,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(245,158,11,.16);border-color:#f59e0b}
+  .card .day{font-size:12px;color:#b45309;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #fcd34d;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#d97706;border-color:#d97706}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #fde68a;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(245,158,11,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#b45309}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#fffbeb;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #fcd34d}
+  .btn{background:#d97706;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#b45309}
+  .btn.ghost{background:#fff;color:#d97706;border:1px solid #d97706}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#fef3c7;color:#b45309;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#451a03;color:#fde68a;padding:2px 7px;border-radius:6px;font-size:12px}
+  .prompt{background:#fff;border:1px solid #fcd34d;border-radius:10px;padding:12px 14px;margin:8px 0;font-size:14px;line-height:1.7}
+  .prompt.bad{background:#fef2f2;border-color:#fca5a5}
+  .prompt.good{background:#f0fdf4;border-color:#86efac}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:12px 16px;font-size:13px;color:#92400e;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L11 · 由简入深 AI 学习路线</div>
+  <h1>✨ 提示词工程</h1>
+  <p>学会「和大模型好好说话」：同样的模型，会写提示词的人能拿到 10 倍好的结果。从基本功到角色设定、思维链、结构化输出与防注入。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · <a href="https://agent.zbjh.top/">agent</a> · <a href="https://local.zbjh.top/">local</a> · prompt</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「提示词是什么」到「搭建自己的提示词库」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里体会「提示词写法」对结果的影响。</p>
+    <div class="demos">
+
+      <!-- 演示1 提示词对比 -->
+      <div class="demo">
+        <h3>① 提示词对比台</h3>
+        <p class="sub">同一个任务，模糊问 vs 清楚问——看看输出质量的差距。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">换一组对比 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示2 思维链 -->
+      <div class="demo">
+        <h3>② 思维链演示台</h3>
+        <p class="sub">多步推理任务：直接答 vs 「一步一步想」——效果差在哪？</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn" id="next2">换一道题 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示3 结构化输出 -->
+      <div class="demo">
+        <h3>③ 结构化输出台</h3>
+        <p class="sub">让模型严格按 JSON 输出，程序才能直接解析使用。</p>
+        <div class="stage" id="stage3"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示中的「模型输出」为教学模拟，展示的是提示词写法对结果的典型影响。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · agent · local · <b>prompt</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L11</b> · 提示词工程 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"提示词是什么：与大模型的对话协议"},
+  {no:"第2天", t:"提示词基本功：清晰、具体、有边界"},
+  {no:"第3天", t:"角色设定：让模型扮演专家"},
+  {no:"第4天", t:"few-shot 示例：用例子教会模型"},
+  {no:"第5天", t:"思维链：让模型先想再说"},
+  {no:"第6天", t:"结构化输出：让模型按格式说话"},
+  {no:"第7天", t:"上下文与长文本：摘要、切片与分步处理"},
+  {no:"第8天", t:"提示词优化与评测：迭代升级"},
+  {no:"第9天", t:"提示词的安全与防注入"},
+  {no:"第10天", t:"实战路线：搭建自己的提示词库"},
+];
+const KEY = "prompt_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：提示词对比台 ============ */
+(function(){
+  const cases = [
+    {task:"任务：让 AI 写一份周报",
+     bad:"帮我写个周报。",
+     good:"你是产品经理，请用三段式（本周完成 / 遇到的问题 / 下周计划）写本周周报，语气简洁，每段 2~3 条要点，不要客套话。"},
+    {task:"任务：让 AI 总结一篇文章",
+     bad:"总结一下。",
+     good:"请用 100 字以内总结下面这篇文章的核心观点，并按「结论 / 依据 / 建议」三点列出：\n[文章内容粘贴在这里]"},
+    {task:"任务：让 AI 生成营销文案",
+     bad:"写个广告文案。",
+     good:"你是一位资深电商文案，请为一款 39 元的便携榨汁杯写 3 条小红书风格文案，每条 50 字以内，突出「便携、出汁快、好清洗」，带 2 个话题标签。"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage1");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>'+c.task+'</b></div>'
+      +'<div class="prompt bad">😕 <b>模糊提示词：</b>'+c.bad.replace(/\n/g,'<br>')+'</div>'
+      +'<div class="prompt good">😃 <b>清晰提示词：</b>'+c.good.replace(/\n/g,'<br>')+'</div>'
+      +'<div class="muted" style="margin-top:8px">看到区别了吗？清晰提示词 = 角色 + 任务 + 要求 + 输出格式，模型自然知道怎么做。</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示2：思维链演示台 ============ */
+(function(){
+  const cases = [
+    {q:"一个农场有 12 只鸡和 8 只鸭。鸡每天下 2 个蛋，鸭不下蛋。3 天后农场一共能收多少个蛋？",
+     no:"答案：72 个。",
+     co:"让我们一步步想：\n① 12 只鸡，每只每天下 2 个蛋 → 每天 12×2 = 24 个蛋。\n② 鸭不下蛋，忽略。\n③ 3 天 → 24×3 = 72 个蛋。\n所以答案是 72 个。"},
+    {q:"小明的笔记本比小红多 15 页。如果小明的本子有 120 页，那么两人共有多少页？",
+     no:"答案：225 页。",
+     co:"让我们一步步想：\n① 小明有 120 页，比小红多 15 页 → 小红有 120-15 = 105 页。\n② 两人共有 120+105 = 225 页。\n所以答案是 225 页。"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage2");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:8px"><b>题目：</b>'+c.q+'</div>'
+      +'<div class="prompt bad">⚡ <b>直接答（无思维链）：</b>'+c.no+'</div>'
+      +'<div class="prompt good">🧠 <b>思维链（先想再说）：</b><br>'+c.co.replace(/\n/g,'<br>')+'</div>'
+      +'<div class="muted" style="margin-top:8px">推理类任务，让模型「一步一步想」能显著降低算错率——这就是思维链（CoT）。</div>';
+  }
+  document.getElementById("next2").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示3：结构化输出台 ============ */
+(function(){
+  const stage = document.getElementById("stage3");
+  function render(){
+    stage.innerHTML =
+      '<div class="muted" style="margin-bottom:6px">提示词（要求 JSON 输出）：</div>'
+      +'<div class="prompt">请从这段文字中提取关键信息，只输出 JSON，不要输出其他内容：\n"小明 25 岁，在北京做程序员，月薪 2 万；他养了一只叫旺财的狗。"\n输出格式：{"姓名":..,"年龄":..,"城市":..,"职业":..,"宠物":..}</div>'
+      +'<div class="muted" style="margin:10px 0 6px">模型输出（JSON）：</div>'
+      +'<pre style="background:#451a03;color:#fde68a;padding:12px;border-radius:10px;font-size:13px;overflow:auto;line-height:1.7">'
+      +'{\n  "姓名": "小明",\n  "年龄": 25,\n  "城市": "北京",\n  "职业": "程序员",\n  "宠物": "旺财"\n}</pre>'
+      +'<div class="muted" style="margin-top:8px">严格 JSON 输出 = 程序可直接 <span class="tok">json.loads()</span> 解析，自动写进表格 / 数据库，实现流水线自动化。</div>';
+  }
+  render();
+})();
+</script>
+</body>
+</html>

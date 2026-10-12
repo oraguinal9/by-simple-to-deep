@@ -1,0 +1,271 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>分块策略：怎么切文本最合适 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="_1">分块策略：怎么切文本最合适</h1>
+<p>第 2 篇我们成功把一份 80 页的《员工手册》变成了干净的文本。现在要面对一个新问题：这份文本有十几万字，怎么才能让检索系统"找得准"？</p>
+<p>答案是：<strong>不能整篇丢进去，要切成小块</strong>。这就是本篇文章的主角——分块（Chunking）。分块看似是"把文章切开"这种小事，实际却是决定知识库检索质量最关键、也最需要反复实验的一环。很多人把时间花在挑模型上，结果分块没做好，检索效果一塌糊涂。</p>
+<h2 id="31">3.1 为什么不能整篇丢进向量库？</h2>
+<p>先回答一个直觉问题：为什么不直接把整个文档丢进向量库？</p>
+<p>原因有三个，一个比一个要命：</p>
+<p><strong>第一，检索颗粒度太粗。</strong> 用户问的是"年假几天"，如果整篇《员工手册》是一个向量，系统只能判断"这篇文章跟问题相关"，却拿不出"年假规定"在哪一段。检索变成了"整本书 vs 整本书"，精度无从谈起。检索的基本单位应该是<strong>一段自包含的信息</strong>，而不是一整本书。</p>
+<p><strong>第二，语义会被"稀释"。</strong> 向量模型把一个文本块变成一个高维向量，这个向量要概括整块内容。如果块太大、包含 50 个不同主题，向量就变成了"50 个主题的模糊平均"，跟任何具体问题都不那么相关。小块 → 主题单一 → 向量指向明确。</p>
+<p><strong>第三，上下文窗口装不下。</strong> 即使大模型上下文窗口够大（比如 128K），把 15 万字全塞进提示词，既费钱又费时间，还会让模型"迷失在细节里"。我们只需要相关的几小块，而不是全部。</p>
+<h2 id="32">3.2 块太大和太小的权衡</h2>
+<p>那是不是切得越小越好？也不是。这里有一个经典的权衡：</p>
+<table>
+<thead>
+<tr>
+<th>块大小</th>
+<th>优点</th>
+<th>缺点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>太大（整篇/几千字）</td>
+<td>上下文信息完整，模型"看得全"</td>
+<td>向量语义模糊；检索精度差；费用高</td>
+<td>极短文档（通知、邮件）</td>
+</tr>
+<tr>
+<td>适中（200–500 字）</td>
+<td>语义聚焦、检索准、费用合理</td>
+<td>偶尔信息不完整，需要"上下文补充"</td>
+<td>大多数企业文档</td>
+</tr>
+<tr>
+<td>太小（一两句话）</td>
+<td>检索极精准</td>
+<td>语义破碎，一个完整意思被切散；上下文要拼很多块</td>
+<td>问答对、FAQ 条目</td>
+</tr>
+</tbody>
+</table>
+<p>一个很好用的经验法则：<strong>一个块应该"能独立回答问题"</strong>。切完之后，你可以拿一个典型问题去测：比如把"年假规定"那一块单独拿出来，一个从没看过原文的人，能不能仅凭这一块回答"年假几天、怎么申请"？能，说明块大小合适；不能，说明切碎了。</p>
+<h2 id="33">3.3 五种常见分块策略</h2>
+<p>下面按从简单到智能的顺序，介绍五种常见策略。它们各有适用场景，不是越智能越好。</p>
+<h3 id="fixed-size">策略一：固定长度切分（Fixed-size）</h3>
+<p>最简单。数着字符或 token 切，比如每 400 个字符一块。优点是实现容易、参数可预期；缺点是<strong>完全无视文本的自然语义</strong>，可能把一个句子的中间、一个表格的一半给切开。</p>
+<pre class="codehilite"><code class="language-python">def fixed_chunk(text, chunk_size=400, overlap=50):
+    chunks = []
+    start = 0
+    while start &lt; len(text):
+        chunks.append(text[start:start + chunk_size])
+        start += chunk_size - overlap  # 后移时扣掉重叠部分
+    return chunks
+</code></pre>
+
+<p>适合：日志、代码、格式统一的流水记录。不适合：结构化的文档。</p>
+<h3 id="paragraph-based">策略二：按段落切分（Paragraph-based）</h3>
+<p>把文档先按空行拆成段落，再把过长的段落按固定长度二次切分。这符合人的阅读习惯，语义边界基本自然，是最常用的"默认方案"。</p>
+<pre class="codehilite"><code class="language-python">def paragraph_chunk(text, max_len=500):
+    paragraphs = text.split(&quot;\n\n&quot;)
+    chunks = []
+    for p in paragraphs:
+        if len(p) &lt;= max_len:
+            chunks.append(p)
+        else:
+            # 超长段落再按句子拆
+            chunks.extend(split_sentences(p, max_len))
+    return chunks
+</code></pre>
+
+<p>适合：报告、制度、论文等"段落即主题"的文档。</p>
+<h3 id="structure-based">策略三：按标题层级切分（Structure-based）</h3>
+<p>利用 Markdown 标题、Word 大纲、PDF 书签来切。<code>#</code> 大标题往下找 <code>##</code> 小标题，把属于同一小节的内容归为一个块。这是目前<strong>企业知识库中最推荐</strong>的策略：因为标题本身就定义了信息边界，检索出来的块天然自带"章节上下文"。</p>
+<pre class="codehilite"><code class="language-text"># 休假制度
+## 年假
+年假按司龄计算……
+## 病假
+……
+</code></pre>
+
+<p>按标题切完后，还可以把标题拼在块前面（<code>年假 / 休假制度：年假按司龄计算……</code>），检索时更准。适合：手册、文档、Markdown 源文件。</p>
+<h3 id="sliding-window">策略四：滑动窗口（Sliding window）</h3>
+<p>在固定切分基础上，让相邻块<strong>首尾重叠</strong>（overlap）。作用是防止"信息刚好被切在块边界上"——比如一句话被拦腰斩断，前后两个块都残缺。重叠等于给每块套了一层"缓冲带"。这是所有固定切分方案都应该加上的保险。</p>
+<pre class="codehilite"><code class="language-python">def sliding_chunk(text, chunk_size=400, overlap=100):
+    assert chunk_size &gt; overlap
+    chunks = []
+    start = 0
+    while start &lt; len(text):
+        chunks.append(text[start:start + chunk_size])
+        start += chunk_size - overlap
+    return chunks
+</code></pre>
+
+<p>重叠的推荐值：<strong>一般是块大小的 10%–25%</strong>。太短起不到缓冲作用，太长会让相邻块大量重复、浪费存储和检索时间。</p>
+<h3 id="semantic-chunking">策略五：语义分块（Semantic chunking）</h3>
+<p>用模型判断"哪里是一个完整语义单元"。常见做法是用 <code>sentence-transformers</code> 计算相邻句子的语义相似度，相似度突变的地方（换了个话题）就是切分点。</p>
+<pre class="codehilite"><code class="language-python">from sentence_transformers import SentenceTransformer
+import numpy as np
+
+model = SentenceTransformer(&quot;BAAI/bge-small-zh-v1.5&quot;)
+sentences = split_into_sentences(text)      # 先拆成句子
+embeddings = model.encode(sentences)        # 逐句编码
+
+# 相邻句子相似度
+chunks, current = [], [sentences[0]]
+for i in range(1, len(sentences)):
+    sim = np.dot(embeddings[i - 1], embeddings[i])
+    if sim &lt; 0.65:                          # 相似度过低 = 话题切换
+        chunks.append(&quot; &quot;.join(current))
+        current = []
+    current.append(sentences[i])
+chunks.append(&quot; &quot;.join(current))
+</code></pre>
+
+<p>效果好，但<strong>慢、贵</strong>，且阈值需要调。适合：对质量要求极高、文本量大且预算充足的中大型知识库。</p>
+<h2 id="34-overlap">3.4 重叠（overlap）到底有什么用？</h2>
+<p>再单独强调一下 overlap，因为它是新手最容易忽略、又性价比最高的参数。想象一本书里的一句话恰好印在纸缝里，把上一页和下一页的内容都盖住一半——读者会非常恼火。overlap 就是"把这句话在两个页面里各印一遍"。</p>
+<p>具体收益：</p>
+<ul>
+<li><strong>保住完整句子</strong>：一个关键句不会被切成两个残块，两个块都检索不到。</li>
+<li><strong>检索命中率上升</strong>：问题命中的信息，无论落在哪个块的"正文区"，至少有一个块能提供完整上下文。</li>
+<li><strong>成本可以接受</strong>：只多 10%–25% 的存储，换来检索质量明显提升。</li>
+</ul>
+<h2 id="35">3.5 中文文档的推荐参数示例</h2>
+<p>结合国内企业知识库的常见情况，给一份可以直接上手的<strong>推荐初始参数</strong>（注意：是"起点"，不是"终点"，后面第 9 篇教你评测调优）：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>推荐值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分块策略</td>
+<td>按标题层级为主，段落兜底</td>
+<td>Markdown/Word 优先结构切分</td>
+</tr>
+<tr>
+<td>块大小</td>
+<td>300–500 个中文字符</td>
+<td>中文信息密度高，比英文的 800–1000 token 短一些</td>
+</tr>
+<tr>
+<td>重叠（overlap）</td>
+<td>50–80 字</td>
+<td>约块长的 15%–20%</td>
+</tr>
+<tr>
+<td>最小块长</td>
+<td>不低于 30 字</td>
+<td>太短的块是噪声，直接丢弃或并入相邻块</td>
+</tr>
+<tr>
+<td>块内保留标题</td>
+<td>是</td>
+<td>把层级标题拼进块文本</td>
+</tr>
+</tbody>
+</table>
+<p>用 Python 库实现一份"标题 + 段落 + 重叠"的组合方案，大概长这样：</p>
+<pre class="codehilite"><code class="language-python">from langchain_text_splitters import MarkdownHeaderTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# 先按 Markdown 标题切成大块
+header_splitter = MarkdownHeaderTextSplitter(
+    headers_to_split_on=[(&quot;#&quot;, &quot;H1&quot;), (&quot;##&quot;, &quot;H2&quot;), (&quot;###&quot;, &quot;H3&quot;)]
+)
+sections = header_splitter.split_text(markdown_text)
+
+# 大块内再用&quot;递归分隔符&quot;切到目标大小，并带重叠
+recursive = RecursiveCharacterTextSplitter(
+    chunk_size=400,          # 目标块大小（字符）
+    chunk_overlap=60,        # 重叠 60 字符
+    separators=[&quot;\n\n&quot;, &quot;\n&quot;, &quot;。&quot;, &quot;！&quot;, &quot;？&quot;, &quot;；&quot;, &quot;，&quot;, &quot; &quot;, &quot;&quot;],
+)
+
+chunks = []
+for section in sections:
+    for c in recursive.split_text(section.page_content):
+        chunks.append({&quot;text&quot;: c, &quot;metadata&quot;: section.metadata})
+</code></pre>
+
+<p>注意那个 <code>separators</code> 列表：它是"递归分隔符"，中文场景下优先在段落、句号、感叹号、问号处切，<strong>尽量别把中文句子从中间劈开</strong>。</p>
+<h2 id="36">3.6 分块效果的简单自测</h2>
+<p>分块参数设完之后，怎么快速知道切得好不好？给你一个 10 分钟的土办法：</p>
+<ol>
+<li><strong>随机抽 20 个块</strong>，肉眼检查有没有：句子被腰斩、表格被劈开、块里混着两个主题。</li>
+<li><strong>挑 5 个典型问题</strong>（就是上线后用户最可能问的那类问题），逐个检索，看命中的块是不是"恰好包含答案"。</li>
+<li><strong>命中率目标</strong>：5 个问题里，至少 4 个命中的块要"直接可回答问题"。达不到，就调小/调大块、加 overlap、或换结构切分。</li>
+</ol>
+<h2 id="37-faq">3.7 特殊文档怎么切：表格、代码、FAQ</h2>
+<p>上面的策略针对的是"段落式文章"。企业里还有很多"非典型"文档，需要专门处理：</p>
+<p><strong>表格。</strong> 表格切成块有个经典难题：一个长表格（比如 200 行的价格表）如果整表当一个块，太大；拆成 200 行又碎成渣。推荐做法：<strong>表格按"行组"切</strong>，比如每 20 行一块，并在块前面拼接表头说明。这样既保住结构，又控制块大小。</p>
+<pre class="codehilite"><code class="language-text">【块：价格表 1–20 行】
+表头：品名 | 型号 | 单价 | 备注
+行1-20 内容……
+【块：价格表 21–40 行】
+行21-40 内容……
+</code></pre>
+
+<p><strong>代码片段。</strong> 接口文档里的代码块，按函数、类来切，而不是按字符数硬切。而且<strong>代码块最好和它的说明文字放在同一个块里</strong>——否则用户问"怎么用这个接口"，检索到的可能是一段孤零零的代码，没有上下文。</p>
+<p><strong>FAQ 问答对。</strong> 每一条"问题 + 答案"天然就是一个完美块——一个块恰好回答一个问题，正是第 3.2 节说的"能独立回答问题"的理想形态。如果你有现成的 FAQ 数据，千万别再拆它，直接按条入库，效果奇好。</p>
+<h2 id="38-token">3.8 关于"token"与"字符"：一个必须澄清的概念</h2>
+<p>你可能在其他教程里看到"分块大小设成 512 tokens"之类的说法。这里澄清一下 token（词元）和字符的区别，避免你换算时犯迷糊。</p>
+<p><strong>token 是大模型的最小单位</strong>，大致理解成"半个词"。对中文而言，一个 token 通常对应 1–2 个汉字（不同模型的分词方式不同）。所以：</p>
+<pre class="codehilite"><code class="language-text">一个大致的换算参考（不同模型略有差异）：
+- 512 token ≈ 约 350–700 个汉字
+- 400 个汉字 ≈ 约 250–500 token
+</code></pre>
+
+<p>为什么这个换算重要？因为<strong>向量模型和生成模型都有"最长输入限制"</strong>（上下文窗口）。如果分块是 400 字符，但你的 Embedding 模型最长只能接受 512 token，那就没问题；反过来，如果你按英文教程设了 1024 token 的块，换算成汉字可能接近 1500 字，块就太大了。</p>
+<p>实操建议：<strong>以"中文字符数"作为分块的第一度量，换算成 token 检查是否超限</strong>，两边都留 20% 的安全余量。别只盯着一个单位看。</p>
+<h2 id="39">3.9 分块与元数据的配合</h2>
+<p>第 2 篇我们给每个块存了元数据（来源、页码、章节）。分块时有一个容易被忽略的细节：<strong>块和元数据是一一对应的</strong>。</p>
+<pre class="codehilite"><code class="language-python">def attach_meta(chunk: str, doc: dict) -&gt; dict:
+    return {
+        &quot;text&quot;: chunk,
+        &quot;metadata&quot;: {
+            &quot;doc_id&quot;: doc[&quot;doc_id&quot;],
+            &quot;title&quot;: doc[&quot;title&quot;],
+            # 从块文本里反推出它属于哪个章节、哪一页
+            &quot;chapter&quot;: infer_chapter(chunk, doc),
+            &quot;page&quot;: infer_page(chunk, doc),
+            &quot;chunk_index&quot;: ...,   # 这个块在文档里排第几
+        },
+    }
+</code></pre>
+
+<p>为什么要维护好这层对应关系？因为检索系统返回的是"块"，而用户要看的、要引用的却是"块背后的原文"。<strong>元数据就是块和原文之间的桥</strong>。如果分块时把元数据丢了，后面做引用（第 7 篇）、做权限（第 10 篇）都会无从下手。</p>
+<h2 id="310">3.10 常见问题速答</h2>
+<p><strong>Q：我该用字符还是 token 来衡量块大小？</strong>
+第一度量用"中文字符数"，同时换算成 token 检查是否超出模型的输入上限（换算参考见第 3.8 节）。两块都留 20% 余量。</p>
+<p><strong>Q：同一个知识库，能不能对不同文档用不同分块策略？</strong>
+能，而且推荐。制度类文档按标题切，FAQ 按条切，价格表按行组切。<strong>先给文档分类，再为每类指定分块策略</strong>，比全库一套参数效果更好。RAGFlow 等工具支持按数据集设置解析策略，正是为此设计的。</p>
+<p><strong>Q：切完之后文档还能"找回来"吗？</strong>
+能，靠第 2 篇说的元数据。每个块都带着 <code>doc_id</code>、<code>chunk_index</code>、页码，检索到块就能定位回原文。这也是为什么元数据设计要在分块之前想清楚。</p>
+<p><strong>Q：分块参数到底要试多少次才能定下来？</strong>
+别追求"一次定终身"。正确姿势是：按本篇推荐值起步 → 建评测集（第 9 篇）→ 跑基线 → 一次改一个参数（比如只改块大小）→ 对比分数。<strong>通常 3–5 轮迭代就能收敛到不错的参数</strong>，关键是用数据说话，而不是凭感觉。</p>
+<h2 id="311">3.11 本篇小结</h2>
+<p>分块不是"随便切切"，它决定了检索精度的上限。请记住：</p>
+<ul>
+<li><strong>检索单位是"自包含的块"，不是整篇文档</strong>；块能独立回答一个问题，就是好块。</li>
+<li>五种策略从简到繁：<strong>固定长度、按段落、按标题、滑动窗口、语义分块</strong>。企业首选<strong>按标题 + 段落兜底 + 重叠</strong>。</li>
+<li>中文推荐从 <strong>300–500 字、overlap 15%–20%、带标题前缀</strong>起步，再按评测结果调整。</li>
+</ul>
+<p>文本切好了，下一步是把每个块变成"能算相似度的向量"并选一个地方存起来——这就是<a href="content/Embedding 与向量库选型.html">第 4 篇《Embedding 与向量库选型》</a>。</p></body></html>

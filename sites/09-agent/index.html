@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Agent 实战 L9 · 由简入深</title>
+<style>
+  :root{
+    --l1:#3b82f6; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#f0fdfa; --ink:#053b3a; --sub:#4d7d7a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#f0fdfa,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#0f766e,#14b8a6 55%,#2dd4bf);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(13,148,136,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#c7f3e8;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#0d9488)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#0d9488;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #99f6e4;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(13,148,136,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(13,148,136,.16);border-color:#0d9488}
+  .card .day{font-size:12px;color:#0d9488;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #5eead4;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#0d9488;border-color:#0d9488}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #99f6e4;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(13,148,136,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#0d9488}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#f0fdfa;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #5eead4}
+  .btn{background:#0d9488;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#0f766e}
+  .btn.ghost{background:#fff;color:#0d9488;border:1px solid #0d9488}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#ccfbf1;color:#0f766e;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+  .node{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #5eead4;font-weight:600}
+  .node.on{background:#0d9488;color:#fff;border-color:#0d9488}
+  .arrow{color:#0d9488;font-weight:700}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#022c2b;color:#99f6e4;padding:2px 7px;border-radius:6px;font-size:12px}
+  .opt{display:block;width:100%;text-align:left;background:#fff;border:1px solid #5eead4;border-radius:10px;
+    padding:10px 13px;margin:7px 0;font-size:14px;cursor:pointer;transition:.15s}
+  .opt:hover{border-color:#0d9488;background:#f0fdfa}
+  .opt.right{border-color:#16a34a;background:#f0fdf4}
+  .opt.wrong{border-color:#dc2626;background:#fef2f2}
+  .confirm{background:#f0fdfa;border:1px solid #5eead4;border-radius:12px;padding:14px;margin-top:12px}
+  .confirm .act{font-weight:700;color:#0f766e}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#ccfbf1;border:1px solid #5eead4;border-radius:12px;padding:12px 16px;font-size:13px;color:#115e59;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L9 · 由简入深 AI 学习路线</div>
+  <h1>🤖 AI Agent 实战</h1>
+  <p>让 AI 从「只会说」到「能干活」：工具调用、ReAct 循环、记忆、规划、多智能体、安全护栏，一步步搭出真正的智能体。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · agent</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「什么是 Agent」到「从零搭一个能用的 Agent」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里看懂 Agent 的核心机制。</p>
+    <div class="demos">
+
+      <!-- 演示1 ReAct 循环 -->
+      <div class="demo">
+        <h3>① ReAct 循环可视化台</h3>
+        <p class="sub">一步步看 Agent 的「思考 → 行动 → 观察」循环怎么跑完一个任务。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">下一步 ▶</button>
+          <button class="btn ghost" id="reset1">重置</button>
+        </div>
+      </div>
+
+      <!-- 演示2 工具路由 -->
+      <div class="demo">
+        <h3>② 工具调用路由台</h3>
+        <p class="sub">给定用户问题，从工具清单里挑出模型应该调用的那一个。</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn" id="next2">换一个问题 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示3 多智能体协作 -->
+      <div class="demo">
+        <h3>③ 多智能体协作台</h3>
+        <p class="sub">看「研究员 → 写作者 → 审查员」三个角色如何接力完成一篇报告。</p>
+        <div class="stage" id="stage3"></div>
+        <div class="row">
+          <button class="btn" id="next3">下一步 ▶</button>
+          <button class="btn ghost" id="reset3">重置</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示均为原理可视化，不调用真实外部服务。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · <b>agent</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L9</b> · AI Agent 实战 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"什么是 AI Agent：从聊天机器人到自主智能体"},
+  {no:"第2天", t:"大模型如何调用工具：Function Calling 原理"},
+  {no:"第3天", t:"ReAct 框架：思考-行动-观察的循环"},
+  {no:"第4天", t:"提示词进阶：系统提示与上下文工程"},
+  {no:"第5天", t:"记忆与上下文管理：让 Agent 记住过去"},
+  {no:"第6天", t:"规划与任务分解：把大目标拆成小步骤"},
+  {no:"第7天", t:"多智能体协作：当一个 Agent 不够时"},
+  {no:"第8天", t:"RAG 增强的 Agent：给模型接上知识库"},
+  {no:"第9天", t:"Agent 的安全与可控：权限与人类确认"},
+  {no:"第10天", t:"实战路线：从零搭一个能用的 Agent"},
+];
+const KEY = "agent_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：ReAct 循环 ============ */
+(function(){
+  const steps = [
+    {nodes:["Thought"],txt:"① <b>Thought（思考）</b>：用户问「北京明天适合穿什么」——我需要先查天气，不能瞎猜。"},
+    {nodes:["Thought","Action"],txt:"② <b>Action（行动）</b>：决定调用工具 <span class=\"tok\">get_weather[北京]</span>。"},
+    {nodes:["Thought","Action","Observation"],txt:"③ <b>Observation（观察）</b>：工具返回真实数据——<span class=\"tok\">多云，最高 10°C，北风 4 级</span>。"},
+    {nodes:["Thought","Action","Observation"],txt:"④ 新一轮 <b>Thought</b>：10°C 且风大，体感冷，应建议穿厚外套。不再需要调用工具，直接回答。"},
+    {nodes:["Thought","Action","Observation"],txt:"⑤ <b>Final Answer</b>：北京明天 2~10°C、风大，建议羽绒服或厚大衣，注意防风。任务完成 ✓"},
+  ];
+  let i = -1;
+  const stage = document.getElementById("stage1");
+  function render(){
+    if(i<0){
+      stage.innerHTML = '<div class="muted">点击「下一步」观看 Agent 怎么「想一步、做一步、看一步」地完成一个任务。</div>';
+      return;
+    }
+    const s = steps[i];
+    const flow = ['Thought','Action','Observation'].map(n=>{
+      const on = s.nodes.includes(n) ? " on" : "";
+      return '<span class="node'+on+'">'+n+'</span>';
+    }).join('<span class="arrow">→</span>');
+    stage.innerHTML = '<div class="flow" style="margin-bottom:12px">'+flow+'</div><div>'+s.txt+'</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{
+    i = Math.min(i+1, steps.length-1);
+    render();
+    if(i>=steps.length-1) document.getElementById("next1").disabled = true;
+  };
+  document.getElementById("reset1").onclick = ()=>{
+    i=-1; document.getElementById("next1").disabled=false; render();
+  };
+  render();
+})();
+
+/* ============ 演示2：工具路由 ============ */
+(function(){
+  const cases = [
+    {q:"帮我查一下上海明天会不会下雨？", tools:[
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"send_email", d:"发送邮件"},
+      {n:"search_flight", d:"查询航班"},
+    ], ans:"get_weather"},
+    {q:"把这周的周报发给我们团队所有人。", tools:[
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"send_email", d:"发送邮件"},
+      {n:"search_flight", d:"查询航班"},
+    ], ans:"send_email"},
+    {q:"帮我看看周五北京到杭州有没有合适的航班。", tools:[
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"send_email", d:"发送邮件"},
+      {n:"search_flight", d:"查询航班"},
+    ], ans:"search_flight"},
+    {q:"按公司制度，年假应该怎么算？", tools:[
+      {n:"search_knowledge_base", d:"检索公司知识库"},
+      {n:"get_weather", d:"查询城市天气"},
+      {n:"run_tests", d:"运行测试"},
+    ], ans:"search_knowledge_base"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage2");
+  function render(){
+    const c = cases[ci];
+    let html = '<div style="margin-bottom:10px"><b>用户问题：</b><span class="tok" style="background:#ccfbf1;color:#0f766e">'+c.q+'</span></div>';
+    html += '<div class="muted" style="margin-bottom:8px">从下面挑出模型应该调用的工具：</div>';
+    c.tools.forEach(t=>{
+      html += '<button class="opt" data-n="'+t.n+'"><b>'+t.n+'</b> — '+t.d+'</button>';
+    });
+    stage.innerHTML = html;
+    stage.querySelectorAll(".opt").forEach(b=>{
+      b.onclick = ()=>{
+        const right = b.dataset.n === c.ans;
+        b.classList.add(right?"right":"wrong");
+        stage.querySelectorAll(".opt").forEach(x=>x.disabled=true);
+        const tip = document.createElement("div");
+        tip.style.marginTop="10px";
+        tip.innerHTML = right
+          ? '<span class="ok">✓ 正确！</span> 模型输出 tool_calls 意图，由外部程序执行 '+c.ans+' 并拿回真实结果。'
+          : '<span class="bad">✗ 不太对。</span> 这个问题更应该用 <b>'+c.ans+'</b>。工具 description 写得越清楚，模型越容易选准。';
+        stage.appendChild(tip);
+      };
+    });
+  }
+  document.getElementById("next2").onclick = ()=>{
+    ci = (ci+1)%cases.length;
+    render();
+  };
+  render();
+})();
+
+/* ============ 演示3：多智能体协作 ============ */
+(function(){
+  const steps = [
+    {role:"研究员 Researcher", on:"res", txt:"用搜索工具收集 2026 年 AI Agent 市场数据、竞品信息，输出一份<b>资料包</b>交给下一棒。"},
+    {role:"写作者 Writer", on:"wri", txt:"接收资料包，组织成结构清晰的<b>报告初稿</b>。"},
+    {role:"审查员 Reviewer", on:"rev", txt:"检查事实错误、逻辑漏洞、格式问题，返回<b>修改意见</b>（如：某处数据过时需更新）。"},
+    {role:"写作者 Writer", on:"wri", txt:"根据审查意见修改初稿，再次提交审查。"},
+    {role:"✅ 定稿输出", on:"", txt:"审查通过，最终报告交付给用户。三个角色各司其职，上下文互不干扰，质量层层把关。"},
+  ];
+  let i = -1;
+  const stage = document.getElementById("stage3");
+  function render(){
+    if(i<0){
+      stage.innerHTML = '<div class="muted">点击「下一步」观看「研究员 → 写作者 → 审查员」如何接力完成一篇报告。</div>';
+      return;
+    }
+    const s = steps[i];
+    const flow = ['res','wri','rev'].map(n=>{
+      const on = s.on === n ? " on" : "";
+      const label = n==="res" ? "研究员" : (n==="wri" ? "写作者" : "审查员");
+      return '<span class="node'+on+'">'+label+'</span>';
+    }).join('<span class="arrow">→</span>');
+    stage.innerHTML = '<div class="flow" style="margin-bottom:12px">'+flow+'</div><div><b style="color:#0f766e">'+s.role+'</b>：'+s.txt+'</div>';
+  }
+  document.getElementById("next3").onclick = ()=>{
+    i = Math.min(i+1, steps.length-1);
+    render();
+    if(i>=steps.length-1) document.getElementById("next3").disabled = true;
+  };
+  document.getElementById("reset3").onclick = ()=>{
+    i=-1; document.getElementById("next3").disabled=false; render();
+  };
+  render();
+})();
+</script>
+</body>
+</html>

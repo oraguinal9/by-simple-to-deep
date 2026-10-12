@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多模态本地部署与 ComfyUI L12 · 由简入深</title>
+<style>
+  :root{
+    --l1:#3b82f6; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#f5f3ff; --ink:#2e1065; --sub:#7c6ba8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#f5f3ff,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#7c3aed,#8b5cf6 55%,#c084fc);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(139,92,246,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#ede9fe;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#8b5cf6)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#7c3aed;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #ddd6fe;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(139,92,246,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(139,92,246,.16);border-color:#8b5cf6}
+  .card .day{font-size:12px;color:#6d28d9;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #c4b5fd;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#7c3aed;border-color:#7c3aed}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #ddd6fe;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(139,92,246,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#6d28d9}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#f5f3ff;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #c4b5fd}
+  .btn{background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#6d28d9}
+  .btn.ghost{background:#fff;color:#7c3aed;border:1px solid #7c3aed}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#ede9fe;color:#6d28d9;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#2e1065;color:#ddd6fe;padding:2px 7px;border-radius:6px;font-size:12px}
+  .sel{display:inline-block;background:#fff;border:1px solid #c4b5fd;border-radius:10px;padding:8px 14px;margin:5px 6px 0 0;font-size:14px;cursor:pointer;transition:.15s}
+  .sel:hover{border-color:#8b5cf6}
+  .sel.on{background:#7c3aed;color:#fff;border-color:#7c3aed}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+  .node{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #c4b5fd;font-weight:600}
+  .node.on{background:#7c3aed;color:#fff;border-color:#7c3aed}
+  .arrow{color:#7c3aed;font-weight:700}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#ede9fe;border:1px solid #c4b5fd;border-radius:12px;padding:12px 16px;font-size:13px;color:#5b21b6;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L12 · 由简入深 AI 学习路线</div>
+  <h1>🎨 多模态本地部署与 ComfyUI 实战</h1>
+  <p>让 AI 在你自己的电脑上画画、换风格、修图甚至生成视频：扩散模型、节点式工作流、ControlNet、放大修复与批量自动化。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · <a href="https://agent.zbjh.top/">agent</a> · <a href="https://local.zbjh.top/">local</a> · <a href="https://prompt.zbjh.top/">prompt</a> · comfy</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「多模态 AI 是什么」到「搭建本地多模态创作台」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里理解 ComfyUI 工作流与关键参数。</p>
+    <div class="demos">
+
+      <!-- 演示1 工作流节点 -->
+      <div class="demo">
+        <h3>① 工作流节点可视化台</h3>
+        <p class="sub">一步步看一张图在 ComfyUI 里怎么「流过」各个节点。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">下一步 ▶</button>
+          <button class="btn ghost" id="reset1">重置</button>
+        </div>
+      </div>
+
+      <!-- 演示2 采样参数 -->
+      <div class="demo">
+        <h3>② 采样参数台</h3>
+        <p class="sub">调一调 steps、CFG、种子——看看对生成效果的影响。</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn ghost" id="reset2">重置</button>
+        </div>
+      </div>
+
+      <!-- 演示3 提示词权重 -->
+      <div class="demo">
+        <h3>③ 提示词权重台</h3>
+        <p class="sub">同一个主题，不同加权提示词会引导模型侧重不同的细节。</p>
+        <div class="stage" id="stage3"></div>
+        <div class="row">
+          <button class="btn" id="next3">换一组提示词 ▶</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示中的「生成效果」为教学模拟，展示参数与写法对结果的典型影响。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · agent · local · prompt · <b>comfy</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L12</b> · 多模态本地部署与 ComfyUI 实战 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"多模态 AI 是什么：从文字到图像与视频"},
+  {no:"第2天", t:"本地图像生成基础：SD 与 SDXL"},
+  {no:"第3天", t:"ComfyUI 入门：节点式工作流"},
+  {no:"第4天", t:"文生图工作流：从提示词到一张图"},
+  {no:"第5天", t:"图生图与 ControlNet：精确控制生成"},
+  {no:"第6天", t:"高清放大与局部重绘：图片的后期处理"},
+  {no:"第7天", t:"本地视频与音频生成：多模态全家桶"},
+  {no:"第8天", t:"模型管理：下载、换装与显存优化"},
+  {no:"第9天", t:"批量生成与自动化：让工作流自己跑"},
+  {no:"第10天", t:"实战路线：搭建本地多模态创作台"},
+];
+const KEY = "comfy_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：工作流节点 ============ */
+(function(){
+  const steps = [
+    {nodes:["模型加载"],txt:"① <b>CheckpointLoader</b>：加载 SD 模型（大模型 + CLIP 文本编码器 + VAE）。"},
+    {nodes:["模型加载","提示词"],txt:"② <b>CLIP Text Encode</b>：把正向/负向提示词编码成模型能懂的向量。"},
+    {nodes:["模型加载","提示词","采样器"],txt:"③ <b>KSampler</b>：从噪声开始，按 steps 步去噪，逐步「画出」图像。"},
+    {nodes:["模型加载","提示词","采样器","解码"],txt:"④ <b>VAE Decode</b>：把潜空间结果解码成我们能看到的 RGB 图片。"},
+    {nodes:["模型加载","提示词","采样器","解码","保存"],txt:"⑤ <b>Save Image</b>：保存到本地，一张图就诞生了！"},
+  ];
+  let i = -1;
+  const stage = document.getElementById("stage1");
+  function render(){
+    if(i<0){
+      stage.innerHTML = '<div class="muted">点击「下一步」观看一张图如何流过 ComfyUI 的节点链。</div>';
+      return;
+    }
+    const s = steps[i];
+    const flow = ['模型加载','提示词','采样器','解码','保存'].map(n=>{
+      const on = s.nodes.includes(n) ? " on" : "";
+      return '<span class="node'+on+'">'+n+'</span>';
+    }).join('<span class="arrow">→</span>');
+    stage.innerHTML = '<div class="flow" style="margin-bottom:12px">'+flow+'</div><div>'+s.txt+'</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{
+    i = Math.min(i+1, steps.length-1);
+    render();
+    if(i>=steps.length-1) document.getElementById("next1").disabled = true;
+  };
+  document.getElementById("reset1").onclick = ()=>{
+    i=-1; document.getElementById("next1").disabled=false; render();
+  };
+  render();
+})();
+
+/* ============ 演示2：采样参数台 ============ */
+(function(){
+  const stage = document.getElementById("stage2");
+  const stepsOpts = [10,20,30,50];
+  const cfgOpts = [3,7,12];
+  let steps=20, cfg=7;
+  function render(){
+    const quality = steps>=30 ? "细节更丰富" : (steps>=20 ? "标准质量" : "快但略粗糙");
+    const fidelity = cfg>=10 ? "太听话、可能死板/过饱和" : (cfg<=4 ? "自由但易跑偏" : "平衡");
+    let html = '<div class="muted" style="margin-bottom:6px">① 采样步数 steps：</div>';
+    stepsOpts.forEach(s=>{ html += '<span class="sel'+(s===steps?' on':'')+'" data-s="'+s+'">'+s+' 步</span>'; });
+    html += '<div class="muted" style="margin:12px 0 6px">② CFG（提示词遵循度）：</div>';
+    cfgOpts.forEach(c=>{ html += '<span class="sel'+(c===cfg?' on':'')+'" data-c="'+c+'">CFG '+c+'</span>'; });
+    html += '<div style="margin-top:14px;background:#fff;border:1px solid #ddd6fe;border-radius:12px;padding:14px">';
+    html += '<div>当前参数 → <b style="color:#6d28d9">steps='+steps+'，CFG='+cfg+'</b></div>';
+    html += '<div style="margin-top:8px">· 步数：<b>'+quality+'</b></div>';
+    html += '<div>· CFG：<b>'+fidelity+'</b></div>';
+    html += '<div class="muted" style="margin-top:8px">种子 seed 固定时，同一参数组合会得到同一张图——可复现实验。</div>';
+    html += '</div>';
+    stage.innerHTML = html;
+    stage.querySelectorAll(".sel[data-s]").forEach(b=>{ b.onclick=()=>{steps=+b.dataset.s;render();}; });
+    stage.querySelectorAll(".sel[data-c]").forEach(b=>{ b.onclick=()=>{cfg=+b.dataset.c;render();}; });
+  }
+  document.getElementById("reset2").onclick = ()=>{ steps=20; cfg=7; render(); };
+  render();
+})();
+
+/* ============ 演示3：提示词权重台 ============ */
+(function(){
+  const cases = [
+    {base:"一只橘猫坐在窗台上",
+     w1:"一只橘猫坐在窗台上，<b>毛发光泽</b>（high detail），午后阳光",
+     w2:"一只橘猫坐在窗台上，<b>卡通风格</b>（cartoon），色彩鲜艳"},
+    {base:"赛博朋克城市夜景",
+     w1:"赛博朋克城市夜景，<b>霓虹灯细节</b>（neon lights），雨夜倒影",
+     w2:"赛博朋克城市夜景，<b>极简构图</b>（minimalist），远景剪影"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage3");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:8px"><b>基础提示词：</b>'+c.base+'</div>'
+      +'<div class="prompt" style="background:#fff;border:1px solid #c4b5fd;border-radius:10px;padding:10px 13px;margin:8px 0;font-size:14px">🧩 加权重后 ①：'+c.w1+'</div>'
+      +'<div class="prompt" style="background:#fff;border:1px solid #c4b5fd;border-radius:10px;padding:10px 13px;margin:8px 0;font-size:14px">🧩 加权重后 ②：'+c.w2+'</div>'
+      +'<div class="muted" style="margin-top:8px">在 ComfyUI 里可用 <span class="tok">(关键词:1.2)</span> 或 <span class="tok">[关键词:0.8]</span> 写法提升/降低权重，引导模型侧重不同细节。</div>';
+  }
+  document.getElementById("next3").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+</script>
+</body>
+</html>

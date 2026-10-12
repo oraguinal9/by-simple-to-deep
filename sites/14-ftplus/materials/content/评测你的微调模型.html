@@ -1,0 +1,158 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>评测你的微调模型 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="_1">评测你的微调模型</h1>
+<p>「我微调好了，但它到底好不好？」这是最关键也最容易被糊弄的问题。这一章给你一套科学的评测方法：从「拍脑袋看几个例子」升级到「用指标和对照实验说话」。</p>
+<h2 id="_2">为什么必须评测</h2>
+<p>微调的效果不能靠「感觉」。因为：</p>
+<ul>
+<li><strong>loss 降了 ≠ 模型变好了</strong>：loss 是在训练集上的，可能过拟合；</li>
+<li><strong>看几个例子有幸存者偏差</strong>：你容易挑「表现好」的例子给自己看；</li>
+<li><strong>没有对照就没意义</strong>：不跟微调前的基座比，你不知道到底改进了什么。</li>
+</ul>
+<p>所以评测的核心是：<strong>同一套问题，分别问基座模型和微调模型，量化对比。</strong></p>
+<h2 id="_3">评测的两大流派</h2>
+<h3 id="1">1. 客观指标（能自动化打分）</h3>
+<p>适合有「标准答案」的任务：</p>
+<ul>
+<li><strong>分类/选择题准确率</strong>：模型答对了多少；</li>
+<li><strong>BLEU / ROUGE</strong>：生成文本和参考答案的重合度（适合翻译、摘要、抽取类）；</li>
+<li><strong>F1</strong>：信息抽取等任务；</li>
+<li><strong>困惑度（perplexity）</strong>：模型对数据「有多意外」，越低越好，但仅作参考。</li>
+</ul>
+<p>优点：可批量、可复现。缺点：对「开放性对话」评价不全面（一个意思有多种说法，BLEU 会误判）。</p>
+<h3 id="2">2. 主观评测（人工/模型打分）</h3>
+<p>适合开放性对话、风格、有用性：</p>
+<ul>
+<li><strong>人工打分</strong>：让人按「有用性、忠实度、流畅度」打分（最可靠但慢）；</li>
+<li><strong>LLM 打分</strong>：用一个强模型（如 GPT / Qwen 大杯）当「裁判」给回答打分（快，但裁判也有偏见）；</li>
+<li><strong>A/B 对比</strong>：把基座和微调的回答匿名放一起，让人/裁判选更好的（最直观）。</li>
+</ul>
+<h2 id="_4">一个实用的评测流程</h2>
+<p>不追求完美，先搭一套「够用」的流程：</p>
+<pre class="codehilite"><code>1. 准备一个固定的评测集（50~100 条典型问题，覆盖你的场景）
+2. 记录基准：用未微调的基座模型跑一遍，得到 baseline
+3. 微调模型跑同一份评测集
+4. 对比：自动指标（如有）+ 人工/LLM 抽查打分
+5. 反复迭代：发现问题 → 修数据 → 重训 → 再评测
+</code></pre>
+
+<p>关键：<strong>评测集必须是训练时没见过的</strong>（不能和训练数据重叠），否则测的是「背题」而非「学会」。</p>
+<h2 id="_5">评测集从哪来</h2>
+<ul>
+<li>从你的真实业务问题里抽取（最贴近实际）；</li>
+<li>找一部分数据<strong>留出来</strong>（比如 10%），专门当评测集，不参与训练；</li>
+<li>如果担心泄露，可以从公开测试集（如 C-Eval、CMMLU 中文评测）里抽题。</li>
+</ul>
+<h2 id="_6">三个一定要盯的维度</h2>
+<p>不管用什么方法，评测时至少看这三件事：</p>
+<ol>
+<li><strong>有用性（helpful）</strong>：回答有没有真的帮到用户，是不是答非所问；</li>
+<li><strong>忠实度（faithful）</strong>：有没有编造（幻觉）。微调不是塞知识，若它开始一本正经胡说，要警惕；</li>
+<li><strong>稳定性（consistent）</strong>：同一类问题是不是每次都答得差不多，有没有随机抽风。</li>
+</ol>
+<h2 id="_7">过拟合怎么在评测中暴露</h2>
+<p>过拟合的典型信号：<strong>训练 loss 一直降、但评测集上指标变差</strong>。或者：模型能完美复述训练数据里的答案，但换一种问法就答错。</p>
+<p>对策：
+- 增加通用数据配比（防「背题」）；
+- 减少训练步数 / 降低学习率；
+- 检查数据是否在评测集里「穿帮」。</p>
+<h2 id="_8">写一个最小的评测脚本</h2>
+<p>给你一个极简的可扩展框架（用 LLM 裁判示意，可换成人工）：</p>
+<pre class="codehilite"><code class="language-python">EVAL_QS = [&quot;你的产品怎么退货？&quot;, &quot;解释一下什么是 LoRA。&quot;, ...]
+
+def ask(model, q):
+    # 用你的推理接口让模型回答
+    return ...
+
+base_answers = [ask(base_model, q) for q in EVAL_QS]
+ft_answers   = [ask(ft_model,   q) for q in EVAL_QS]
+
+# 用裁判模型打分，或人工逐个比较
+for q, ba, fa in zip(EVAL_QS, base_answers, ft_answers):
+    better = judge(q, ba, fa)   # 返回 &quot;base&quot; 或 &quot;ft&quot; 或 &quot;tie&quot;
+    print(q, &quot;→&quot;, better)
+</code></pre>
+
+<p>统计「微调赢的比例」，就能量化微调的净收益。</p>
+<h2 id="_9">客观指标详解：什么时候信、什么时候不信</h2>
+<p>很多初学者拿到 BLEU/ROUGE 就当「真理」，其实要看清它们的能力边界：</p>
+<p><strong>BLEU / ROUGE（文本重合度）</strong>：
+- <strong>可靠场景</strong>：翻译、摘要、信息抽取等「有明确标准答案」的任务；
+- <strong>坑</strong>：开放性问答没有唯一答案，一个意思两种说法 BLEU 就很低，<strong>会冤枉好模型</strong>。比如模型答「报销 5 个工作日内到账」，参考答案写「5 个工作日到账」，措辞略不同就被扣分。</p>
+<p><strong>准确率 / F1</strong>：
+- 适合分类、抽取类任务，客观直接；
+- 需要先定义「什么叫答对」——是包含关键词？还是语义等价？</p>
+<p><strong>困惑度（perplexity）</strong>：
+- 模型对「见过的数据」的意外程度，越低越好；
+- 但困惑度低 ≠ 回答好（模型可能只学会了「说得很顺」而内容空洞），<strong>只作参考</strong>。</p>
+<p><strong>给新手的建议</strong>：客观指标能自动化跑，但要搭配「人工抽查」一起看，两者互补。</p>
+<h2 id="llm-prompt">LLM 裁判：怎么写一个好 prompt</h2>
+<p>用强模型当裁判，prompt 写得好不好直接影响结果。一个合格的裁判 prompt 至少包含：</p>
+<ol>
+<li><strong>任务定义</strong>：你要它比较什么；</li>
+<li><strong>评分维度</strong>：有用性、忠实度、流畅度等；</li>
+<li><strong>评分规则</strong>：几分制、怎么算赢；</li>
+<li><strong>输出格式</strong>：结构化输出（如 JSON），方便统计；</li>
+<li><strong>去偏要求</strong>：不知道哪个是微调模型，避免「位置偏好」。</li>
+</ol>
+<p>示例裁判 prompt：</p>
+<pre class="codehilite"><code>你是一个公正的模型评测员。给定用户问题和两个回答，
+请从【有用性、忠实度、流畅度】三个维度分别打分（1-5分），
+并说明哪个回答更好。不要因为某个回答更长而偏袒它。
+
+用户问题：{question}
+回答A：{answer_a}
+回答B：{answer_b}
+
+请以 JSON 输出：{&quot;A&quot;: 总分, &quot;B&quot;: 总分, &quot;winner&quot;: &quot;A&quot;或&quot;B&quot;或&quot;tie&quot;, &quot;reason&quot;: 一句话理由}
+</code></pre>
+
+<p><strong>注意</strong>：
+- 打乱 A/B 顺序跑两遍，取稳定结果，消除位置偏好；
+- 裁判模型最好比被评模型强（不然裁判被「震住」）。</p>
+<h2 id="_10">人工评测：效率与可靠性的平衡</h2>
+<p>人工评测最可靠但也最贵。几个实用技巧：</p>
+<ul>
+<li><strong>抽样</strong>：不用评全部，抽 20~30 条典型问题即可；</li>
+<li><strong>匿名双盲</strong>：评的人不知道哪个是基座、哪个是微调，避免心理偏见；</li>
+<li><strong>多人交叉</strong>：两个人评，分歧大的样本单独讨论；</li>
+<li><strong>固定标准</strong>：先写清楚「3 分 = 什么水平」，避免评分尺度漂移。</li>
+</ul>
+<p>一个折中方案：<strong>自动指标批量跑 + 人工抽查 20 条 + LLM 裁判跑全部</strong>，三层结合，又快又稳。</p>
+<h2 id="_11">评测的「黄金三件套」：基线、对照、回归</h2>
+<p>专业团队做评测会维护三样东西，你也可以从小做起：</p>
+<ol>
+<li><strong>固定评测集</strong>：一份不随训练变化的题库，反复使用，用来横向对比不同版本；</li>
+<li><strong>基线记录</strong>：每次训练的评测分数都记录在案，形成「版本 → 分数」表；</li>
+<li><strong>回归测试</strong>：每次改数据/参数后重跑评测集，防止「修了 A 坏了 B」。</li>
+</ol>
+<p>这套「工程化评测」思维，是把微调从「玩票」升级到「产品」的分水岭。</p>
+<h2 id="_12">小练习</h2>
+<ol>
+<li>准备 20 条评测问题（训练数据之外），分别问基座和微调模型，记录你觉得微调赢了几条。</li>
+<li>设计一个 LLM 裁判的 prompt，让它比较两个回答哪个更好，并测试它是否稳定。</li>
+<li>微调后若发现「学新忘旧」，你回第 2 章找配比问题，还是这里找评测问题？</li>
+<li>进阶：用同一份评测集，分别测「训练前基座」「训练 200 步」「训练 1000 步」三个版本，画出「训练量—分数」曲线，找出过拟合拐点。</li>
+</ol>
+<p>评测是微调的「体检」。做完它，你的微调才算真正闭环。最后一章，我们把所有能力串成一个能落地的<strong>领域问答助手</strong>。</p></body></html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>开源推理模型：DeepSeek-R1 深度解析 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="deepseek-r1">开源推理模型：DeepSeek-R1 深度解析</h1>
+<p>理论看完了，这一章研究一个真实案例——<strong>DeepSeek-R1</strong>。它把「推理模型」从闭源垄断变成开源可复现，也直接推动了大模型价格战和推理模型普及。搞清楚 R1，你就看懂了推理模型这条赛道的全貌。</p>
+<h2 id="r1">R1 为什么重要</h2>
+<p>2025 年 1 月，DeepSeek 发布 R1，震撼了全球 AI 圈：</p>
+<ul>
+<li><strong>效果对标闭源顶级推理模型</strong>：在数学、代码等推理基准上接近 OpenAI o1；</li>
+<li><strong>完全开源</strong>：权重、训练技术报告（甚至训练细节）全部公开；</li>
+<li><strong>训练成本极低</strong>：论文公开的核心模型训练成本仅约 560 万美元——远低于同级闭源模型；</li>
+<li><strong>引发连锁反应</strong>：开源模型能力逼近闭源、价格战、各大厂商跟进推理模型。</li>
+</ul>
+<p>对学习者来说，R1 最大的价值是：<strong>一个完整、公开、可复现的推理模型训练案例</strong>。</p>
+<h2 id="r1_1">R1 的训练路线：分四步</h2>
+<p>R1 的技术报告公开了完整训练流程，我们拆开看：</p>
+<h3 id="sft">第一步：冷启动数据（SFT）</h3>
+<p>先用少量高质量「问题 → 带推理过程 → 答案」数据做 SFT，让模型<strong>学会推理的输出格式</strong>（用「思考过程 + 结论」的结构，带 <code>&lt;reasoning&gt;</code> 等标记）。</p>
+<p><strong>为什么需要冷启动</strong>？直接上强化学习，模型可能生成格式混乱、语言混杂的输出。先用少量高质量数据「定格式」，RL 才能稳定开展。</p>
+<h3 id="rl">第二步：推理导向的强化学习（RL）</h3>
+<p>用 GRPO 算法 + 规则型奖励（数学/代码答案正确性）做强化学习。这一阶段模型涌现出「反思」「重新思考」等自我纠正行为——<strong>推理能力的大幅提升主要来自这一阶段</strong>。</p>
+<h3 id="sft_1">第三步：拒绝采样 + 全量微调（SFT 第二波）</h3>
+<p>用 RL 后的模型生成大量数据，<strong>只保留高质量样本</strong>（拒绝采样），混入通用数据，再做一次全量 SFT——提升模型的<strong>通用能力</strong>（对话、写作等），避免「只强在推理、弱在对话」。</p>
+<h3 id="_1">第四步：全场景强化学习</h3>
+<p>最后再做一轮 RL（推理任务 + 通用任务混合，通用任务用人类偏好奖励），让模型在推理和通用能力上<strong>全面对齐</strong>。</p>
+<pre class="codehilite"><code>R1 完整路线：
+冷启动 SFT → 推理 RL（GRPO+规则奖励）→ 拒绝采样 + 全量 SFT → 全场景 RL
+</code></pre>
+
+<p><strong>收获</strong>：这四步完美呼应了第 4 章的「三阶段路线」，只是更精细——两次 SFT 夹着两次 RL，兼顾「推理专精」和「通用不退化」。</p>
+<h2 id="r1_2">R1 的关键设计细节</h2>
+<p><strong>1. 思维链格式</strong>：R1 用特殊标记把「思考过程」和「最终答案」分开：</p>
+<pre class="codehilite"><code>&lt;reasoning&gt;
+先分析：题目要求…… 然后逐步计算……
+&lt;/reasoning&gt;
+&lt;answer&gt;
+最终答案：……
+&lt;/answer&gt;
+</code></pre>
+
+<p>这让推理过程可结构化提取（展示给用户 / 供下游解析）。</p>
+<p><strong>2. 规则型奖励的两种信号</strong>：
+- <strong>数学</strong>：答案和标准答案完全匹配（用程序判断）；
+- <strong>代码</strong>：跑测试用例通过与否。</p>
+<p><strong>3. 语言混合问题</strong>：RL 中模型可能中英混杂（因为推理数据多英文）。R1 通过在奖励里「惩罚非目标语言」或提示词约束来解决——<strong>细节决定成败</strong>。</p>
+<h2 id="r1-distill">R1-Distill：小模型也有推理能力</h2>
+<p>R1 原版是 671B 的 MoE 大模型（太大了）。DeepSeek 同时发布了 <strong>R1-Distill 系列</strong>：用 R1 生成的推理数据，微调 Qwen 1.5B~70B 等小模型。</p>
+<p>结果：<strong>7B 级别的小模型就能展现不错的推理能力</strong>，个人电脑也能跑。这印证了第 4 章的蒸馏路线——<strong>小模型 + 蒸馏数据 = 实惠的推理能力</strong>。</p>
+<h2 id="r1_3">从 R1 学到的三件事</h2>
+<p><strong>1. 推理能力是「练」出来的，不是「写」出来的</strong>
+R1 的推理涌现来自 RL 而非数据堆砌——告诉模型「要思考」没用，让它在「答案正确有奖」的压力下自己学会思考。</p>
+<p><strong>2. 开源模型正在逼近闭源</strong>
+R1 证明：公开的技术 + 聪明的训练策略，可以用远低于闭源的算力做出接近的效果。这对个人学习者是巨大红利。</p>
+<p><strong>3. 推理模型可以「蒸馏」到人人可用</strong>
+旗舰模型负责「思考得最好」，蒸馏小模型负责「便宜可用」——两者分工，形成推理模型的完整生态。</p>
+<h2 id="_2">其他值得关注的开源推理模型</h2>
+<p>R1 之后，开源推理模型百花齐放：</p>
+<ul>
+<li><strong>DeepSeek-R1 / R1-Distill</strong>：开山之作，技术文档最完整；</li>
+<li><strong>QwQ（通义）</strong>：阿里开源的中文推理模型；</li>
+<li><strong>Kimi K2（月之暗面）</strong>：国产 Agent 导向的大模型，推理能力突出；</li>
+<li><strong>Qwen3 系列</strong>：部分版本内置「思考模式」，开源可自部署；</li>
+<li><strong>各类 R1 蒸馏微调版</strong>：社区用 R1 数据微调的各种小模型。</li>
+</ul>
+<p><strong>学习建议</strong>：不用全看，选 1~2 个中文表现好的（如 QwQ、Qwen3）上手，配合下一章的部署方法实践。</p>
+<h2 id="r1_4">R1 的技术报告：一份「推理模型训练说明书」</h2>
+<p>R1 的技术报告（technical report）是学习推理模型的<strong>最佳教材之一</strong>，因为它把训练细节几乎全部公开。值得细读的部分：</p>
+<ol>
+<li><strong>训练流程</strong>：四步路线的每一步做了什么、为什么这么做；</li>
+<li><strong>奖励设计</strong>：规则型奖励的具体实现（数学答案匹配、代码测试）；</li>
+<li><strong>工程细节</strong>：语言混合的处理、格式约束、训练超参；</li>
+<li><strong>消融实验</strong>：去掉某一步会怎样（比如「没有冷启动直接 RL 会怎样」）；</li>
+<li><strong>蒸馏实验</strong>：蒸馏数据 vs 直接 RL 小模型的效果对比。</li>
+</ol>
+<p><strong>阅读建议</strong>：不用一次读完，先看「训练流程」和「消融实验」两节，其余按需查阅。看技术报告的能力，是进阶学习者的分水岭。</p>
+<h2 id="r1_5">关于 R1 的常见误解</h2>
+<p><strong>误解 1：「R1 是全新发明」</strong>
+错。R1 是已知技术（SFT、RL、GRPO、规则奖励）的组合与工程优化。它的贡献是「证明这条路走得通且便宜」。</p>
+<p><strong>误解 2：「R1 的思考是模型真在思考」</strong>
+错。所谓「思考过程」本质还是 token 生成，只是被训练成「先输出推理再输出答案」的模式。它不是「意识」，是「行为模式」。</p>
+<p><strong>误解 3：「蒸馏 = 免费复制能力」</strong>
+半对。蒸馏能「迁移」部分能力，但小模型的「天花板」低于教师——7B 蒸馏模型能接近但追不上 671B。</p>
+<p><strong>误解 4：「开源推理模型 = 随便商用」</strong>
+要看许可证。R1 系列采用宽松的 MIT 协议，但不同开源模型协议不同，商用前务必确认。</p>
+<h2 id="_3">小练习</h2>
+<ol>
+<li>用自己的话复述 R1 的四步训练路线，并说出每步的目的。</li>
+<li>为什么 R1 要先做「冷启动 SFT」再上 RL？</li>
+<li>查资料：R1-Distill 和 R1 原版在参数量和效果上的差异，思考「蒸馏的性价比」。</li>
+<li>实际体验：找一个在线 R1 或 QwQ 的 demo，问它一道数学题，观察它的思考过程结构。</li>
+<li>进阶：读 R1 技术报告的「消融实验」一节，总结「冷启动」和「拒绝采样」各贡献了什么。</li>
+</ol>
+<p>看完了明星案例，下一章把它「用起来」——<strong>推理模型的部署与调用</strong>。</p></body></html>

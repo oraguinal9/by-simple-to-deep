@@ -1,0 +1,122 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第九章 实践陷阱与工程细节 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="_1">第九章 实践陷阱与工程细节</h1>
+<p>理论讲完，这一章聊聊<strong>真刀真枪做 RLHF/DPO 时会踩的坑</strong>。很多项目不是算法不行，而是死在工程细节上。无论你用 PPO 还是 DPO，下面这些点都值得打印贴在显示器上。</p>
+<h2 id="_2">一、数据与偏好的坑</h2>
+<ol>
+<li>
+<p><strong>噪声偏好直接毒化模型</strong>
+   标注者乱点、指南含糊，会让 RM/DPO 学到错误信号（第七章）。务必先小批量试标、测一致性、再放大。</p>
+</li>
+<li>
+<p><strong>分布不匹配（Distribution Shift）</strong>
+   训练偏好用的 prompt，要和线上真实 prompt 同分布。否则模型在训练集上很乖，一上线就原形毕露。</p>
+</li>
+<li>
+<p><strong>只比「好 vs 坏」，忘了「好 vs 更好」</strong>
+   如果偏好对里胜方只是「没那么烂」，模型学到的上限也低。要有意识地收集「两个都不错、但微妙更好」的难样本。</p>
+</li>
+</ol>
+<h2 id="_3">二、奖励模型的坑</h2>
+<ol>
+<li>
+<p><strong>长度偏置</strong>
+   RM 偏爱长回答（第三章）。缓解：数据层让长短均衡、训练时做长度惩罚或归一化、最终评估看「单位长度质量」。</p>
+</li>
+<li>
+<p><strong>RM 过拟合</strong>
+   RM 在固定数据上训久会过拟合，对分布外样本打分失真。监控 RM 在 Validation 集上的准确率，别训太多 epoch。</p>
+</li>
+<li>
+<p><strong>奖励尺度漂移</strong>
+   RM 分数范围不稳定，会让 PPO 的优势信号忽大忽小。实践中对奖励做 running mean/std 归一化很常见。</p>
+</li>
+</ol>
+<h2 id="ppo">三、PPO 训练的坑</h2>
+<ol>
+<li>
+<p><strong>学习率与更新步数</strong>
+   PPO 学习率通常比 SFT 小一个数量级；每个 batch 的更新步数（epochs per batch）也要限制，否则容易过冲。</p>
+</li>
+<li>
+<p><strong>KL 系数 β 难调</strong>
+   β 太大模型学不动（被参考模型绑死），太小疯狂钻空子（第七章）。常用「自适应 β」或监控 KL 值是否落在预期区间。</p>
+</li>
+<li>
+<p><strong>采样是瓶颈</strong>
+   on-policy 的 rollout 逐词生成极慢。加速靠大 batch、多卡推理、KV cache 优化；别让 GPU 在采样时空转。</p>
+</li>
+<li>
+<p><strong>四个模型显存爆炸</strong>
+   用 LoRA 只训适配层、用 ZeRO/张量并行切分、把冻结的 Reference/RM 用参数共享或 CPU 卸载——这些是标配，不是锦上添花。</p>
+</li>
+</ol>
+<h2 id="dpo">四、DPO 特有的坑</h2>
+<ol>
+<li>
+<p><strong>β 不是越大越好</strong>
+    DPO 的 β 控制「对齐强度」。太大 → 模型死守偏好、丧失流畅度；太小 → 偏好信号被淹没。常见从 0.1 起调。</p>
+</li>
+<li>
+<p><strong>参考模型必须和策略同源</strong>
+    DPO 的损失依赖 π_ref 和 π 出自同一基座。如果你在 SFT 模型和 DPO 模型之间换了底座，损失会失真。</p>
+</li>
+<li>
+<p><strong>负样本质量决定下限</strong>
+    DPO 同时看胜方和败方。如果败方本来就很烂、胜方优势巨大，模型学不到细腻区分；要有「势均力敌」的难负例。</p>
+</li>
+</ol>
+<h2 id="_4">五、评估的坑</h2>
+<ol>
+<li>
+<p><strong>只看奖励分数会自欺欺人</strong>
+    RM 分越高 ≠ 人类越满意（奖励黑客）。必须做<strong>人工评估 / 胜率对战（如让人类或强模型当裁判比较 A/B）</strong>，且评估集要独立、未参与训练。</p>
+</li>
+<li>
+<p><strong>忘了对齐税（Alignment Tax）</strong>
+    RLHF/DPO 可能让模型在某些基准（如代码、数学）上退步——因为它把精力花在了「讨好偏好」上。要用综合 benchmark 监控，必要时用 SFT 数据「回补」能力。</p>
+</li>
+</ol>
+<h2 id="_5">六、一套稳妥的实操清单</h2>
+<ul>
+<li>[ ] 偏好数据：小批量试标 → 测一致性 → 修指南 → 放大</li>
+<li>[ ] RM/DPO：监控验证集指标，防止过拟合与长度偏置</li>
+<li>[ ] PPO：学习率小、β 自适应、奖励归一化、LoRA 省显存</li>
+<li>[ ] 评估：独立人工/裁判评估 + 综合 benchmark，不只看 RM 分</li>
+<li>[ ] 监控：定期红队抽检，发现新空子就补数据</li>
+</ul>
+<h2 id="_6">本章小结</h2>
+<ul>
+<li>数据层：防噪声偏好、防分布偏移、收集「微妙更好」的难样本。</li>
+<li>RM 层：警惕长度偏置、过拟合、尺度漂移。</li>
+<li>PPO 层：小学习率、β 自适应、采样加速、4 模型显存靠 LoRA+并行。</li>
+<li>DPO 层：β 别太大、参考模型须同源、负例要难。</li>
+<li>评估层：<strong>别只看 RM 分</strong>（奖励黑客），要人工/裁判评估 + 综合 benchmark 监控「对齐税」。</li>
+</ul>
+<h2 id="_7">思考与延伸</h2>
+<ul>
+<li>如果项目时间只有两周，你会优先在哪一环投入（数据 / RM / 训练 / 评估）？为什么？</li>
+<li>「对齐税」现象给你什么启发？能力和对齐之间一定是 trade-off 吗？</li>
+<li>延伸：搜索「RLHF practical tips」或阅读各大厂（OpenAI/Anthropic/DeepSeek）对齐技术报告。</li>
+</ul></body></html>

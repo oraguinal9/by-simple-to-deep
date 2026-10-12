@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 与 Agent · L4 | 10 天让大模型有知识、会做事</title>
+<style>
+  :root{
+    --bg:#f4f8fb; --card:#fff; --ink:#1f2430; --muted:#6b7280; --line:#e3eaf0;
+    --accent:#0891b2; --accent2:#7c3aed; --accent-soft:#cffafe;
+    --green:#16a34a; --green-soft:#dcfce7;
+    --demo-bg:#0b1f2a; --demo-ink:#e2e8f0;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.65;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+  nav{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;}
+  nav .brand{font-weight:800;color:var(--accent);margin-right:auto;}
+  nav a{color:var(--muted);font-size:14px;}
+  nav a:hover{color:var(--accent);}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 60px;}
+  .hero{background:linear-gradient(135deg,#0891b2,#7c3aed);color:#fff;border-radius:18px;padding:30px 32px;margin-bottom:26px;}
+  .hero h1{margin:0 0 8px;font-size:26px;}
+  .hero p{margin:6px 0;opacity:.95;}
+  .hero .tip{background:rgba(255,255,255,.16);padding:10px 14px;border-radius:10px;margin-top:14px;font-size:14px;}
+  .badge-l4{display:inline-block;background:rgba(255,255,255,.22);padding:3px 10px;border-radius:999px;font-size:12px;margin-bottom:8px;}
+  section{margin-bottom:40px;}
+  h2{font-size:21px;border-left:5px solid var(--accent);padding-left:12px;margin:0 0 16px;}
+  .progress-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .bar{height:14px;background:#eef0f4;border-radius:999px;overflow:hidden;margin:10px 0;}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--green),#4ade80);transition:width .4s;}
+  .progress-meta{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted);}
+  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:9px;font-size:13px;}
+  .btn:hover{background:var(--accent-soft);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:.2s;}
+  .day.done{border-color:var(--green);box-shadow:0 0 0 2px var(--green-soft) inset;}
+  .day summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
+  .day summary::-webkit-details-marker{display:none;}
+  .badge{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:800;display:grid;place-items:center;}
+  .day.done .badge{background:var(--green);color:#fff;}
+  .day h3{margin:0;font-size:16px;} .day .dur{font-size:12px;color:var(--muted);margin-top:2px;}
+  .day .body{padding:0 16px 16px;border-top:1px dashed var(--line);margin-top:4px;}
+  .day .body h4{font-size:13px;margin:14px 0 6px;color:var(--accent);}
+  .day ul{margin:4px 0;padding-left:18px;font-size:14px;} .day li{margin:3px 0;}
+  .chk{margin-top:14px;display:flex;align-items:center;gap:8px;font-size:14px;}
+  .chk input{width:17px;height:17px;accent-color:var(--green);}
+  .mat a{display:inline-block;margin:2px 6px 2px 0;font-size:13px;background:var(--accent-soft);color:var(--accent);padding:2px 9px;border-radius:999px;}
+  /* 演示区 */
+  .demo{background:var(--demo-bg);color:var(--demo-ink);border-radius:14px;padding:20px;margin-bottom:18px;}
+  .demo h3{margin:0 0 4px;color:#fff;font-size:17px;}
+  .demo .sub{font-size:13px;color:#94a3b8;margin-bottom:14px;}
+  .demo label{font-size:13px;color:#cbd5e1;}
+  .demo select,.demo input[type=range],.demo input[type=text],.demo textarea{vertical-align:middle;}
+  .demo select{background:#13303f;color:#e2e8f0;border:1px solid #2b4a5a;border-radius:7px;padding:5px 8px;font-size:13px;}
+  .demo input[type=text],.demo textarea{background:#0f2733;color:#e2e8f0;border:1px solid #2b4a5a;border-radius:7px;padding:8px;font-size:13px;font-family:inherit;width:100%;}
+  .demo textarea{resize:vertical;min-height:54px;}
+  .demo input[type=range]{accent-color:#22d3ee;width:150px;}
+  .ctrl{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0;}
+  .ctrl .item{display:flex;gap:7px;align-items:center;background:#13303f;border:1px solid #2b4a5a;padding:6px 10px;border-radius:9px;}
+  .val{color:#22d3ee;font-weight:700;font-variant-numeric:tabular-nums;min-width:44px;display:inline-block;}
+  .btn2{cursor:pointer;border:none;background:var(--accent);color:#fff;padding:8px 16px;border-radius:8px;font-size:14px;}
+  .btn2.ghost{background:#2b4a5a;} .btn2.cy{background:#22d3ee;color:#06222e;}
+  .btn2:hover{filter:brightness(1.15);}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+  .stat{background:#13303f;border:1px solid #2b4a5a;border-radius:9px;padding:7px 12px;font-size:13px;}
+  .stat b{color:#fff;font-size:15px;font-variant-numeric:tabular-nums;}
+  .hint{background:#13303f;border:1px solid #2b4a5a;border-radius:9px;padding:10px 13px;margin-top:12px;font-size:13px;color:#cbd5e1;}
+  .hint b{color:#fcd34d;}
+  .resbox{background:#0f2733;border:1px solid #2b4a5a;border-radius:9px;padding:12px;margin-top:12px;font-size:13px;white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;color:#cbd5e1;max-height:280px;overflow:auto;}
+  .simrow{display:flex;align-items:center;gap:10px;padding:7px 10px;background:#13303f;border:1px solid #2b4a5a;border-radius:9px;margin-top:8px;font-size:13px;}
+  .simbar{height:10px;flex:1;background:#0f2733;border-radius:999px;overflow:hidden;}
+  .simbar>i{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,#0891b2);}
+  .step{background:#13303f;border:1px solid #2b4a5a;border-left:4px solid #22d3ee;border-radius:9px;padding:10px 13px;margin-top:9px;font-size:13px;}
+  .step .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;margin-right:6px;font-weight:700;}
+  .step .t-thought{background:#3b2f6b;color:#c4b5fd;} .step .t-action{background:#0e5a6e;color:#67e8f9;} .step .t-obs{background:#14532d;color:#86efac;} .step .t-ans{background:#713f12;color:#fcd34d;}
+  .step b{color:#fff;}
+  .note{background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:20px;}
+  .ladder{font-size:14px;color:var(--muted);margin:6px 0;line-height:2;}
+  .ladder .cur{background:var(--accent);color:#fff;padding:2px 9px;border-radius:999px;font-weight:700;}
+  .toc a{display:inline-block;margin:3px 7px 3px 0;background:var(--accent-soft);color:var(--accent);padding:3px 11px;border-radius:999px;font-size:13px;}
+  footer{color:var(--muted);font-size:13px;text-align:center;padding:20px;}
+</style>
+</head>
+<body>
+<header>
+  <nav>
+    <span class="brand">🔍 RAG 与 Agent · L4</span>
+    <a href="#plan">学习计划</a>
+    <a href="#demo">互动演示</a>
+    <a href="#res">教程目录</a>
+    <a href="https://dl.zbjh.top/" target="_blank" rel="noopener">← L3 深度学习</a>
+    <a href="https://ai101.zbjh.top/" target="_blank" rel="noopener">L1 入门 →</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <span class="badge-l4">L4 · 由简入深系列 · 应用跃迁</span>
+    <h1>10 天，搞懂 RAG 与 Agent：让大模型「有知识、会做事」</h1>
+    <p>全程中文 · 从开卷考试讲到会自己调工具的智能体 · 三个可动手玩的原理实验台</p>
+    <div class="tip">📌 这是 L4（应用跃迁层）。学完你会真正理解：怎么给大模型接上你们自己的资料（RAG），以及怎么让它不只是「回答」而是「动手」（Agent）。建议先学完 <b>L1~L3</b>，本阶会频繁用到前面的概念。</div>
+  </div>
+
+  <div class="note">
+    💡 <b>怎么用：</b>每天点开一张卡片，先读教程再玩下面的演示；学完勾选「我已掌握」，进度条会自动增长（保存在你本机浏览器）。<b>三个演示台建议在浏览器里亲手试</b>——RAG 检索、余弦相似度、Agent 行动循环，亲手跑一遍比读十遍都清楚。
+  </div>
+
+  <section id="progress">
+    <h2>📊 我的学习进度</h2>
+    <div class="progress-card">
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="progress-meta">
+        <span id="progText">已完成 0 / 10 天</span>
+        <button class="btn" onclick="resetProgress()">重置进度</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>🗓️ 每日学习计划（10 天）</h2>
+    <div class="grid" id="dayGrid"></div>
+  </section>
+
+  <section id="demo">
+    <h2>🎮 三个原理实验台</h2>
+    <p style="color:var(--muted);margin-top:-6px">全部在你的浏览器里实时计算，不联网。说明：Embedding / Agent 本身需要调用大模型，纯网页无法真跑，所以这里是<b>把核心算法/流程做成了可视化演示</b>（检索用真实的关键词向量余弦、Agent 用预设剧本回放），帮你建立直觉。</p>
+
+    <!-- ========== 演示 1：RAG 检索台 ========== -->
+    <div class="demo">
+      <div class="sub" style="color:#94a3b8;font-size:13px;margin-bottom:14px">输入一个问题，看系统怎么在「知识库」里找出最相关的几段，并拼成要喂给模型的提示词。</div>
+      <div class="ctrl">
+        <span class="item"><label>预设问题</label>
+          <select id="ragQ">
+            <option value="出差打车能报销吗？">出差打车能报销吗？</option>
+            <option value="猫掉毛吃什么好？">猫掉毛吃什么好？</option>
+            <option value="北京冬天穿什么？">北京冬天穿什么？</option>
+            <option value="__custom__">✎ 自己输入…</option>
+          </select>
+        </span>
+      </div>
+      <div id="ragCustomWrap" style="display:none;margin:8px 0">
+        <input type="text" id="ragCustom" placeholder="输入你的问题，例如：年假怎么申请？" style="max-width:420px">
+      </div>
+      <div class="ctrl">
+        <button class="btn2 cy" onclick="runRAG()">🔎 检索并拼装</button>
+        <span class="item"><label>取 top-k</label>
+          <select id="ragK">
+            <option>1</option><option selected>3</option><option>5</option>
+          </select>
+        </span>
+      </div>
+      <div id="ragOut"></div>
+    </div>
+
+    <!-- ========== 演示 2：余弦相似度台 ========== -->
+    <div class="demo">
+      <div class="sub" style="color:#94a3b8;font-size:13px;margin-bottom:14px">把两段文字各自「变成向量」，看它们语义方向有多接近（余弦相似度）。这就是 RAG 判断「资料和问题像不像」的数学。</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label>文本 A</label><textarea id="cosA">猫咪掉毛严重，该吃什么补充营养</textarea></div>
+        <div><label>文本 B</label><textarea id="cosB">宠物脱毛期间的营养护理建议</textarea></div>
+      </div>
+      <div class="ctrl" style="margin-top:10px">
+        <button class="btn2 cy" onclick="calcCos()">📐 算相似度</button>
+        <span class="item"><label>示例</label>
+          <select id="cosPreset" onchange="loadCos(this.value)">
+            <option value="">— 载入示例对 —</option>
+            <option value="cat1|猫主子掉毛|宠物脱毛护理">近义：掉毛</option>
+            <option value="a2|今天天气真好|会议室在几楼">无关：天气 vs 会议室</option>
+            <option value="b2|手机没电了|手机电量耗尽|手机电力不足">近义：手机没电</option>
+            <option value="c2|我喜欢跑步|红烧肉怎么做|量子计算入门">三者各异</option>
+          </select>
+        </span>
+      </div>
+      <div id="cosOut"></div>
+    </div>
+
+    <!-- ========== 演示 3：Agent 行动台 ========== -->
+    <div class="demo">
+      <div class="sub" style="color:#94a3b8;font-size:13px;margin-bottom:14px">选一个任务，看 Agent 怎么「思考→调工具→看结果」一步步把事办成（ReAct 循环）。步骤为原理回放，真实 Agent 由模型实时生成。</div>
+      <div class="ctrl">
+        <span class="item"><label>任务</label>
+          <select id="agentTask">
+            <option value="weather">北京今天适合穿啥？顺便推荐外套</option>
+            <option value="reimb">出差打车能报销吗？</option>
+            <option value="ops">服务器宕机了怎么办？</option>
+          </select>
+        </span>
+        <button class="btn2 cy" onclick="agentPlay()">▶ 自动播放</button>
+        <button class="btn2 ghost" onclick="agentStep()">⏭ 单步</button>
+        <button class="btn2 ghost" onclick="agentReset()">↺ 重置</button>
+      </div>
+      <div class="hint" id="agentHint">提示：点「自动播放」观察 Think→Act→Observe 如何循环；点「单步」可一步步看。</div>
+      <div id="agentOut"></div>
+    </div>
+  </section>
+
+  <section id="res">
+    <h2>📚 教程目录（10 章）</h2>
+    <div class="toc" id="tocBox"></div>
+    <div class="ladder" style="margin-top:18px">
+      <div>🪜 由简入深阶梯：
+        <a href="https://ai101.zbjh.top/" target="_blank" rel="noopener">L1 提示词</a> ·
+        <a href="https://llm.zbjh.top/" target="_blank" rel="noopener">L2 大模型原理</a> ·
+        <a href="https://dl.zbjh.top/" target="_blank" rel="noopener">L3 深度学习</a> ·
+        <span class="cur">L4 RAG与Agent</span> ·
+        L5 微调 · L6 RLHF · L7 AIGC · L8 多模态/MCP（待建）
+      </div>
+    </div>
+  </section>
+
+  <footer>由简入深 · AI 学习站系列 · L4 RAG 与 Agent｜内容全部中文原创，演示均在浏览器本地运行</footer>
+</div>
+
+<script>
+/* ==================== 数据 ==================== */
+const chapters=[
+ ["第一章 什么是 RAG：让大模型开卷考试","content/第一章 什么是 RAG：让大模型开卷考试.md"],
+ ["第二章 文档切块：怎么把一本书喂给模型","content/第二章 文档切块：怎么把一本书喂给模型.md"],
+ ["第三章 把文字变成向量：Embedding 入门","content/第三章 把文字变成向量：Embedding 入门.md"],
+ ["第四章 向量检索：在知识库里找答案","content/第四章 向量检索：在知识库里找答案.md"],
+ ["第五章 拼装提示词：把检索结果喂给模型","content/第五章 拼装提示词：把检索结果喂给模型.md"],
+ ["第六章 RAG 实战问题与优化：重排序与混合检索","content/第六章 RAG 实战问题与优化：重排序与混合检索.md"],
+ ["第七章 什么是 Agent：会自己用工具的 AI","content/第七章 什么是 Agent：会自己用工具的 AI.md"],
+ ["第八章 Function Calling：让模型调用函数","content/第八章 Function Calling：让模型调用函数.md"],
+ ["第九章 ReAct：让 Agent 边想边做","content/第九章 ReAct：让 Agent 边想边做.md"],
+ ["第十章 动手实践与进阶路线","content/第十章 动手实践与进阶路线.md"],
+];
+const days=[
+ {t:"什么是 RAG",d:"约 20 分钟",goal:"搞懂 RAG 是什么、为什么能降幻觉、它和「闭卷考试」的区别。",
+  points:["大模型原生是闭卷的，易在私有/最新知识上幻觉","RAG=检索+增强+生成，核心是『先查资料再回答』","RAG 降低幻觉但不能 100% 消除，检索质量定上限"],
+  demo:"演示 1 检索台会用到这章概念",quiz:["用自己的话解释 RAG 三个字各指什么？","为什么 RAG 不能完全消灭幻觉？"]},
+ {t:"文档切块",d:"约 20 分钟",goal:"理解为什么必须把大文档切成小片段，以及怎么切最合理。",
+  points:["切块把『按文档检索』变成『按片段检索』","三种策略：按结构 / 固定长度 / 语义","重叠 overlap 防止句子被拦腰斩断；块大小 300~800 字"],
+  demo:"",quiz:["为什么不能把整本手册一次塞给模型？","重叠切分解决了什么问题？"]},
+ {t:"Embedding 入门",d:"约 22 分钟",goal:"建立『文字变向量、意思近则向量近』的核心直觉。",
+  points:["Embedding 把文字变成一串数字（向量）","语义相近的文字在『语义地图』上坐标挨得近","相似度用余弦，越接近 1 越像；不同模型向量不能混比"],
+  demo:"演示 2 余弦相似度台就是 Embedding 的简化版",quiz:["为什么说 Embedding 让计算机能用『距离』衡量语义？","能用模型 A 的向量去比模型 B 的吗？"]},
+ {t:"向量检索",d:"约 22 分钟",goal:"搞清相似度怎么算、top-k 取几个、为什么需要向量数据库。",
+  points:["余弦相似度=点积/(两向量长度)，只看方向不看长短","检索=算相似度→排序→取 top-k（常见 3~5）","百万级数据靠向量库的 ANN 索引做近似检索"],
+  demo:"",quiz:["余弦相似度为什么『不在乎向量长短』反而是好事？","资料有 200 块和 200 万块，向量库差别大吗？"]},
+ {t:"拼装提示词",d:"约 20 分钟",goal:"学会把检索到的资料『喂』给模型的正确姿势。",
+  points:["三段式：系统指令+带出处资料+问题","系统指令里『只依据资料、没有就说查不到』是控幻觉开关","常见翻车：爆窗/矛盾/恶意指令/模型无视资料"],
+  demo:"演示 1 检索台最后会拼出这份提示词",quiz:["哪句系统指令更抑幻觉？为什么？","资料里藏了『忽略指令』该怎么设计提示词防住？"]},
+ {t:"RAG 优化",d:"约 25 分钟",goal:"直面 RAG 真实痛点，掌握 rerank / 混合检索等优化武器。",
+  points:["检索质量决定 RAG 上限，生成只是兑现上限","查询改写/HyDE 让问题与资料对齐","Rerank 先粗召再精排；混合检索=向量+BM25"],
+  demo:"",quiz:["为什么说『先向量粗召 top-20 再 rerank 取 top-3』常优于直接取 top-3？","专名订单号类查询，纯向量检索为什么容易漏？"]},
+ {t:"什么是 Agent",d:"约 22 分钟",goal:"区分 Chat 与 Agent，理解『工具』和『思考-行动-观察』循环。",
+  points:["Chat 是顾问（只说），Agent 是助理（说+做）","Agent=感知→思考→行动→观察 的闭环","工具是手脚；RAG 常作为 Agent 的一个工具"],
+  demo:"演示 3 Agent 行动台展示这个循环",quiz:["哪些任务更适合 Agent、哪些用 Chat 就够了？","为什么说『模型自己不会上网，只是决定调哪个工具』？"]},
+ {t:"Function Calling",d:"约 22 分钟",goal:"搞懂模型『决定调哪个函数、填什么参数』的机制。",
+  points:["用 JSON Schema 给模型写函数说明（name/desc/parameters）","模型返回『调用意图』，你的程序真正执行并回填","比裸让模型输出 JSON 可靠得多；需做参数校验"],
+  demo:"",quiz:["模型返回的是答案还是『调用意图』？谁去真执行？","模型靠函数说明的哪个字段判断『该不该调』？"]},
+ {t:"ReAct",d:"约 22 分钟",goal:"掌握 Agent 经典思维方式：边想边做。",
+  points:["ReAct=推理+行动，交替 Thought→Action→Observation","显式推理可追踪、长任务拆短决策、观察能纠错","ReAct 是战略、Function Calling 是战术；记忆常靠 RAG"],
+  demo:"演示 3 Agent 行动台就是 ReAct 回放",quiz:["ReAct 和 Function Calling 谁是战略、谁是战术？","Agent 死循环怎么止血？"]},
+ {t:"动手实践",d:"约 20 分钟",goal:"看最小 RAG / 最小 Agent 代码骨架，明确下一步学什么。",
+  points:["最小 RAG=切块→Embedding→检索→拼装→生成","最小 Agent=ReAct 循环+工具清单+步数上限","全系列 L1~L8 由简入深，本阶是『有知识会做事』关键跃迁"],
+  demo:"",quiz:["把最小 RAG 五步对应回前面章节","在 Agent 循环里，校验函数名在防什么风险？"]},
+];
+
+/* ==================== 渲染 ==================== */
+function toMat(p){
+  if(!p || p.startsWith('http') || p.startsWith('#')) return p;
+  if(p.startsWith('content/')){
+    let r='materials/'+p;
+    if(r.endsWith('.md')) r=r.slice(0,-3)+'.html';
+    return encodeURI(r);
+  }
+  return p;
+}
+const grid=document.getElementById('dayGrid');
+days.forEach((d,i)=>{
+  const n=i+1;
+  const det=document.createElement('details');
+  det.className='day'; det.dataset.day=n;
+  det.innerHTML=`
+    <summary>
+      <span class="badge">${n}</span>
+      <span><h3>第 ${n} 天 · ${d.t}</h3><div class="dur">⏱ ${d.d}</div></span>
+    </summary>
+    <div class="body">
+      <h4>🎯 今日目标</h4>
+      <div style="font-size:14px">${d.goal}</div>
+      <h4>📖 核心知识点</h4>
+      <ul>${d.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+      <h4>🔗 教程正文</h4>
+      <p class="mat"><a href="${toMat(chapters[i][1])}">${chapters[i][0]}</a></p>
+      ${d.demo?`<h4>🎮 配套演示</h4><div style="font-size:14px"><a href="#demo">${d.demo}</a></div>`:''}
+      <h4>✅ 自测题</h4>
+      <ul>${d.quiz.map(q=>`<li>${q}</li>`).join('')}</ul>
+      <label class="chk"><input type="checkbox" onchange="toggleDay(${n},this)"> 我已掌握这一天</label>
+    </div>`;
+  grid.appendChild(det);
+});
+document.getElementById('tocBox').innerHTML=
+  chapters.map(c=>`<a href="${toMat(c[1])}">${c[0]}</a>`).join('');
+
+/* ==================== 进度 ==================== */
+const KEY='rag_progress_v1';
+function loadProg(){ try{ return JSON.parse(localStorage.getItem(KEY))||{} }catch(e){ return {} } }
+function saveProg(p){ localStorage.setItem(KEY, JSON.stringify(p)); }
+function toggleDay(n,el){ const p=loadProg(); if(el.checked)p[n]=true; else delete p[n]; saveProg(p); refreshBar(); }
+function refreshBar(){
+  const p=loadProg(), done=Object.keys(p).length;
+  document.getElementById('barFill').style.width=(done/10*100)+'%';
+  document.getElementById('progText').textContent=`已完成 ${done} / 10 天`;
+  document.querySelectorAll('.day').forEach(d=>{
+    const ok=!!p[d.dataset.day];
+    d.classList.toggle('done',ok);
+    const cb=d.querySelector('input[type=checkbox]'); if(cb) cb.checked=ok;
+  });
+}
+function resetProgress(){ localStorage.removeItem(KEY); refreshBar(); }
+refreshBar();
+
+/* ==================== 演示 1：RAG 检索台 ==================== */
+// 一个迷你『知识库』（关于「喵星科技」的内部资料）
+const KB=[
+ {src:"《报销制度》第3章", text:"员工出差可报销高铁二等座与市内打车费，需提供正规发票，月底统一申报。"},
+ {src:"《宠物手册》护理篇", text:"猫咪换毛季节应注意补充牛磺酸，鸡肉与鱼肉是优质动物蛋白来源，有助毛发健康。"},
+ {src:"《人事制度》年假", text:"正式员工年假为 10 天，需提前一周向直属主管提交申请并获批准。"},
+ {src:"《行政须知》天气", text:"北京冬季平均气温零下二度到五度，寒冷干燥，建议穿着羽绒服与保暖衣物。"},
+ {src:"《薪酬办法》奖金", text:"项目奖金在每季度末发放，金额与员工当季绩效评级直接挂钩。"},
+ {src:"《会议规范》", text:"客户会议应提前十五分钟进入线上会议室，并主动共享屏幕与准备好演示材料。"},
+ {src:"《运维手册》故障", text:"服务器宕机时先尝试重启对应容器，若五分钟内未恢复则升级为紧急工单处理。"},
+ {src:"《市场计划》发布会", text:"新品发布会定于每年九月举行，将邀请行业媒体与核心用户代表参加。"},
+];
+// 中文 2-gram 向量化（纯前端可跑的简化版 Embedding）
+function tokenize(s){ s=s.toLowerCase().replace(/\s/g,''); const g=[]; for(let i=0;i<s.length-1;i++) g.push(s.slice(i,i+2)); if(s.length<=1) g.push(s); return g; }
+function vec(s){ const g=tokenize(s), m={}; g.forEach(t=>m[t]=(m[t]||0)+1); return m; }
+function cosine(a,b){ let dot=0,na=0,nb=0; const ks=new Set([...Object.keys(a),...Object.keys(b)]); ks.forEach(k=>{const x=a[k]||0,y=b[k]||0; dot+=x*y; na+=x*x; nb+=y*y;}); return dot/(Math.sqrt(na)*Math.sqrt(nb)||1); }
+document.getElementById('ragQ').addEventListener('change',e=>{
+  document.getElementById('ragCustomWrap').style.display = e.target.value==='__custom__'?'block':'none';
+});
+function runRAG(){
+  const sel=document.getElementById('ragQ').value;
+  let q = sel==='__custom__' ? document.getElementById('ragCustom').value.trim() : sel;
+  if(!q){ alert('请输入问题'); return; }
+  const k=+document.getElementById('ragK').value;
+  const qv=vec(q);
+  const scored=KB.map(d=>({...d, sim:cosine(qv, vec(d.text))}))
+                 .sort((a,b)=>b.sim-a.sim).slice(0,k);
+  const pct=x=>(x*100).toFixed(1)+'%';
+  let html=`<div class="stats"><div class="stat">问题：<b style="font-size:13px">${q}</b></div><div class="stat">命中 <b>${k}</b> 块</div></div>`;
+  html+=`<h4 style="color:#fff;margin:14px 0 4px;font-size:14px">🔎 检索结果（按相似度排序）</h4>`;
+  scored.forEach((d,i)=>{
+    html+=`<div class="simrow"><span style="min-width:18px">${i+1}</span>
+      <div style="flex:1"><div style="font-size:13px">${d.text}</div>
+      <div style="font-size:11px;color:#94a3b8">来源：${d.src}</div></div>
+      <div class="simbar"><i style="width:${Math.max(4,d.sim*100)}%"></i></div>
+      <span class="val" style="min-width:52px;text-align:right">${pct(d.sim)}</span></div>`;
+  });
+  html+=`<h4 style="color:#fff;margin:16px 0 4px;font-size:14px">📝 拼好的提示词（将发给模型）</h4>`;
+  let prompt=`你是严谨的助手。请只根据下面【资料】回答，没有就明说"查不到"，禁止编造。\n\n【资料】\n`;
+  scored.forEach((d,i)=>{ prompt+=`[${i+1}] ${d.text}（来源：${d.src}）\n`; });
+  prompt+=`\n【问题】\n${q}\n`;
+  html+=`<div class="resbox">${prompt.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</div>`;
+  html+=`<div class="hint"><b>看明白了吗？</b> 系统先用「向量相似度」给每块资料打分，挑出最像问题的几块，再和原问题拼成提示词。真实系统里相似度由大模型 Embedding 算（比这里的 2-gram 准得多），但<b>流程一模一样</b>。</div>`;
+  document.getElementById('ragOut').innerHTML=html;
+}
+
+/* ==================== 演示 2：余弦相似度台 ==================== */
+function calcCos(){
+  const a=vec(document.getElementById('cosA').value), b=vec(document.getElementById('cosB').value);
+  const s=cosine(a,b);
+  const topk=(m,n)=>Object.entries(m).sort((x,y)=>y[1]-x[1]).slice(0,n).map(e=>e[0]).join(' ');
+  let html=`<div class="stats"><div class="stat">余弦相似度 <b>${s.toFixed(3)}</b></div>
+    <div class="stat">方向判断 <b>${s>0.5?'很像':s>0.2?'有点像':'基本无关'}</b></div></div>`;
+  html+=`<div class="simbar" style="margin-top:10px"><i style="width:${Math.max(3,s*100)}%"></i></div>`;
+  html+=`<div class="hint"><b>解读：</b>余弦相似度只看两个向量的<b>方向</b>。接近 1 表示语义方向一致（意思像），接近 0 表示不相关。下面是两个文本各自「权重最高的几个片段」（2-gram），能看到它们共享的片段越多、越像。</div>`;
+  html+=`<div class="resbox">文本A 高频片段：${topk(a,8)}\n文本B 高频片段：${topk(b,8)}</div>`;
+  document.getElementById('cosOut').innerHTML=html;
+}
+function loadCos(v){
+  if(!v) return;
+  const [key,a,b]=v.split('|');
+  if(key==='c2'){ // 三者各异，载入到 A/B 并提示
+    document.getElementById('cosA').value=a; document.getElementById('cosB').value=b;
+    calcCos();
+    return;
+  }
+  document.getElementById('cosA').value=a; document.getElementById('cosB').value=b;
+  calcCos();
+}
+['cosA','cosB'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{}));
+calcCos();
+
+/* ==================== 演示 3：Agent 行动台（ReAct 回放） ==================== */
+const SCRIPTS={
+  weather:[
+    {t:'thought',x:'用户想知道穿着建议，得先知道北京今天天气。'},
+    {t:'action',tool:'get_weather',args:{city:'北京',date:'今天'},note:'调用天气工具'},
+    {t:'obs',x:'返回：{ temp: 28, cond: "晴" }'},
+    {t:'thought',x:'28℃ 晴天偏热，不需要厚衣也不需要伞；可以推荐轻薄透气的夏装。'},
+    {t:'action',tool:'search_products',args:{category:'夏装',city:'北京'},note:'调用商品检索工具'},
+    {t:'obs',x:'返回：[T恤, 短裤, 凉鞋, 防晒衣]'},
+    {t:'thought',x:'信息足够，可以综合天气和商品给建议了。'},
+    {t:'answer',x:'北京今天 28℃ 晴，建议穿 T 恤、短裤等夏装，不用带伞；顺手给您找到几款：T恤 / 短裤 / 凉鞋。'}
+  ],
+  reimb:[
+    {t:'thought',x:'用户在问报销政策，应检索公司制度资料。'},
+    {t:'action',tool:'search_knowledge',args:{query:'出差 打车 报销'},note:'调用知识库（RAG）工具'},
+    {t:'obs',x:'返回：《报销制度》第3章——出差可报销高铁二等座与市内打车费，需提供发票。'},
+    {t:'thought',x:'命中明确政策，可以回答了。'},
+    {t:'answer',x:'可以报销。根据《报销制度》第3章，出差期间的市内打车费可报销，但需提供正规发票、月底统一申报。'}
+  ],
+  ops:[
+    {t:'thought',x:'服务器宕机，应先按运维手册尝试恢复。'},
+    {t:'action',tool:'restart_container',args:{service:'web'},note:'调用运维工具重启容器'},
+    {t:'obs',x:'容器已重启，但 5 分钟后仍无响应。'},
+    {t:'thought',x:'5 分钟未恢复，按手册应升级为紧急工单。'},
+    {t:'action',tool:'create_ticket',args:{level:'紧急',title:'web 容器宕机'},note:'调用工单工具'},
+    {t:'obs',x:'紧急工单 #88231 已创建，已通知值班工程师。'},
+    {t:'thought',x:'已按流程处理，向用户汇报。'},
+    {t:'answer',x:'已重启容器但未恢复，已按手册升级为紧急工单 #88231 并通知值班工程师，请稍候。'}
+  ]
+};
+let agentIdx=0, agentTimer=null;
+const TAGNAME={thought:'THINK 思考',action:'ACT 行动',obs:'OBS 观察',answer:'ANSWER 回答'};
+function agentReset(){
+  if(agentTimer) clearInterval(agentTimer);
+  agentIdx=0; document.getElementById('agentOut').innerHTML='';
+  document.getElementById('agentHint').textContent='已重置。点「自动播放」或「单步」。';
+}
+function agentStep(){
+  const key=document.getElementById('agentTask').value;
+  const scr=SCRIPTS[key];
+  if(agentIdx>=scr.length){ document.getElementById('agentHint').textContent='✅ 任务已完成。'; return; }
+  const s=scr[agentIdx]; agentIdx++;
+  const cls='t-'+s.t;
+  let body='';
+  if(s.t==='action'){
+    body=`<b>${s.tool}</b>(${Object.entries(s.args).map(([k,v])=>`${k}="${v}"`).join(', ')}) <span style="color:#67e8f9">— ${s.note}</span>`;
+  } else if(s.t==='answer'){
+    body=`<b>${s.x}</b>`;
+  } else {
+    body=`<b>${s.x}</b>`;
+  }
+  const div=document.createElement('div');
+  div.className='step';
+  div.innerHTML=`<span class="tag ${cls}">${TAGNAME[s.t]}</span> ${body}`;
+  document.getElementById('agentOut').appendChild(div);
+  if(agentIdx>=scr.length){ document.getElementById('agentHint').textContent='✅ 任务已完成。可重置换一个任务。'; }
+}
+function agentPlay(){
+  agentReset();
+  agentTimer=setInterval(()=>{
+    agentStep();
+    if(agentIdx>=SCRIPTS[document.getElementById('agentTask').value].length){ clearInterval(agentTimer); }
+  }, 900);
+}
+</script>
+</body>
+</html>

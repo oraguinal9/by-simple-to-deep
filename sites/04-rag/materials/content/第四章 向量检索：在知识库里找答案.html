@@ -1,0 +1,125 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第四章 向量检索：在知识库里找答案 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="_1">第四章 向量检索：在知识库里找答案</h1>
+<p>上一章我们把文字变成了向量（语义坐标），并提到"找离问题最近的几块资料"。本章就把这步拆开讲透：<strong>距离到底怎么算、数据库怎么高效找、找出几个才合适</strong>。</p>
+<h2 id="_2">一、余弦相似度：两个向量的"方向"有多像</h2>
+<p>我们说过用<strong>余弦相似度（cosine similarity）</strong> 衡量两个向量近不近。它的直觉很形象：</p>
+<blockquote>
+<p>把两个向量看成从原点出发的箭头。<strong>夹角越小（越指向同一方向），它们越相似；夹角 90° 完全不相关；反向则相反。</strong></p>
+</blockquote>
+<p>公式长这样（不用背，理解即可）：</p>
+<pre class="codehilite"><code>cosine(A, B) = (A·B) / (|A| × |B|)
+</code></pre>
+
+<ul>
+<li><code>A·B</code> 是<strong>点积</strong>：对应位置数字相乘再求和；</li>
+<li><code>|A|</code>、<code>|B|</code> 是向量的<strong>长度（模）</strong>：各数字平方求和再开方；</li>
+<li>结果范围 <strong>[-1, 1]</strong>，越接近 1 越像。</li>
+</ul>
+<h3 id="2">举个 2 维的小例子</h3>
+<p>设：
+- A = (3, 4)，B = (6, 8)（B 其实就是 A 放大 2 倍，方向完全一致）
+- 点积 A·B = 3×6 + 4×8 = 18 + 32 = 50
+- |A| = √(3²+4²) = 5，|B| = √(6²+8²) = 10
+- cosine = 50 / (5×10) = 50/50 = <strong>1.0</strong> ← 完全相似 ✅</p>
+<p>再设 C = (3, -4)（和 A 关于 x 轴对称，方向相反）：
+- 点积 A·C = 3×3 + 4×(−4) = 9 − 16 = −7
+- |C| = 5
+- cosine = −7 / (5×5) = <strong>−0.28</strong> ← 意思相反 ❌</p>
+<p>看，余弦相似度不看"向量长短"（放大多少倍无所谓），只看<strong>方向</strong>——这恰好符合我们的需求：我们关心"意思像不像"，不关心"这句话写得多长"。</p>
+<h2 id="_3">二、从"算相似度"到"检索"</h2>
+<p>RAG 的检索步骤现在是清晰的：</p>
+<ol>
+<li>知识库每块资料早已 Embedding 成向量，存好；</li>
+<li>用户问题也 Embedding 成向量 Q；</li>
+<li>拿 Q 和<strong>每一块</strong>资料的向量算余弦相似度；</li>
+<li>按相似度<strong>从高到低排序</strong>，取最前面的 <strong>k 个</strong>（这就是 <strong>top-k</strong>）；</li>
+<li>这 k 块就是"和问题最相关的资料"，送去拼提示词。</li>
+</ol>
+<p>流程上就一句话：<strong>算一遍相似度 → 排序 → 取前 k</strong>。</p>
+<h2 id="top-k">三、top-k：取几个才合适</h2>
+<p>k 是 RAG 里最该调的参数之一：</p>
+<table>
+<thead>
+<tr>
+<th>k 太小</th>
+<th>k 太大</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>可能漏掉关键资料（没召回）</td>
+<td>塞进无关资料，模型被噪声干扰</td>
+</tr>
+<tr>
+<td>上下文不足，答得单薄</td>
+<td>占满窗口，真正相关的被稀释</td>
+</tr>
+</tbody>
+</table>
+<p><strong>常见起步值 k = 3~5</strong>。判断标准很朴素：观察模型回答时，你给的那几块里，是不是"该有的都在、不该有的没来"。</p>
+<p>一个小技巧叫 <strong>召回率（recall）思维</strong>：你可以拿一批真实问题，人工标出"标准答案应该引用哪几块"，再看系统 top-k 里有没有覆盖到——覆盖率就是召回率。调 k 直到覆盖得让人满意。</p>
+<h2 id="_4">四、为什么需要"向量数据库"，而不是直接遍历</h2>
+<p>你可能会想：不就是"拿问题向量和每块算一遍余弦"吗？for 循环遍历不就行了？</p>
+<p>能，但慢。问题在规模：</p>
+<ul>
+<li>当资料有 <strong>10 万、100 万块</strong>时，每次提问都要算 100 万次余弦，延迟高、成本高。</li>
+<li>而且 Embedding 通常是 768 维，高维空间里"精确找最近"本身就很贵。</li>
+</ul>
+<p><strong>向量数据库（Vector DB）</strong> 就是为这事而生的：它用专门的<strong>索引结构</strong>（常见如 HNSW、IVF）提前把向量组织好，让"找最近的 k 个"从"暴力扫全库"变成"几步跳跃定位"，速度快几十到上百倍。</p>
+<blockquote>
+<p>你不用懂 HNSW 内部怎么跳。只要记住：<strong>向量数据库 = 给高维向量建了"快速找邻居"的索引</strong>，让 top-k 检索在百万级数据上也能毫秒返回。</p>
+</blockquote>
+<p>常见选择：Milvus、Qdrant、Chroma（轻量本地）、pgvector（直接塞进 PostgreSQL）、以及各云厂商的向量检索服务。</p>
+<h2 id="vs">五、精确 vs 近似：一个重要的取舍</h2>
+<p>向量检索有个关键概念：</p>
+<ul>
+<li><strong>精确最近邻（Exact / brute force）</strong>：真的和每块都比一遍，结果最准，但慢。</li>
+<li><strong>近似最近邻（ANN, Approximate Nearest Neighbor）</strong>：用索引"近似"找，极快，但偶尔可能漏掉真正最近的那个（召回率 &lt; 100%）。</li>
+</ul>
+<p>实际系统几乎都用 <strong>ANN</strong>——因为"快且够准"远比"慢且完美"实用。代价是：检索这一步本身可能引入一点点遗漏，所以第六章我们会讲怎么用"重排序"来补救。</p>
+<h2 id="rag">六、把检索接回 RAG 主线</h2>
+<p>到现在，RAG 的前半段已经完整：</p>
+<pre class="codehilite"><code>提问 → Embedding(问题) → 向量库 top-k 检索 → 拿到最相关的 k 块资料
+                                                       ↓
+                                          下一章：拼成提示词 → 生成
+</code></pre>
+
+<p>检索这一步的输出，是一组"带相似度分数的资料块"。分数既是"该用哪些块"的依据，也可以变成可信度参考（比如分数都极低时，说明知识库里可能根本没有答案，这时该老实告诉用户"查不到"，而不是硬编）。</p>
+<h2 id="_5">七、本章小结</h2>
+<ul>
+<li><strong>余弦相似度</strong> = 点积 / (两向量长度之积)，只看"方向"不看"长短"，范围 [-1,1]，越接近 1 越像。</li>
+<li>检索流程：问题 Embedding → 和每块算相似度 → 排序 → 取 <strong>top-k</strong>（常见 k=3~5）。</li>
+<li>k 太小漏资料、太大塞噪声，按实际召回效果调。</li>
+<li>大规模下靠<strong>向量数据库</strong>的索引（HNSW/IVF）做<strong>近似最近邻（ANN）</strong> 检索，快且够准。</li>
+<li>检索输出"带分数的资料块"，分数可用于判断"知识库里到底有没有答案"。</li>
+</ul>
+<h2 id="_6">八、小练习</h2>
+<ol>
+<li>向量 A=(1,2)，B=(2,4)，C=(2,-4)。凭直觉+公式算，A 和谁更相似？余弦相似度分别是多少？</li>
+<li>为什么余弦相似度"不在乎向量长度"反而是一件好事？（提示：一句话和一段话意思相同但字数差很多）</li>
+<li>如果你的知识库只有 200 块资料，用不用向量数据库差别大吗？如果涨到 200 万块呢？为什么？</li>
+</ol>
+<hr />
+<p><em>检索拿到了最相关的几块资料，接下来要把它们"喂"给模型。怎么喂、喂成什么样，直接决定回答质量——下一章讲</em><em>提示词拼装</em><em>。</em></p></body></html>

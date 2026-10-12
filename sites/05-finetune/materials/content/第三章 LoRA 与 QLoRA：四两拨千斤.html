@@ -1,0 +1,107 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第三章 LoRA 与 QLoRA：四两拨千斤 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="lora-qlora">第三章 LoRA 与 QLoRA：四两拨千斤</h1>
+<p>PEFT 家族里，LoRA 是今天的"顶流"。它的聪明之处在于：<strong>不改原模型的权重矩阵，而是在旁边"并联"一个小小的可训练旁路</strong>。</p>
+<h2 id="_1">一个线性层的本来面目</h2>
+<p>模型里大量存在"线性层"：输入向量 <code>x</code>，乘以权重矩阵 <code>W</code>，得到输出 <code>y = Wx</code>。全量微调就是去改 <code>W</code> 这个大矩阵。</p>
+<p>LoRA 的想法是：微调时 <code>W</code> 的变化量 <code>ΔW</code>，其实<strong>不需要是一个完整的大矩阵</strong>，它可以拆成两个瘦长矩阵的乘积：</p>
+<pre class="codehilite"><code>ΔW = A × B
+</code></pre>
+
+<p>其中 <code>A</code> 的形状是 <code>d × r</code>，<code>B</code> 的形状是 <code>r × d</code>，而 <code>r</code> 是一个很小的数（比如 8、16、64），远小于 <code>d</code>（比如 4096）。</p>
+<p>于是前向计算变成：</p>
+<pre class="codehilite"><code>y = Wx + (A × B) x
+</code></pre>
+
+<ul>
+<li><code>W</code>：<strong>冻结</strong>，不训练、不存梯度。</li>
+<li><code>A</code> 和 <code>B</code>：<strong>可训练</strong>，但参数量只有 <code>2 × d × r</code>，相比 <code>d × d</code> 的完整矩阵，少了几百倍。</li>
+</ul>
+<blockquote>
+<p>打个比方：原模型 <code>W</code> 是一辆已经造好的大卡车（冻结不动）。LoRA 不改造卡车，而是在车斗里<strong>加一个轻便的小拖车 <code>A×B</code></strong>，需要时挂上就能多拉一点特定的货。小拖车 tiny 又便宜，但效果立竿见影。</p>
+</blockquote>
+<h2 id="rank-r">rank（秩 r）是什么？</h2>
+<p><code>r</code> 叫<strong>秩（rank）</strong>，是 LoRA 最重要的超参数，控制"旁路能表达多大的变化"：</p>
+<ul>
+<li><code>r</code> 小（如 8）：旁路容量小，训练快、不易过拟合，但可能学不够。</li>
+<li><code>r</code> 大（如 64、128）：容量大，能学更复杂的任务，但更慢、更占显存，也可能过拟合。</li>
+</ul>
+<p>经验值：多数任务 <code>r=8~32</code> 就够；很复杂的风格/领域适配才可能上 64。</p>
+<p>还有个配套参数 <strong>alpha（α）</strong>，用来缩放旁路输出（<code>ABx</code> 会再乘 <code>α/r</code>）。简单记：<strong>α 通常设成和 r 相等或 2×r</strong>，调它不如先调 r。</p>
+<h2 id="_2">为什么叫"四两拨千斤"？</h2>
+<p>一个 7B 模型约 70 亿参数。用 LoRA（r=16）微调，可训练参数可能只有<strong>几千万</strong>（约 0.1%~1%）。但训练出来的效果，在很多任务上能逼近全量微调。</p>
+<p>这就是"四两拨千斤"：用小到可以忽略的训练量，撬动大模型的能力转向你的任务。<strong>训练完你只需保存那几 MB 的 LoRA 权重文件</strong>，底座模型还是原来那份，部署时叠加即可。</p>
+<h2 id="qlora">QLoRA：把"斤"也省了</h2>
+<p>LoRA 省了"训练量"，但底座模型 <code>W</code> 本身还是占着显存（比如 7B 的 FP16 权重约 14GB）。<strong>QLoRA</strong> 在 LoRA 基础上再加一招：</p>
+<ul>
+<li>把冻结的底座模型用 <strong>4-bit 量化（NF4）</strong> 压到约 1/4 大小（7B 约 3.5GB），几乎不损能力；</li>
+<li>再在上面挂 LoRA 旁路训练。</li>
+</ul>
+<p>这样，原本要 80GB 显存的全量微调，QLoRA 可能 <strong>一张 24GB 的 3090/4090 就能跑 7B，甚至 24GB 跑 13B~34B</strong> 的微调。它真正把"个人微调大模型"变成了现实。</p>
+<blockquote>
+<p>NF4 是一种专为_weights 分布设计的 4-bit 格式（NormalFloat 4-bit），比普通 INT4 更贴合权重的正态分布，所以压得狠还不怎么掉点。</p>
+</blockquote>
+<h2 id="lora-qlora_1">全量 / LoRA / QLoRA 怎么选？</h2>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>显存（7B 估）</th>
+<th>训练文件</th>
+<th>适合谁</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全量微调</td>
+<td>80GB+</td>
+<td>完整模型</td>
+<td>大厂、追上限</td>
+</tr>
+<tr>
+<td>LoRA</td>
+<td>15~20GB</td>
+<td>几 MB 适配</td>
+<td>有较好显卡的个人/团队</td>
+</tr>
+<tr>
+<td>QLoRA</td>
+<td>6~10GB</td>
+<td>几 MB 适配</td>
+<td>只有消费级显卡（24GB 及以下）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_3">本章小结</h2>
+<ul>
+<li>LoRA：冻结底座 <code>W</code>，并联一个 <code>ΔW = A×B</code> 的小旁路，只训 <code>A、B</code>，参数量骤降。</li>
+<li><code>r</code>（秩）控制旁路容量，α 通常跟随 r。</li>
+<li>QLoRA = LoRA + 4-bit 量化底座，把显存门槛再砍一截，个人显卡可玩。</li>
+<li>产物是<strong>几 MB 的 LoRA 权重</strong>，轻便、易切换。</li>
+</ul>
+<h2 id="_4">小练习</h2>
+<ol>
+<li>一个线性层 <code>W</code> 是 4096×4096。若用 LoRA，<code>r=16</code>，那么 <code>A</code> 和 <code>B</code> 各多少参数？相比完整矩阵省了多少倍？（提示：完整矩阵 = 4096×4096）</li>
+<li>为什么 QLoRA 能让"24GB 显卡微调 7B"成为现实？它省掉了哪一块的显存？</li>
+</ol></body></html>

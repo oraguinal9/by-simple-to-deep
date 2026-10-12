@@ -1,0 +1,147 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>MCP 架构：Host、Client、Server 三大角色 | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="mcp-hostclientserver">MCP 架构：Host、Client、Server 三大角色</h1>
+<p>前面三章打好了基础。这一章我们正式进入 MCP 的世界，搞清楚它那套体系里<strong>到底有哪几个角色、各自干什么</strong>。理解了架构，后面讲传输、讲原语、讲开发就都有了落脚点。</p>
+<h2 id="_1">一、三个核心角色</h2>
+<p>MCP 把一次「模型用工具」的完整链路，拆成了三个明确分工的角色：</p>
+<pre class="codehilite"><code>┌─────────────────────────────────────────────┐
+│  Host（宿主应用）                              │
+│   例如：Claude Desktop、Cursor、你的 AI App     │
+│   · 承载一次对话                              │
+│   · 内部集成了一个大模型                       │
+│   · 决定「要不要调工具、调哪个」              │
+│                                              │
+│   ┌──────────────┐      ┌──────────────┐     │
+│   │ MCP Client   │◀────▶│ MCP Server   │     │
+│   │ (协议客户端) │ 协议  │ (能力提供方) │     │
+│   └──────────────┘      └──────────────┘     │
+│        1:1                    1:N            │
+│   每个 Server 对应           一个 Client 可   │
+│   一个 Client               连接多个 Server   │
+└─────────────────────────────────────────────┘
+</code></pre>
+
+<h3 id="1-host">1. Host（宿主）</h3>
+<p>Host 是<strong>你实际打开用的那个应用</strong>。它负责：
+- 维护你和模型的对话；
+- 内部跑一个大模型（或接入一个）；
+- 在合适的时机，通过 MCP 让模型用上外部工具；
+- 把工具结果呈现给你，必要时弹出<strong>权限确认</strong>。</p>
+<p>典型 Host：Claude Desktop、Cursor、VS Code 插件、你自己写的 AI 聊天程序。</p>
+<h3 id="2-client">2. Client（客户端）</h3>
+<p>Client 是 Host <strong>内部的一个组件</strong>，住在 Host 进程里。它的唯一职责是：<strong>跟某一个 MCP Server 说协议话</strong>。</p>
+<p>关键点：<strong>一个 Client 只连一个 Server</strong>（1 对 1）。如果你的 Host 同时接了「文件系统 Server」和「GitHub Server」，那 Host 内部就有两个 Client，各管一个 Server。</p>
+<p>Client 干的活：
+- 启动 / 连接 Server；
+- 问 Server「你会什么」（能力发现）；
+- 把模型的调用请求转发给 Server；
+- 把 Server 的返回转回给 Host / 模型。</p>
+<h3 id="3-server">3. Server（服务端）</h3>
+<p>Server 是<strong>能力的提供方</strong>。它知道某个具体领域怎么干活：
+- 文件系统 Server：懂怎么读、写、列目录；
+- GitHub Server：懂怎么调 GitHub API；
+- 数据库 Server：懂怎么连库、跑 SQL。</p>
+<p>Server 把自己的能力，按 MCP 规定的格式「声明」出来，等 Client 来调用。它<strong>不知道也不会直接碰模型</strong>——它只跟 Client 对话。</p>
+<h2 id="_2">二、一次请求在三角色间怎么流动</h2>
+<p>用「读文件」为例，把数据流画出来：</p>
+<pre class="codehilite"><code>[你] 帮我读 notes.txt
+  │
+  ▼
+[Host] 把你的话 + 已知能力 交给 模型
+  │
+  ▼
+[模型] 返回意图：调 read_file(path=&quot;notes.txt&quot;)
+  │
+  ▼
+[Host] 通过 [Client A] 把意图发给 [文件系统 Server]
+  │
+  ▼
+[Server] 真去读文件，返回内容
+  │
+  ▼
+[Client A] 把内容回传给 [Host]
+  │
+  ▼
+[Host] 把内容塞回对话，让模型生成回答
+  │
+  ▼
+[你] 看到：notes.txt 的第一行是……
+</code></pre>
+
+<p>注意 <strong>Host 是中枢</strong>：模型在 Host 里，Client 在 Host 里，Server 在外面。Host 把「模型的意图」翻译给 Client，再把「Server 的结果」喂给模型。</p>
+<h2 id="1-client-1-server">三、为什么是「1 个 Client 对 1 个 Server」</h2>
+<p>这是 MCP 设计里很讲究的一点。好处：</p>
+<ul>
+<li><strong>隔离</strong>：某个 Server 崩了，不影响其他 Server（各自独立进程 / 连接）；</li>
+<li><strong>清晰的生命周期</strong>：一个 Server 的启动、关闭，只对应一个 Client；</li>
+<li><strong>权限边界清晰</strong>：每个 Server 的授权可以单独管理（「允许这个文件 Server 读 Desktop，但那个数据库 Server 只能查」）。</li>
+</ul>
+<p>所以当你看到「Host 连接了 5 个 MCP Server」时，背后就是 Host 里起了 5 个 Client，各连一个。</p>
+<h2 id="host">四、Host 和「模型」的关系要分清</h2>
+<p>新手容易把 Host 和模型混为一谈。记住：</p>
+<ul>
+<li><strong>模型</strong>是那个「思考、生成文本」的引擎，它不认识 MCP；</li>
+<li><strong>Host</strong> 是应用，它<strong>既</strong>包着模型，<strong>又</strong>管着一堆 Client；</li>
+<li>MCP 发生在 <strong>Host（经 Client）↔ Server</strong> 之间，<strong>不经过模型</strong>。</li>
+</ul>
+<p>换句话说：MCP 是「应用和外部能力」之间的协议，模型只是这个应用里的一个被服务的对象。这也是为什么同一个 MCP Server，既能被 Claude Desktop 用、也能被 Cursor 用、还能被你自研的 App 用——因为协议在应用层，不在模型层。</p>
+<h2 id="server-vs-server">五、本地 Server vs 远程 Server</h2>
+<p>Server 可以跑在两种地方：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>跑在哪</th>
+<th>传输方式</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本地 Server</td>
+<td>你的电脑上（子进程）</td>
+<td>STDIO（标准输入输出）</td>
+<td>文件系统、本地数据库</td>
+</tr>
+<tr>
+<td>远程 Server</td>
+<td>另一台服务器</td>
+<td>HTTP + SSE</td>
+<td>云上的 SaaS 能力</td>
+</tr>
+</tbody>
+</table>
+<p>两者对 Host/Client 来说<strong>用法一样</strong>，区别只在「怎么传消息」（下一章讲）。MCP 把这种差异也屏蔽了，所以应用层代码不用管 Server 在本地还是云端。</p>
+<h2 id="_3">六、本章小结</h2>
+<ul>
+<li>MCP 三角色：<strong>Host（宿主应用，含模型）／ Client（协议客户端，1 对 1 连 Server）／ Server（能力提供方）</strong>；</li>
+<li>一个 Host 内有 N 个 Client，每个 Client 只连一个 Server；</li>
+<li>数据流中枢是 Host：模型出意图 → Host 经 Client 发 Server → Server 执行 → 结果回 Host → 喂模型作答；</li>
+<li>MCP 发生在 Host↔Server（经 Client）之间，<strong>模型本身不认识 MCP</strong>；</li>
+<li>同一 Server 可被任意 Host 复用，因为协议在应用层；</li>
+<li>Server 可本地（STDIO）可远程（HTTP+SSE），对应用透明。</li>
+</ul>
+<p>下一章我们讲<strong>传输层</strong>：消息具体通过什么通道在 Client 和 Server 之间流动（STDIO 与 HTTP+SSE），这是部署 MCP 时第一个要拍板的事。</p>
+<hr />
+<p><em>小练习：你常用的某个 AI 工具（比如某个 IDE 插件），试着判断：谁是 Host？它内部大概有几个 Client？连的 Server 可能在本地还是远程？</em></p></body></html>

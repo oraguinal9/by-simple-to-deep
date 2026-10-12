@@ -1,0 +1,157 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>实战路线：用推理模型解决复杂问题 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="_1">实战路线：用推理模型解决复杂问题</h1>
+<p>最后一章，把这一阶段（以及前面 15 阶）的知识串起来，完整做一个「用推理模型解决复杂问题」的实战项目。我们用「智能数学解题助手」作为贯穿案例——一个推理模型最能发挥价值的场景。</p>
+<h2 id="_2">需求定义</h2>
+<p><strong>场景</strong>：做一个面向学生的数学解题助手：拍照/输入题目，AI 给出分步解答，学生能看懂思路。</p>
+<p><strong>需求拆解</strong>：
+1. 各种难度题目都能解（从一元方程到竞赛题）；
+2. 给出「清晰的分步推理」，不只是答案；
+3. 简单题要快、难题要准（成本可控）；
+4. 答错代价高（教错了会误导学生）——准确率优先。</p>
+<h2 id="_3">架构设计：三级分流</h2>
+<p>根据第 7、8 章的取舍原则，设计「按难度分级」的架构：</p>
+<pre class="codehilite"><code>题目输入
+  ↓ 难度判断（关键词/长度/简单启发式，或小模型分类）
+  ├─ 简单题 → 普通模型（快、便宜）
+  ├─ 中等题 → 推理模型（标准 effort）
+  └─ 压轴题 → 推理模型（高 effort + 自洽性多数投票）
+</code></pre>
+
+<p><strong>设计理由</strong>：
+- 简单题用普通模型：秒回，成本几乎为零，正确率也够；
+- 难题用推理模型：准确率优先，学生「错不起」；
+- 压轴题再加自洽性：3 次采样取多数，把准确率再抬一截（用 3 倍成本换，值得）。</p>
+<h2 id="_4">实现步骤</h2>
+<h3 id="_5">第一步：搭模型调用层</h3>
+<p>封装一个统一接口（第 6 章的代码基础上扩展）：</p>
+<pre class="codehilite"><code class="language-python">def solve(question, difficulty):
+    if difficulty == &quot;easy&quot;:
+        model = &quot;deepseek-chat&quot;           # 普通模型
+        return call(model, question)
+    elif difficulty == &quot;medium&quot;:
+        model = &quot;deepseek-reasoner&quot;       # 推理模型
+        r = call(model, question)
+        return {&quot;answer&quot;: r.content, &quot;thinking&quot;: r.reasoning_content}
+    else:  # hard
+        # 自洽性：3 次采样取多数答案
+        answers = [call(&quot;deepseek-reasoner&quot;, question).content for _ in range(3)]
+        return majority_vote(answers)
+</code></pre>
+
+<h3 id="_6">第二步：难度判断</h3>
+<p>简单启发式 + 小模型分类结合：</p>
+<pre class="codehilite"><code class="language-python">def judge_difficulty(q):
+    # 关键词：出现「竞赛、证明、综合」→ hard
+    for kw in [&quot;竞赛&quot;, &quot;证明&quot;, &quot;综合&quot;]:
+        if kw in q: return &quot;hard&quot;
+    # 长度/算子数量粗判
+    if len(q) &lt; 40 and q.count(&quot;+&quot;) + q.count(&quot;×&quot;) &lt;= 2: return &quot;easy&quot;
+    return &quot;medium&quot;
+</code></pre>
+
+<p><strong>进阶</strong>：用一个小分类模型判断（准确率高），或收集用户反馈动态调整。</p>
+<h3 id="_7">第三步：思考过程的呈现</h3>
+<ul>
+<li><strong>medium/hard 题</strong>：把 <code>thinking</code> 做成可折叠的「思维过程」展示（学生可以看思路）；</li>
+<li><strong>easy 题</strong>：只给答案 + 简单步骤，不展示长篇思考。</li>
+</ul>
+<p><strong>展示设计</strong>：答案用分步格式（第 1 步/第 2 步…），每步配解释——<strong>这本身就是「输出思维链」，让学生学到思路</strong>。</p>
+<h3 id="_8">第四步：评测与迭代</h3>
+<p>用第 9 章的方法建评测集：</p>
+<pre class="codehilite"><code>1. 收集 50 道典型题（简单/中等/难各 15~20 道）
+2. 每题人工核验标准答案
+3. 跑评测：准确率 + 推理质量人工抽样
+4. 发现问题 → 迭代
+   · 某类题总错 → 是不是难度判断分错级了？
+   · 推理过程晦涩 → 提示词加「步骤要清晰、每步解释原因」
+   · 难题还是错 → 提高 effort / 检查是否该上更强的模型
+</code></pre>
+
+<h3 id="_9">第五步：成本控制</h3>
+<ul>
+<li>简单题走普通模型：<strong>80% 流量成本极低</strong>；</li>
+<li>中等题推理模型：<strong>性价比主力</strong>；</li>
+<li>压轴题自洽性：<strong>贵但量少</strong>（大部分用户不刷压轴题）。</li>
+</ul>
+<p>按这个设计，整体成本比「全上推理模型」省 60% 以上（第 8 章的账）。</p>
+<h2 id="_10">扩展：推理 + 工具 + 知识库</h2>
+<p>推理模型不是孤岛，可以继续升级：</p>
+<p><strong>1. 推理 + 计算工具</strong>：数学题让推理模型规划步骤，代码节点/计算器保证计算精确——「思维链 + 工具双保险」（第 3 章讲过）。</p>
+<p><strong>2. 推理 + 检索</strong>：题目涉及课本概念时，先检索教材知识库（RAG）再推理——「资料 + 思路」都给到模型。</p>
+<p><strong>3. 推理 + Agent</strong>：复杂应用题需要查单位换算、找公式时，让 Agent 调用工具获取信息再推理（L9 的能力组合）。</p>
+<p><strong>4. 推理 + 多模态</strong>：拍照解题（图片 OCR 转文字 → 推理模型）——这是这类产品的真实形态。</p>
+<h2 id="_11">复盘：这个项目用到的全部能力</h2>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>用在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>思维链（第2章）</td>
+<td>分步解答的呈现</td>
+</tr>
+<tr>
+<td>提示词 CoT（第3章）</td>
+<td>提示词设计</td>
+</tr>
+<tr>
+<td>推理模型理解（第4/5章）</td>
+<td>选模型、理解行为</td>
+</tr>
+<tr>
+<td>部署调用（第6章）</td>
+<td>API 接入、思考过程分离</td>
+</tr>
+<tr>
+<td>取舍（第7章）</td>
+<td>三级分流设计</td>
+</tr>
+<tr>
+<td>成本（第8章）</td>
+<td>分流控制成本</td>
+</tr>
+<tr>
+<td>评测（第9章）</td>
+<td>评测集 + 迭代</td>
+</tr>
+</tbody>
+</table>
+<p><strong>而支撑这一切的</strong>，还有前面阶梯学的：提示词（L11）、RAG（L4/L13）、Agent（L9）、部署（L10）、平台（L15）、微调（L5/L14）——<strong>推理模型不是孤立的，它是你整个 AI 能力栈的「最后一环」</strong>。</p>
+<h2 id="_12">从这里再往哪走</h2>
+<p>系列到这里就圆满了，但你的学习之路可以继续：</p>
+<ul>
+<li><strong>多模态推理</strong>：让推理模型「看图思考」（几何题、图表分析）；</li>
+<li><strong>推理 Agent</strong>：让多个推理模型协作解决超复杂问题；</li>
+<li><strong>长推理</strong>：处理需要「想很久」的研究级问题（test-time scaling 的极致）；</li>
+<li><strong>持续跟进</strong>：推理模型进化极快，关注每周新模型、新基准。</li>
+</ul>
+<h2 id="_13">结语</h2>
+<p>恭喜你完成「推理模型与思维链」全部 10 章——也完成了「由简入深」AI 学习系列的全部 16 阶！</p>
+<p>回望这一路：从「AI 是什么」（L1）到「大模型原理」（L2）到深度学习（L3）、RAG 与 Agent（L4）、微调（L5）、RLHF（L6）、AIGC（L7）、MCP（L8）、Agent 实战（L9）、本地部署（L10）、提示词（L11）、多模态（L12）、企业级 RAG（L13）、微调进阶（L14）、应用平台（L15），最后到推理模型（L16）——<strong>你走完了从「认识 AI」到「驾驭 AI 思考」的完整旅程</strong>。</p>
+<p>推理模型是 2026 年 AI 能力的前沿，而你现在理解了它的原理、训练、部署、成本与取舍——这不是「会用」，而是「懂它为什么这样」。带上这套完整的认知，去解决你真正关心的问题吧。</p>
+<p>祝你在 AI 的世界里，越走越远。</p></body></html>

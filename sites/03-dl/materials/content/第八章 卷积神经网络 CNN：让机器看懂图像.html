@@ -1,0 +1,313 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第八章 卷积神经网络 CNN：让机器看懂图像 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="cnn">第八章 卷积神经网络 CNN：让机器看懂图像</h1>
+<blockquote>
+<p>本章目标：理解卷积在做什么、为什么它比全连接层适合图像，以及 CNN 的经典结构。即使你只关心大模型，CNN 的思想（局部性、权重共享）也会在多模态里反复出现。</p>
+</blockquote>
+<hr />
+<h2 id="81">8.1 全连接层处理图像有多浪费</h2>
+<p>一张普通的彩色照片：<code>224 × 224 × 3</code>（宽 × 高 × RGB 三通道）= <strong>150,528 个数字</strong>。</p>
+<p>如果直接接一个 1000 个神经元的全连接层：</p>
+<pre class="codehilite"><code>参数量 = 150,528 × 1000 = 1.5 亿个    ← 仅仅第一层！
+</code></pre>
+
+<p>三个致命问题：</p>
+<ol>
+<li><strong>参数爆炸</strong>：一层就 1.5 亿参数，必然过拟合，显存也扛不住。</li>
+<li><strong>丢失空间结构</strong>：全连接要求把图像"拉平"成一维向量，相邻像素的位置关系被彻底破坏。左上角和右下角的像素在模型眼里同等相邻。</li>
+<li><strong>不具备平移不变性</strong>：猫在左上角学到的特征，换到右下角就完全不认识了，必须重新学一遍。</li>
+</ol>
+<p>CNN 用三个思想一次性解决了这三个问题。</p>
+<hr />
+<h2 id="82">8.2 核心思想一：局部连接</h2>
+<p><strong>认知起点</strong>：识别一只眼睛，只需要看眼睛周围那一小块像素，不需要看整张图。</p>
+<p>所以：<strong>每个神经元只连接输入的一小块区域</strong>（比如 3×3），而不是全部像素。</p>
+<pre class="codehilite"><code>全连接：每个神经元看 150,528 个像素
+卷积  ：每个神经元只看 3×3×3 = 27 个像素
+</code></pre>
+
+<p>参数量瞬间从"亿"降到"十"这个量级。</p>
+<hr />
+<h2 id="83">8.3 核心思想二：权重共享</h2>
+<p><strong>认知起点</strong>：检测"竖直边缘"这件事，在图像左上角和右下角的做法完全一样。</p>
+<p>所以：<strong>同一个 3×3 的小窗口（卷积核）在整张图上滑动，处处使用同一组权重</strong>。</p>
+<p>这就是"卷积"这个名字的由来——<strong>一个小窗口扫过整张图</strong>。</p>
+<pre class="codehilite"><code>图像 5×5                卷积核 3×3
+┌─────────────┐         ┌───────┐
+│ ▣ ▣ ▣ · · │         │ w w w │
+│ ▣ ▣ ▣ · · │  ⊛      │ w w w │   →  输出一个数
+│ ▣ ▣ ▣ · · │         │ w w w │
+│ · · · · · │         └───────┘
+│ · · · · · │      核在图上从左到右、
+└─────────────┘      从上到下滑动
+</code></pre>
+
+<p>每滑到一个位置，就把<strong>窗口内 9 个像素 × 对应 9 个权重，加起来</strong>（还是加权求和！第四章的老朋友），得到输出图上的一个点。</p>
+<p><strong>收益</strong>：</p>
+<ul>
+<li><strong>参数量与图像尺寸完全无关</strong>：3×3 的核永远只有 9 个参数，处理 224×224 或 4096×4096 都一样</li>
+<li><strong>天然平移不变</strong>：同一个核扫全图，猫在哪都能被检出</li>
+</ul>
+<hr />
+<h2 id="84">8.4 卷积到底算了什么？</h2>
+<p>举个具体例子。这是一个<strong>竖直边缘检测核</strong>（Sobel 算子的简化版）：</p>
+<pre class="codehilite"><code> 1  0  −1
+ 1  0  −1
+ 1  0  −1
+</code></pre>
+
+<p>它在做什么？<strong>用左边三个像素减去右边三个像素</strong>。</p>
+<ul>
+<li>如果窗口内左右亮度差不多（平坦区域）→ 结果 ≈ 0</li>
+<li>如果左边亮、右边暗（一条竖边）→ 结果是很大的正数</li>
+<li>如果左边暗、右边亮 → 很大的负数</li>
+</ul>
+<p>所以这个核扫过全图后，<strong>输出图上竖直边缘的位置会亮起来</strong>。这张输出图叫<strong>特征图（Feature Map）</strong>。</p>
+<pre class="codehilite"><code class="language-python">import numpy as np
+
+img = np.array([                # 左半亮(10)，右半暗(0)，中间有条竖边
+    [10,10,10, 0, 0],
+    [10,10,10, 0, 0],
+    [10,10,10, 0, 0],
+    [10,10,10, 0, 0],
+    [10,10,10, 0, 0],
+], dtype=float)
+
+kernel = np.array([[1,0,-1],[1,0,-1],[1,0,-1]], dtype=float)
+
+H, W = img.shape
+kh, kw = kernel.shape
+out = np.zeros((H-kh+1, W-kw+1))
+for i in range(out.shape[0]):
+    for j in range(out.shape[1]):
+        patch = img[i:i+kh, j:j+kw]      # 取出 3×3 窗口
+        out[i, j] = (patch * kernel).sum()  # 逐元素相乘再求和
+print(out)
+# [[ 0. 30. 30.]      ← 第2、3列数值大，正好是边缘所在位置
+#  [ 0. 30. 30.]
+#  [ 0. 30. 30.]]
+</code></pre>
+
+<p><strong>关键区别</strong>：传统图像处理里，这些核是<strong>人工设计</strong>的（Sobel、Laplacian 等）。
+在 CNN 里，<strong>核里的 9 个数字是参数，靠梯度下降自动学出来的</strong>——模型自己决定该检测什么特征。</p>
+<hr />
+<h2 id="85">8.5 通道、步长、填充：三个必懂参数</h2>
+<h3 id="channel">通道（Channel）</h3>
+<p>一个核只能检测一种特征。要同时检测边缘、纹理、颜色块……就<strong>并排放很多个核</strong>。</p>
+<ul>
+<li>输入通道数：彩色图是 3（RGB）</li>
+<li>输出通道数：你放了多少个核，就有多少张特征图</li>
+</ul>
+<p>一个卷积层的参数量：</p>
+<pre class="codehilite"><code>参数量 = 核高 × 核宽 × 输入通道 × 输出通道 + 输出通道(偏置)
+</code></pre>
+
+<p>例：<code>3×3</code> 核，输入 3 通道，输出 64 通道 → <code>3×3×3×64 + 64 = 1792</code> 个参数。
+<strong>对比一下开头全连接层的 1.5 亿——省了将近 10 万倍。</strong></p>
+<h3 id="stride">步长（Stride）</h3>
+<p>核每次滑动几格。</p>
+<ul>
+<li><code>stride=1</code>：一格一格滑，输出尺寸≈输入</li>
+<li><code>stride=2</code>：跳着滑，<strong>输出尺寸减半</strong>，常用来下采样</li>
+</ul>
+<h3 id="padding">填充（Padding）</h3>
+<p>在图像四周补一圈 0。</p>
+<ul>
+<li>不填充：<code>5×5</code> 图用 <code>3×3</code> 核 → 输出 <code>3×3</code>，<strong>每卷一次就缩小一圈</strong></li>
+<li>填充 1 圈（<code>padding=1</code>）：输出仍是 <code>5×5</code>，<strong>尺寸不变</strong></li>
+</ul>
+<p>输出尺寸公式：</p>
+<pre class="codehilite"><code>输出 = (输入 + 2×padding − 核大小) / stride + 1
+</code></pre>
+
+<blockquote>
+<p>💡 实践中最常见的配置是 <code>3×3</code> 核 + <code>padding=1</code> + <code>stride=1</code>，作用是"<strong>提取特征但不改变尺寸</strong>"。需要缩小尺寸时用 <code>stride=2</code> 或池化层。</p>
+</blockquote>
+<hr />
+<h2 id="86">8.6 池化层：压缩信息</h2>
+<p><strong>最大池化（Max Pooling）</strong>：在每个 2×2 区域里只保留最大值。</p>
+<pre class="codehilite"><code> 1  3 │ 2  4          最大池化 2×2
+ 5  2 │ 1  0     →     5  4
+──────┼──────          8  7
+ 8  1 │ 3  7
+ 4  6 │ 2  5
+</code></pre>
+
+<p>作用：</p>
+<ul>
+<li><strong>尺寸减半</strong>，计算量降到 1/4</li>
+<li><strong>提供一点平移容忍度</strong>：物体挪动几个像素，最大值往往不变</li>
+<li><strong>扩大感受野</strong>：后面的层能"看到"原图更大的范围</li>
+</ul>
+<blockquote>
+<p>📌 现代架构（如 ResNet）中，池化层用得越来越少，更多用 <code>stride=2</code> 的卷积来下采样——因为那样是可学习的。但理解池化仍然重要。</p>
+</blockquote>
+<hr />
+<h2 id="87-cnn">8.7 一个完整的 CNN 长什么样</h2>
+<p>经典结构就是一个"<strong>卷积 + 激活 + 池化</strong>"的三明治，重复几次，最后接全连接分类：</p>
+<pre class="codehilite"><code>输入图 224×224×3
+   ↓ Conv 3×3, 64 通道 + ReLU
+   ↓ Conv 3×3, 64 通道 + ReLU
+   ↓ MaxPool 2×2                  → 112×112×64
+   ↓ Conv 3×3, 128 通道 + ReLU
+   ↓ MaxPool 2×2                  → 56×56×128
+   ↓ ...（继续加深，通道数翻倍、尺寸减半）
+   ↓ 展平 Flatten
+   ↓ 全连接 + Dropout
+   ↓ 全连接 → 1000 类
+   ↓ Softmax
+</code></pre>
+
+<p><strong>通用规律：越往后，空间尺寸越小，通道数越多。</strong></p>
+<p>直观理解：从"高分辨率的低级信息（像素）"逐步变成"低分辨率的高级语义（这是猫脸）"。</p>
+<pre class="codehilite"><code class="language-python">import torch.nn as nn
+
+model = nn.Sequential(
+    nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),   # 32×32 → 16×16
+    nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),  # 16×16 → 8×8
+    nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2), # 8×8 → 4×4
+    nn.Flatten(),
+    nn.Linear(128*4*4, 256), nn.ReLU(), nn.Dropout(0.5),
+    nn.Linear(256, 10),
+)
+</code></pre>
+
+<p>这是一个可以在 CIFAR-10（10 类小图分类）上跑到 80% 以上准确率的网络。</p>
+<hr />
+<h2 id="88">8.8 里程碑架构一览</h2>
+<table>
+<thead>
+<tr>
+<th>年份</th>
+<th>模型</th>
+<th>关键贡献</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1998</td>
+<td>LeNet-5</td>
+<td>第一个成功的 CNN，用于手写数字识别</td>
+</tr>
+<tr>
+<td>2012</td>
+<td><strong>AlexNet</strong></td>
+<td>ImageNet 冠军，ReLU + Dropout + GPU，<strong>引爆深度学习热潮</strong></td>
+</tr>
+<tr>
+<td>2014</td>
+<td>VGG</td>
+<td>证明"用小核（3×3）堆更深"更好</td>
+</tr>
+<tr>
+<td>2014</td>
+<td>GoogLeNet</td>
+<td>Inception 模块，多尺度并行</td>
+</tr>
+<tr>
+<td>2015</td>
+<td><strong>ResNet</strong></td>
+<td><strong>残差连接</strong>，152 层成为可能，至今仍是最常用骨干网络</td>
+</tr>
+<tr>
+<td>2017</td>
+<td>MobileNet</td>
+<td>深度可分离卷积，能跑在手机上</td>
+</tr>
+<tr>
+<td>2020</td>
+<td><strong>ViT</strong></td>
+<td>抛弃卷积，直接用 <strong>Transformer</strong> 做图像，开启统一架构时代</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="89-cnn-transformer">8.9 CNN 与 Transformer 的关系</h2>
+<p>你可能会问：既然现在都是 Transformer 的天下，还学 CNN 干嘛？</p>
+<p>三个理由：</p>
+<ol>
+<li><strong>CNN 的两大思想被继承了</strong>。ViT 把图像切成 16×16 的小块（patch），本质上就是一次大步长卷积；"局部性"和"权重共享"的思路无处不在。</li>
+<li><strong>实际工程里 CNN 仍是主力</strong>。小数据集、边缘设备、实时检测（YOLO 系列）等场景，CNN 又快又准，性价比远高于 ViT。</li>
+<li><strong>多模态大模型的视觉编码器</strong>很多仍基于 CNN 或 CNN-Transformer 混合结构。</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>CNN</th>
+<th>Transformer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>归纳偏置</td>
+<td>强（局部性、平移不变）</td>
+<td>弱</td>
+</tr>
+<tr>
+<td>小数据表现</td>
+<td><strong>好</strong></td>
+<td>差（需要大量数据预训练）</td>
+</tr>
+<tr>
+<td>大数据表现</td>
+<td>一般</td>
+<td><strong>更好</strong></td>
+</tr>
+<tr>
+<td>感受野</td>
+<td>逐层扩大</td>
+<td>第一层就是全局</td>
+</tr>
+<tr>
+<td>计算复杂度</td>
+<td>与像素数线性</td>
+<td>与像素数<strong>平方</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="810">8.10 本章小结</h2>
+<ul>
+<li>全连接处理图像有三宗罪：<strong>参数爆炸、丢失空间结构、无平移不变性</strong></li>
+<li>CNN 的三板斧：<strong>局部连接 + 权重共享 + 池化下采样</strong></li>
+<li>卷积 = <strong>小窗口滑过全图做加权求和</strong>，核里的数字是学出来的</li>
+<li>关键参数：<strong>通道数</strong>（检测多少种特征）、<strong>步长</strong>（缩放）、<strong>填充</strong>（保持尺寸）</li>
+<li>通用规律：<strong>越深，尺寸越小，通道越多</strong>——从像素走向语义</li>
+<li>ResNet 的<strong>残差连接</strong>是深层网络的关键，Transformer 也在用</li>
+<li>CNN 归纳偏置强，<strong>小数据场景仍优于 Transformer</strong></li>
+</ul>
+<hr />
+<h2 id="811">8.11 自测</h2>
+<ol>
+<li>为什么全连接层不适合处理图像？说出三点。</li>
+<li><code>3×3</code> 核、输入 64 通道、输出 128 通道，参数量是多少？</li>
+<li><code>32×32</code> 输入，<code>3×3</code> 核，<code>padding=1</code>，<code>stride=2</code>，输出尺寸多大？</li>
+<li>权重共享带来了什么好处？</li>
+<li>为什么小数据集上 CNN 常常打得过 ViT？</li>
+</ol>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：图像搞定了，那<strong>有顺序的数据</strong>（文字、语音、股价）怎么办？下一章从 RNN 讲到注意力机制，正好衔接 L2 大模型原理课程。</p>
+</blockquote></body></html>

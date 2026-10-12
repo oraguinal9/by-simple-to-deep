@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 大模型原理 · 14 天中文学习路线图</title>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #4f46e5;
+    --accent-soft: #eef2ff;
+    --green: #16a34a;
+    --green-soft: #dcfce7;
+    --amber: #d97706;
+    --demo-bg: #0f172a;
+    --demo-ink: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.65;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header {
+    position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.92);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+  }
+  nav { max-width: 1080px; margin: 0 auto; padding: 12px 20px; display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+  nav .brand { font-weight: 800; color: var(--accent); margin-right: auto; }
+  nav a { color: var(--muted); font-size: 14px; }
+  nav a:hover { color: var(--accent); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 60px; }
+  .hero {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff; border-radius: 18px; padding: 30px 32px; margin-bottom: 26px;
+  }
+  .hero h1 { margin: 0 0 8px; font-size: 26px; }
+  .hero p { margin: 6px 0; opacity: .95; }
+  .hero .tip { background: rgba(255,255,255,.15); padding: 10px 14px; border-radius: 10px; margin-top: 14px; font-size: 14px; }
+  section { margin-bottom: 40px; }
+  h2 { font-size: 21px; border-left: 5px solid var(--accent); padding-left: 12px; margin: 0 0 16px; }
+  /* 进度 */
+  .progress-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .bar { height: 14px; background: #eef0f4; border-radius: 999px; overflow: hidden; margin: 10px 0; }
+  .bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--green), #4ade80); transition: width .4s; }
+  .progress-meta { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--muted); }
+  .btn { cursor: pointer; border: 1px solid var(--line); background: #fff; color: var(--ink); padding: 7px 14px; border-radius: 9px; font-size: 13px; }
+  .btn:hover { background: var(--accent-soft); }
+  /* 天卡片 */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .day { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; transition: .2s; }
+  .day.done { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-soft) inset; }
+  .day summary { list-style: none; cursor: pointer; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .day summary::-webkit-details-marker { display: none; }
+  .badge { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 800; display: grid; place-items: center; }
+  .day.done .badge { background: var(--green); color: #fff; }
+  .day h3 { margin: 0; font-size: 16px; }
+  .day .dur { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .day .body { padding: 0 16px 16px; border-top: 1px dashed var(--line); margin-top: 4px; }
+  .day .body h4 { font-size: 13px; margin: 14px 0 6px; color: var(--accent); }
+  .day ul { margin: 4px 0; padding-left: 18px; font-size: 14px; }
+  .day li { margin: 3px 0; }
+  .chk { margin-top: 14px; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .chk input { width: 17px; height: 17px; accent-color: var(--green); }
+  .mat a { display: inline-block; margin: 2px 6px 2px 0; font-size: 13px; background: var(--accent-soft); color: var(--accent); padding: 2px 9px; border-radius: 999px; }
+  /* 演示 */
+  .demo { background: var(--demo-bg); color: var(--demo-ink); border-radius: 14px; padding: 20px; margin-bottom: 18px; }
+  .demo h3 { margin: 0 0 4px; color: #fff; }
+  .demo .sub { font-size: 13px; color: #94a3b8; margin-bottom: 14px; }
+  .demo label { font-size: 13px; color: #cbd5e1; display: block; margin: 10px 0 4px; }
+  .demo input[type=text] { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; font-size: 14px; }
+  .demo .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+  .demo .btn2 { cursor: pointer; border: none; background: var(--accent); color: #fff; padding: 9px 16px; border-radius: 8px; font-size: 14px; }
+  .demo .btn2.ghost { background: #334155; }
+  .demo .btn2:hover { filter: brightness(1.1); }
+  .panel { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 14px; margin-top: 12px; font-size: 14px; }
+  .heat { display: grid; gap: 6px; margin-top: 10px; }
+  .heat .hrow { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .heat .cell { flex: 1; height: 26px; border-radius: 6px; display: grid; place-items: center; font-size: 12px; color: #fff; }
+  .tag { display: inline-block; background: #334155; color: #e2e8f0; padding: 2px 9px; border-radius: 999px; font-size: 12px; margin: 2px 4px 2px 0; }
+  .step { border-left: 3px solid var(--accent); padding: 8px 12px; margin: 8px 0; background: #1e293b; border-radius: 0 8px 8px 0; }
+  .step .who { font-weight: 700; color: #93c5fd; font-size: 13px; }
+  .step.think .who { color: #fcd34d; }
+  .step.act .who { color: #86efac; }
+  .step.obs .who { color: #fca5a5; }
+  footer { color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+  .note { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 12px 16px; border-radius: 10px; font-size: 14px; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <nav>
+    <span class="brand">🧠 AI 大模型原理 · 学习路线</span>
+    <a href="#plan">每日计划</a>
+    <a href="#demo">应用演示</a>
+    <a href="#res">资源索引</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>14 天，从零搞懂 AI 大模型原理</h1>
+    <p>全程中文 · 跟着 Datawhale 开源项目一步步来 · 进度自动保存在本机</p>
+    <div class="tip">📌 主线教材 <b>happy-llm</b>（系统中文课），原理精读用 <b>llms-from-scratch-cn</b>（权威教材中文翻译版）。英文仓库看不了，已帮你备好中文版。</div>
+  </div>
+
+  <div class="note">
+    💡 <b>怎么用：</b>每天点开对应卡片，看讲义 + 跑代码；学完勾选「我已掌握」，上方进度条会自动增长。所有资料都是你电脑里 <code>E:\ai大模型原理</code> 下的真实文件，点链接直接打开。
+  </div>
+
+  <!-- 进度 -->
+  <section id="progress">
+    <h2>📊 我的学习进度</h2>
+    <div class="progress-card">
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="progress-meta">
+        <span id="progText">已完成 0 / 14 天</span>
+        <button class="btn" onclick="resetProgress()">重置进度</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 每日计划 -->
+  <section id="plan">
+    <h2>🗓️ 每日学习计划（14 天）</h2>
+    <div class="grid" id="dayGrid"></div>
+  </section>
+
+  <!-- 应用演示 -->
+  <section id="demo">
+    <h2>🎮 应用部分 · 交互演示</h2>
+    <p style="color:var(--muted);margin-top:-6px">不用装任何环境，下面三个演示直接用浏览器跑，帮你建立「RAG / Agent / 注意力」的直观感觉。</p>
+
+    <!-- 注意力可视化 -->
+    <div class="demo">
+      <h3>1. 注意力机制可视化</h3>
+      <div class="sub">点击一个词，看它在理解时会「关注」哪些词、各占多少权重。</div>
+      <div class="row" id="tokBtns"></div>
+      <div class="panel" id="attOut">点击上面的词试试 👆</div>
+    </div>
+
+    <!-- RAG 演示 -->
+    <div class="demo">
+      <h3>2. RAG 检索增强生成演示</h3>
+      <div class="sub">模拟「先查资料库 → 拼进提示词 → 基于事实回答」的完整流程。</div>
+      <label>输入你的问题：</label>
+      <input type="text" id="ragQ" value="大模型是怎么减少胡说八道的？" />
+      <div class="row">
+        <button class="btn2" onclick="runRAG()">▶ 运行 RAG 流程</button>
+      </div>
+      <div class="panel" id="ragOut"></div>
+    </div>
+
+    <!-- Agent 演示 -->
+    <div class="demo">
+      <h3>3. Agent 智能体决策循环演示</h3>
+      <div class="sub">看智能体如何「思考→调工具→观察→再思考」一步步完成任务。</div>
+      <div class="panel" id="agentOut" style="max-height:320px;overflow:auto"></div>
+      <div class="row">
+        <button class="btn2" onclick="agentStep()">下一步 ▶</button>
+        <button class="btn2 ghost" onclick="agentReset()">↺ 重来</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 资源索引 -->
+  <section id="res">
+    <h2>📚 资源索引（本机真实文件）</h2>
+    <div class="progress-card">
+      <h4 style="margin:6px 0">主线教程 happy-llm</h4>
+      <p class="mat" style="margin:6px 0">
+        <a href="materials/happy-llm/docs/学习与环境准备.html">环境准备</a>
+        <a href="happy-llm/docs/chapter1/第一章%20NLP基础概念.md">第1章 NLP基础</a>
+        <a href="happy-llm/docs/chapter2/第二章%20Transformer架构.md">第2章 Transformer</a>
+        <a href="happy-llm/docs/chapter3/第三章%20预训练语言模型.md">第3章 预训练模型</a>
+        <a href="happy-llm/docs/chapter4/第四章%20大语言模型.md">第4章 大语言模型</a>
+        <a href="happy-llm/docs/chapter5/第五章%20动手搭建大模型.md">第5章 动手搭建</a>
+        <a href="happy-llm/docs/chapter6/第六章%20大模型训练流程实践.md">第6章 训练实践</a>
+        <a href="happy-llm/docs/chapter7/第七章%20大模型应用.md">第7章 应用</a>
+      </p>
+      <h4 style="margin:14px 0 6px">原理精读 llms-from-scratch-cn（中文翻译版）</h4>
+      <p class="mat" style="margin:6px 0">
+        <a href="materials/llms-from-scratch-cn/Translated_Book/ch03/index.html">书稿·注意力(ch03)</a>
+        <a href="materials/llms-from-scratch-cn/Codes/ch03/index.html">代码·注意力(ch03)</a>
+        <a href="materials/llms-from-scratch-cn/Translated_Book/ch04/index.html">书稿·实现GPT(ch04)</a>
+        <a href="materials/llms-from-scratch-cn/Model_Architecture_Discussions/index.html">真实架构对比</a>
+      </p>
+    </div>
+  </section>
+
+  <footer>由 WorkBuddy 生成 · 资料来自 Datawhale 开源项目 happy-llm / llms-from-scratch-cn · 进度仅保存在你本地浏览器</footer>
+</div>
+
+<script>
+/* ============ 每日计划数据 ============ */
+const days = [
+  { t:"准备 + NLP 基础概念", d:"约 2 小时", goal:"装好环境，理解 NLP 与大模型的关系",
+    points:["什么是 NLP、发展脉络","文本表示怎么从独热→词向量演进","本项目的硬件/依赖建议"],
+    mat:[["环境准备","happy-llm/docs/学习与环境准备.md"],["第1章 NLP基础","happy-llm/docs/chapter1/第一章%20NLP基础概念.md"],["前言","happy-llm/docs/前言.md"]],
+    quiz:["用自己的话解释「词向量」解决了什么问题？","为什么大模型要先做「表示学习」？"] },
+
+  { t:"Transformer 总览与注意力机制", d:"约 3 小时", goal:"搞懂注意力为什么是大模型的心脏",
+    points:["自注意力 vs 交叉注意力","Q/K/V 各自是什么意思","多头注意力的作用"],
+    mat:[["第2章 Transformer","happy-llm/docs/chapter2/第二章%20Transformer架构.md"],["注意力·书稿","llms-from-scratch-cn/Book/ch03"],["架构解读笔记","happy-llm/Extra-Chapter/transformer-architecture/"]],
+    quiz:["Q·K 做点积得到的是什么？","多头 = 看不同维度的关系，对吗？"] },
+
+  { t:"手把手搭建 Transformer（含可视化）", d:"约 3 小时", goal:"照着代码堆出一个 Transformer 块",
+    points:["位置编码怎么加","LayerNorm / 残差连接","用上面的「注意力可视化」加深直觉"],
+    mat:[["第2章 代码","happy-llm/docs/chapter2/code/"],["注意力·代码","llms-from-scratch-cn/Codes/ch03"]],
+    quiz:["为什么需要位置编码？","残差连接解决了什么？"] },
+
+  { t:"预训练语言模型家族", d:"约 2 小时", goal:"分清 Encoder-only / Decoder-only 等架构",
+    points:["BERT(Encoder) vs GPT(Decoder) 区别","为什么主流大模型选 Decoder-only","MLM 与 CLM 两种训练目标"],
+    mat:[["第3章 预训练模型","happy-llm/docs/chapter3/第三章%20预训练语言模型.md"]],
+    quiz:["ChatGPT 类模型属于哪一类？为什么？"] },
+
+  { t:"大语言模型与涌现能力", d:"约 2 小时", goal:"理解 LLM 的定义、训练策略与「涌现」",
+    points:["预训练 / 指令微调 / 对齐三阶段","什么是涌现能力、怎么看","Scaling Law 直觉"],
+    mat:[["第4章 大语言模型","happy-llm/docs/chapter4/第四章%20大语言模型.md"]],
+    quiz:["三阶段训练分别解决什么问题？"] },
+
+  { t:"动手搭建·分词与 Tokenizer", d:"约 3 小时", goal:"自己训练一个 tokenizer，理解「字→数字」",
+    points:["BPE / WordPiece 思路","词表大小怎么定","中文分词的特殊性"],
+    mat:[["第5章 动手搭建","happy-llm/docs/chapter5/第五章%20动手搭建大模型.md"],["第5章 代码","happy-llm/docs/chapter5/code/"]],
+    quiz:["为什么不能直接用空格分词处理中文？"] },
+
+  { t:"动手搭建·实现 LLaMA2 模型结构", d:"约 4 小时", goal:"写出 LLaMA2 的核心网络（RMSNorm/RoPE/注意力）",
+    points:["RMSNorm 与 LayerNorm 区别","旋转位置编码 RoPE","KV Cache 是什么"],
+    mat:[["第5章 动手搭建","happy-llm/docs/chapter5/第五章%20动手搭建大模型.md"],["真实架构·LLaMA3","llms-from-scratch-cn/Model_Architecture_Discussions/llama3"]],
+    quiz:["RoPE 相比绝对位置编码好在哪？"] },
+
+  { t:"动手搭建·预训练小型 LLM", d:"约 4 小时", goal:"用一小份语料把模型跑起来、能续写",
+    points:["数据怎么清洗/打包","损失函数与训练循环","看到模型第一次「说出人话」"],
+    mat:[["第5章 代码","happy-llm/docs/chapter5/code/"],["预训练·代码","llms-from-scratch-cn/Codes/ch05"]],
+    quiz:["为什么小模型上懂了，大模型也只是「放大」？"] },
+
+  { t:"训练实践·预训练 Pretrain", d:"约 3 小时", goal:"理解大规模预训练的数据与流程",
+    points:["数据来源与去重","学习率/批次等超参直觉","显存不够怎么办"],
+    mat:[["第6章 训练实践","happy-llm/docs/chapter6/第六章%20大模型训练流程实践.md"],["第6章 说明","happy-llm/docs/chapter6/readme.md"]],
+    quiz:["预训练阶段用的是什么数据、什么目标？"] },
+
+  { t:"训练实践·有监督微调 SFT", d:"约 3 小时", goal:"用指令数据让模型「听懂人话」",
+    points:["SFT 数据长什么样","和预训练训练方式有何不同","如何准备自己的指令集"],
+    mat:[["第6章 训练实践","happy-llm/docs/chapter6/第六章%20大模型训练流程实践.md"],["微调·代码","llms-from-scratch-cn/Codes/ch06"]],
+    quiz:["为什么 ChatGPT 类模型必须做 SFT？"] },
+
+  { t:"高效微调 LoRA / QLoRA（+偏好对齐）", d:"约 3 小时", goal:"用极少参数适配新任务，省显存",
+    points:["LoRA 的低秩矩阵思想","QLoRA 怎么进一步省显存","偏好对齐(RLHF/DPO)在做什么"],
+    mat:[["第6章 训练实践","happy-llm/docs/chapter6/第六章%20大模型训练流程实践.md"],["偏好对齐专题","happy-llm/docs/chapter6/6.4%5BWIP%5D%20偏好对齐.md"]],
+    quiz:["LoRA 为什么不训练原模型权重？"] },
+
+  { t:"应用·RAG 检索增强（含演示）", d:"约 3 小时", goal:"让模型「先查资料再回答」，减少幻觉",
+    points:["检索→拼Prompt→生成的流程","向量库与相似度","什么时候该用 RAG"],
+    mat:[["第7章 应用","happy-llm/docs/chapter7/第七章%20大模型应用.md"],["RAG 代码","happy-llm/docs/chapter7/RAG"]],
+    quiz:["RAG 主要解决大模型的哪个短板？"] },
+
+  { t:"应用·Agent 智能体（含演示）", d:"约 3 小时", goal:"让模型自主规划、调工具完成任务",
+    points:["思考-行动-观察的循环","常用工具：搜索/代码/API","Agent 与 RAG 怎么配合"],
+    mat:[["第7章 应用","happy-llm/docs/chapter7/第七章%20大模型应用.md"],["Agent 代码","happy-llm/docs/chapter7/Agent"]],
+    quiz:["Agent 和「一次问答」的根本区别是什么？"] },
+
+  { t:"模型评测 + 总结复盘", d:"约 2 小时", goal:"学会怎么衡量一个模型好不好",
+    points:["自动指标 vs 人工评估","主流评测集直觉","回顾 14 天知识树"],
+    mat:[["第7章 应用","happy-llm/docs/chapter7/第七章%20大模型应用.md"],["Extra 精选Blog","happy-llm/Extra-Chapter/"]],
+    quiz:["如果要向朋友讲清「大模型原理」，你会按什么顺序讲？"] },
+];
+
+/* ============ 渲染每日卡片 ============ */
+function toMat(p){
+  if(!p || p.startsWith('http') || p.startsWith('#')) return p;
+  let r = p;
+  if(r.startsWith('happy-llm/')) r = 'materials/happy-llm/' + p.slice('happy-llm/'.length);
+  else if(r.startsWith('llms-from-scratch-cn/')) r = 'materials/llms-from-scratch-cn/' + p.slice('llms-from-scratch-cn/'.length);
+  else return p;
+  if(r.indexOf('materials/llms-from-scratch-cn/Book/')===0) r = r.replace('materials/llms-from-scratch-cn/Book/','materials/llms-from-scratch-cn/Translated_Book/');
+  if(r.endsWith('.md')) return r.slice(0,-3)+'.html';
+  if(!r.endsWith('/')) r += '/';
+  return r + 'index.html';
+}
+const grid = document.getElementById('dayGrid');
+days.forEach((d, i) => {
+  const n = i + 1;
+  const det = document.createElement('details');
+  det.className = 'day';
+  det.dataset.day = n;
+  det.innerHTML = `
+    <summary>
+      <span class="badge">${n}</span>
+      <span><h3>第 ${n} 天 · ${d.t}</h3><div class="dur">⏱ ${d.d}</div></span>
+    </summary>
+    <div class="body">
+      <h4>🎯 今日目标</h4>
+      <div style="font-size:14px">${d.goal}</div>
+      <h4>📖 核心知识点</h4>
+      <ul>${d.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+      <h4>🔗 学习资料（点开即看）</h4>
+      <p class="mat">${d.mat.map(m=>`<a href="${toMat(m[1])}">${m[0]}</a>`).join('')}</p>
+      <h4>✅ 自测题</h4>
+      <ul>${d.quiz.map(q=>`<li>${q}</li>`).join('')}</ul>
+      <label class="chk"><input type="checkbox" onchange="toggleDay(${n}, this)"> 我已掌握这一天</label>
+    </div>`;
+  grid.appendChild(det);
+});
+
+/* ============ 进度（localStorage） ============ */
+const KEY = 'ai_llm_progress_v1';
+function loadProg(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; } }
+function saveProg(p){ localStorage.setItem(KEY, JSON.stringify(p)); }
+function toggleDay(n, el){
+  const p = loadProg();
+  if(el.checked) p[n]=true; else delete p[n];
+  saveProg(p);
+  el.closest('.day').classList.toggle('done', !!p[n]);
+  refreshBar();
+}
+function refreshBar(){
+  const p = loadProg();
+  const done = Object.keys(p).length;
+  document.getElementById('barFill').style.width = (done/14*100)+'%';
+  document.getElementById('progText').textContent = `已完成 ${done} / 14 天`;
+  document.querySelectorAll('.day').forEach(d=>{
+    const n = d.dataset.day;
+    const ok = !!p[n];
+    d.classList.toggle('done', ok);
+    const cb = d.querySelector('input[type=checkbox]');
+    if(cb) cb.checked = ok;
+  });
+}
+function resetProgress(){ localStorage.removeItem(KEY); refreshBar(); }
+refreshBar();
+
+/* ============ 演示1：注意力可视化 ============ */
+const toks = ['猫','追','老鼠'];
+const emb = [[1,0,1,0],[0,1,1,0],[1,1,0,1]]; // 简化的 4 维词向量（演示用）
+const sqrtD = 2;
+function softmax(a){ const m=Math.max(...a); const e=a.map(x=>Math.exp(x-m)); const s=e.reduce((x,y)=>x+y,0); return e.map(x=>x/s); }
+function computeAtt(qi){
+  const scores = emb.map((e,j)=> (emb[qi][0]*e[0]+emb[qi][1]*e[1]+emb[qi][2]*e[2]+emb[qi][3]*e[3])/sqrtD );
+  const w = softmax(scores);
+  const ctx = [0,0,0,0];
+  emb.forEach((e,j)=>{ for(let k=0;k<4;k++) ctx[k]+=w[j]*e[k]; });
+  return {w, ctx};
+}
+const tokBtns = document.getElementById('tokBtns');
+toks.forEach((t,i)=>{
+  const b = document.createElement('button');
+  b.className='btn2'; b.textContent=t; b.onclick=()=>showAtt(i);
+  tokBtns.appendChild(b);
+});
+function colorFor(v){ const a=Math.round(v*0.9+0.1); return `rgba(79,70,229,${a})`; }
+function showAtt(i){
+  const {w, ctx} = computeAtt(i);
+  let html = `<b>「${toks[i]}」在理解时对各词的注意力权重：</b><div class="heat">`;
+  toks.forEach((t,j)=>{
+    html += `<div class="hrow"><span style="width:48px">→ ${toks[j]}</span>
+      <span class="cell" style="background:${colorFor(w[j])}">${(w[j]*100).toFixed(0)}%</span></div>`;
+  });
+  html += `</div><div style="margin-top:10px">📦 加权后的「上下文向量」= [${ctx.map(x=>x.toFixed(2)).join(', ')}]</div>
+    <div style="color:#94a3b8;font-size:12px;margin-top:6px">※ 演示：Q=K=V=词向量，用点积+softmax 算权重，再加权求和得到每个词「看懂后」的新表示。</div>`;
+  document.getElementById('attOut').innerHTML = html;
+}
+
+/* ============ 演示2：RAG ============ */
+const KB = [
+  {t:'什么是大模型', c:'大语言模型(LLM)是基于Transformer、拥有海量参数的模型，通过预训练学习语言规律，能生成和理解文本。'},
+  {t:'注意力机制', c:'注意力机制让模型处理每个词时，去关注输入中真正相关的其他词，是Transformer的核心。'},
+  {t:'RAG检索增强', c:'RAG 先检索外部知识库，再把相关资料拼进提示词，让模型基于事实回答，从而显著减少幻觉。'},
+  {t:'LoRA微调', c:'LoRA 在原有模型旁加入少量可训练的低秩矩阵，只训练这些小参数即可适配新任务，大幅节省显存。'},
+  {t:'Agent智能体', c:'Agent 让模型自主规划、调用工具（搜索/计算/API）并循环决策，从而完成复杂任务。'},
+];
+function score(q, c){ // 简单字重叠打分（演示用）
+  const set = new Set(q.split('')); let s=0;
+  c.split('').forEach(ch=>{ if(set.has(ch)) s++; });
+  return s;
+}
+function runRAG(){
+  const q = document.getElementById('ragQ').value.trim() || '问题为空';
+  const ranked = KB.map(d=>({...d, sc:score(q, d.c)})).sort((a,b)=>b.sc-a.sc).slice(0,2);
+  const ctxTxt = ranked.map((d,i)=>`【资料${i+1}】${d.t}：${d.c}`).join('\n');
+  const prompt = `根据以下资料回答问题：\n${ctxTxt}\n\n问题：${q}\n回答：`;
+  const ans = `（基于检索到的 ${ranked.length} 条资料）${ranked[0].c} 因此，${q.includes('幻觉')||q.includes('胡说')?'RAG 通过把真实资料放进提示词，让模型「照着资料说」，有效减少了凭空编造。':'相关要点如上，模型会依据这些事实来组织回答。'}`;
+  document.getElementById('ragOut').innerHTML = `
+    <div><b>① 检索结果（按相关度排序）</b><div style="margin-top:6px">${ranked.map(d=>`<span class="tag">${d.t} · 相关度${d.sc}</span>`).join('')}</div></div>
+    <div style="margin-top:12px"><b>② 拼接后的 Prompt</b><pre style="white-space:pre-wrap;background:#0f172a;border:1px solid #334155;padding:10px;border-radius:8px;font-size:13px">${prompt}</pre></div>
+    <div style="margin-top:12px"><b>③ 模型基于事实的回答</b><div style="margin-top:6px">${ans}</div></div>`;
+}
+
+/* ============ 演示3：Agent 循环 ============ */
+const agentSteps = [
+  {who:'用户', cls:'', text:'明天早上9点提醒我开会，并查一下北京明天天气。'},
+  {who:'思考', cls:'think', text:'需要两个动作：① 查天气 ② 建提醒。先做天气查询。'},
+  {who:'行动', cls:'act', text:'调用工具 → get_weather(城市=北京, 日期=明天)'},
+  {who:'观察', cls:'obs', text:'返回：北京明天 晴，22°C，微风。'},
+  {who:'思考', cls:'think', text:'天气已拿到。现在创建提醒。'},
+  {who:'行动', cls:'act', text:'调用工具 → create_reminder(时间=明天09:00, 内容=开会)'},
+  {who:'观察', cls:'obs', text:'提醒已创建：明天 09:00「开会」。'},
+  {who:'回答', cls:'', text:'✅ 已完成：① 明天北京天气晴 22°C；② 已设置明天 9 点开会提醒。'},
+];
+let agentIdx = 0;
+function agentReset(){ agentIdx=0; document.getElementById('agentOut').innerHTML=''; }
+function agentStep(){
+  if(agentIdx >= agentSteps.length) return;
+  const s = agentSteps[agentIdx];
+  const div = document.createElement('div');
+  div.className = 'step ' + s.cls;
+  div.innerHTML = `<span class="who">${s.who}：</span> ${s.text}`;
+  document.getElementById('agentOut').appendChild(div);
+  agentIdx++;
+  const box = document.getElementById('agentOut'); box.scrollTop = box.scrollHeight;
+}
+</script>
+</body>
+</html>

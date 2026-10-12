@@ -1,0 +1,137 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>工具调用基础：模型如何「动手」 | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="_1">工具调用基础：模型如何「动手」</h1>
+<p>在讲 MCP 的架构之前，我们必须先搞清楚一件事：<strong>模型本身是怎么「调用工具」的？</strong> 因为 MCP 只是在「模型决定调工具」之后，负责把这件事标准化地执行下去。理解了这个「决定」是怎么来的，后面才不迷糊。</p>
+<h2 id="_2">一、模型不会「直接执行」任何东西</h2>
+<p>一个最关键的认知：<strong>大模型本质上是个「文本补全器」</strong>。你给它一段文字，它预测下一个最可能的文字。它<strong>不能直接</strong>读文件、不能<strong>直接</strong>发请求、不能<strong>直接</strong>算数。</p>
+<p>那为什么看起来它能「调工具」？因为整个流程是<strong>人和代码配合</strong>的结果：</p>
+<ol>
+<li>你给模型一段对话 + 一份「工具清单」；</li>
+<li>模型输出一段<strong>特殊格式的文字</strong>，表示「我想调这个工具，参数是这些」；</li>
+<li>你的程序<strong>解析</strong>这段输出，真的去执行那个工具；</li>
+<li>程序把执行结果<strong>塞回</strong>对话里，再让模型继续；</li>
+<li>模型看到结果，生成最终回答。</li>
+</ol>
+<p>模型从头到尾只干了「输出一段表示意图的文字」这一件事。真正「动手」的是你的程序。</p>
+<h2 id="_3">二、一次工具调用的完整往返</h2>
+<p>用一个「查天气」的例子，把每一步摊开：</p>
+<h3 id="1">第 1 步：你提供工具清单</h3>
+<pre class="codehilite"><code>系统：你有一个工具 get_weather(city)，可查询城市天气。
+用户：北京今天天气怎么样？
+</code></pre>
+
+<h3 id="2">第 2 步：模型返回「调用意图」</h3>
+<p>模型不回答天气，而是返回一个结构化请求（不同厂商格式不同，这里用通用形式）：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;action&quot;: &quot;get_weather&quot;,
+  &quot;parameters&quot;: {&quot;city&quot;: &quot;北京&quot;}
+}
+</code></pre>
+
+<p>注意：这不是「模型去查了天气」，而是「模型说：请帮我查北京天气」。</p>
+<h3 id="3">第 3 步：你的程序执行</h3>
+<p>你的代码看到这个请求，真的去调天气 API，拿到：</p>
+<pre class="codehilite"><code class="language-json">{&quot;city&quot;: &quot;北京&quot;, &quot;temp&quot;: 26, &quot;condition&quot;: &quot;晴&quot;}
+</code></pre>
+
+<h3 id="4">第 4 步：结果回灌给模型</h3>
+<p>程序把结果拼回对话：</p>
+<pre class="codehilite"><code>工具返回：{&quot;city&quot;:&quot;北京&quot;,&quot;temp&quot;:26,&quot;condition&quot;:&quot;晴&quot;}
+</code></pre>
+
+<h3 id="5">第 5 步：模型作答</h3>
+<p>模型基于这个结果，生成自然语言：</p>
+<pre class="codehilite"><code>北京今天晴，气温 26°C，适合出门。
+</code></pre>
+
+<p>整个过程里，模型<strong>两次输出文字</strong>（一次意图、一次回答），程序<strong>做了一次真实执行</strong>。这就是「模型用工具」的全部真相。</p>
+<h2 id="_4">三、为什么模型「知道」该调哪个工具</h2>
+<p>模型不是天生知道 <code>get_weather</code> 的存在。它靠的是你在 prompt / 工具清单里<strong>清楚地描述</strong>了每个工具：</p>
+<ul>
+<li>工具名字（<code>get_weather</code>）</li>
+<li>工具干嘛的（<code>查询城市天气</code>）</li>
+<li>需要什么参数（<code>city: 城市名</code>）</li>
+<li>参数怎么填（<code>description</code>）</li>
+</ul>
+<p>模型在海量训练数据里见过无数「函数调用」的模式，所以它能根据「用户问天气」+「有个叫 get_weather 的工具」，推理出「应该调它」。<strong>工具描述写得越清楚，模型选得越准。</strong></p>
+<blockquote>
+<p>经验法则：给模型的工具 description，要写得像「给一个聪明但没见过这个系统的新人看的说明」。</p>
+</blockquote>
+<h2 id="_5">四、参数怎么保证「填对」</h2>
+<p>模型生成的参数，本质上是「自由文本预测」，可能出错（比如 city 填了数字）。所以成熟的系统都会：</p>
+<ol>
+<li><strong>用 JSON Schema 约束</strong>：告诉模型参数必须是什么类型、哪些必填；</li>
+<li><strong>校验</strong>：程序拿到模型输出后，先验证参数合法再执行；</li>
+<li><strong>容错</strong>：参数不对就回灌错误，让模型重试。</li>
+</ol>
+<p>这也是为什么工具定义里总有一大坨 <code>properties</code> / <code>required</code> —— 那是给模型「照着填」的模板。</p>
+<h2 id="_6">五、模型「调工具」和「回答」是交替的</h2>
+<p>复杂任务往往不是「调一次就完」。比如「对比北京和上海今天的温度」：</p>
+<ol>
+<li>模型调 <code>get_weather(北京)</code>；</li>
+<li>程序执行，回灌结果；</li>
+<li>模型调 <code>get_weather(上海)</code>；</li>
+<li>程序执行，回灌结果；</li>
+<li>模型拿到两个结果，生成对比回答。</li>
+</ol>
+<p>这种<strong>「思考 → 调用 → 看结果 → 再思考」</strong>的循环，是 Agent（智能体）的核心运转方式。MCP 要服务的，正是这种多轮、多工具的场景。</p>
+<h2 id="_7">六、常见误区澄清</h2>
+<table>
+<thead>
+<tr>
+<th>误区</th>
+<th>真相</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型自己联网查了资料</td>
+<td>是程序替它查，再把结果喂回去</td>
+</tr>
+<tr>
+<td>模型「运行」了代码</td>
+<td>是程序运行，模型只生成了代码/调用意图</td>
+</tr>
+<tr>
+<td>工具是模型的一部分</td>
+<td>工具在模型外部，由客户端/Server 提供</td>
+</tr>
+<tr>
+<td>调工具一定会成功</td>
+<td>可能参数错、可能执行失败，需要校验和重试</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_8">七、本章小结</h2>
+<ul>
+<li>大模型只是文本补全器，<strong>不能自己执行</strong>任何外部操作；</li>
+<li>「模型调工具」= 模型输出「调用意图」→ 程序执行 → 结果回灌 → 模型作答；</li>
+<li>模型靠你提供的<strong>清晰工具描述</strong>来选工具和填参数；</li>
+<li>参数要用 JSON Schema 约束 + 程序校验 + 重试来保证正确；</li>
+<li>真实任务常是「思考 → 调用 → 看结果」的多轮循环，这正是 MCP 要支撑的场景；</li>
+<li>牢记：模型「动手」是假象，真正动手的是你的代码。</li>
+</ul>
+<p>下一章我们正式进入 MCP 的三大角色：<strong>Host（宿主）、Client（客户端）、Server（服务端）</strong>，看这套协议到底怎么把上面这套流程标准化。</p>
+<hr />
+<p><em>小练习：在脑海里把「让 AI 帮你订一杯外卖」拆成「模型输出意图」和「程序真实执行」两部分。哪些步骤是模型做的？哪些必须由程序/外部系统做？</em></p></body></html>

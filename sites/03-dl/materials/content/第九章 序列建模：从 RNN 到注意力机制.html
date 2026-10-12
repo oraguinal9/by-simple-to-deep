@@ -1,0 +1,341 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第九章 序列建模：从 RNN 到注意力机制 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="rnn">第九章 序列建模：从 RNN 到注意力机制</h1>
+<blockquote>
+<p>本章目标：理解"有顺序的数据"为什么特殊，RNN 是怎么处理它的、卡在哪里，以及<strong>注意力机制</strong>如何一举解决所有问题——这一章正好是通往 L2《大模型原理》的桥。</p>
+</blockquote>
+<hr />
+<h2 id="91">9.1 序列数据的特殊性</h2>
+<p>前面讲的图像分类，每张图是独立的。但很多数据<strong>有先后顺序，且顺序改变意义就变</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>数据类型</th>
+<th>例子</th>
+<th>顺序的重要性</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文本</td>
+<td>"我打他" vs "他打我"</td>
+<td>词序决定语义</td>
+</tr>
+<tr>
+<td>语音</td>
+<td>音频波形</td>
+<td>时间顺序即语言</td>
+</tr>
+<tr>
+<td>股价</td>
+<td>每日收盘价</td>
+<td>趋势藏在时序里</td>
+</tr>
+<tr>
+<td>视频</td>
+<td>逐帧画面</td>
+<td>帧序决定动作</td>
+</tr>
+</tbody>
+</table>
+<p>固定结构的全连接和 CNN 处理这类数据有两个硬伤：</p>
+<ol>
+<li><strong>长度不固定</strong>。一句话可能 3 个字也可能 300 个字，全连接层的输入维度却是写死的。</li>
+<li><strong>无法建模长距离依赖</strong>。"我小时候在四川长大，所以我特别能吃……"——预测"辣"字，需要回看开头的"四川"。</li>
+</ol>
+<hr />
+<h2 id="92-rnn">9.2 RNN：带记忆的循环</h2>
+<p><strong>循环神经网络（Recurrent Neural Network）</strong> 的想法很朴素：<strong>一个字一个字读，同时维护一个"记忆"。</strong></p>
+<pre class="codehilite"><code>        h₀ ──► [RNN] ──► h₁ ──► [RNN] ──► h₂ ──► [RNN] ──► h₃
+                 ↑                ↑                ↑
+                x₁(&quot;我&quot;)         x₂(&quot;爱&quot;)        x₃(&quot;你&quot;)
+</code></pre>
+
+<p>核心公式只有一行：</p>
+<pre class="codehilite"><code>hₜ = tanh( W_h · h_{t−1} + W_x · xₜ + b )
+</code></pre>
+
+<ul>
+<li><code>hₜ</code>：<strong>隐藏状态</strong>，可以理解为"读到目前为止的记忆摘要"</li>
+<li><code>xₜ</code>：当前时刻输入（比如当前这个字的向量）</li>
+<li><code>W_h, W_x</code>：<strong>所有时刻共享同一组权重</strong>（又是权重共享！）</li>
+</ul>
+<p><strong>类比</strong>：你读小说时，不会把前面所有文字都同时记在脑子里，而是维护一个"剧情摘要"，每读一句就更新一次摘要。<code>hₜ</code> 就是这个摘要。</p>
+<pre class="codehilite"><code class="language-python">import numpy as np
+
+def rnn_step(x, h, Wx, Wh, b):
+    return np.tanh(Wx @ x + Wh @ h + b)
+
+hidden = 8
+Wx, Wh, b = np.random.randn(hidden,4)*0.1, np.random.randn(hidden,hidden)*0.1, np.zeros(hidden)
+
+h = np.zeros(hidden)                     # 初始记忆为空
+sentence = [np.random.rand(4) for _ in range(5)]   # 假装是 5 个词的向量
+for t, x in enumerate(sentence):
+    h = rnn_step(x, h, Wx, Wh, b)
+    print(f&quot;读完第{t+1}个词，记忆向量前3维：{h[:3].round(3)}&quot;)
+</code></pre>
+
+<hr />
+<h2 id="93-rnn">9.3 RNN 的三个致命伤</h2>
+<h3 id="_1">伤一：长距离依赖会忘</h3>
+<p>记忆 <code>h</code> 每步都被覆盖更新一次。传 20 步之后，第 1 步的信息基本被稀释没了。</p>
+<p>数学上就是第六章讲的<strong>梯度消失</strong>：反向传播要穿过 20 个 tanh，梯度连乘后趋近于 0。</p>
+<blockquote>
+<p>"我在<strong>法国</strong>长大……（中间 50 个字）……所以我说一口流利的 ____"
+人类知道填"法语"，普通 RNN 早忘了"法国"。</p>
+</blockquote>
+<h3 id="_2">伤二：无法并行</h3>
+<p><code>h₂</code> 必须等 <code>h₁</code> 算完才能算。<strong>训练时只能一步一步串行</strong>，无法利用 GPU 的并行能力。</p>
+<p>序列长度 1000 就要串行 1000 步——这直接卡死了模型规模的天花板。</p>
+<h3 id="_3">伤三：信息瓶颈</h3>
+<p>在翻译任务里，整个源句子被压缩成<strong>一个固定长度的向量</strong> <code>h_final</code>，再由它生成译文。</p>
+<p>句子越长，这个向量越"挤"。就像让你读完一本书后只准写一句话摘要，然后别人根据这句话复述全书。</p>
+<hr />
+<h2 id="94-lstm-gru">9.4 LSTM 与 GRU：给记忆装闸门</h2>
+<p><strong>LSTM（长短期记忆网络）</strong> 的解法：不再粗暴覆盖记忆，而是用三个<strong>门（gate）</strong>来精细控制。</p>
+<table>
+<thead>
+<tr>
+<th>门</th>
+<th>作用</th>
+<th>类比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>遗忘门</strong></td>
+<td>决定旧记忆里哪些该丢掉</td>
+<td>擦掉笔记本上过时的内容</td>
+</tr>
+<tr>
+<td><strong>输入门</strong></td>
+<td>决定新信息里哪些值得记</td>
+<td>只抄重点</td>
+</tr>
+<tr>
+<td><strong>输出门</strong></td>
+<td>决定当前该输出记忆的哪部分</td>
+<td>按需回忆</td>
+</tr>
+</tbody>
+</table>
+<p>每个门就是一个 Sigmoid 层，输出 0~1 的"开合程度"，再和记忆逐元素相乘。</p>
+<p><strong>关键改进</strong>：LSTM 维护一条<strong>细胞状态（cell state）</strong> <code>C</code>，它的更新是<strong>加法</strong>而非乘法：</p>
+<pre class="codehilite"><code>Cₜ = 遗忘门 ⊙ C_{t−1} + 输入门 ⊙ 新候选
+</code></pre>
+
+<p>加法意味着梯度可以近乎无损地流过很多步——<strong>这和 ResNet 的残差连接是同一个思想</strong>。</p>
+<p><strong>GRU</strong> 是 LSTM 的简化版，把三个门减成两个，参数更少、速度更快，效果通常相当。</p>
+<blockquote>
+<p>LSTM 缓解了"遗忘"（伤一），但<strong>无法并行</strong>（伤二）和<strong>信息瓶颈</strong>（伤三）依然存在。真正的突破还在后面。</p>
+</blockquote>
+<hr />
+<h2 id="95">9.5 注意力机制：直接去看原文</h2>
+<p>2014 年出现的<strong>注意力（Attention）</strong>机制，思路简单到令人拍案：</p>
+<blockquote>
+<p><strong>为什么非要把整句话压缩成一个向量？生成每个词的时候，直接回头去看原句中最相关的部分不就行了。</strong></p>
+</blockquote>
+<p>类比：你翻译一篇文章时，写到某个词，眼睛会自动瞟回原文对应的位置。<strong>你不需要背下全文。</strong></p>
+<h3 id="querykeyvalue">三个角色：Query、Key、Value</h3>
+<p>注意力用一个"查字典"的框架来描述：</p>
+<table>
+<thead>
+<tr>
+<th>名字</th>
+<th>含义</th>
+<th>图书馆类比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Query（查询）</strong></td>
+<td>我现在想找什么</td>
+<td>你的检索词</td>
+</tr>
+<tr>
+<td><strong>Key（键）</strong></td>
+<td>每个信息的索引标签</td>
+<td>每本书的书名</td>
+</tr>
+<tr>
+<td><strong>Value（值）</strong></td>
+<td>每个信息的实际内容</td>
+<td>书的正文</td>
+</tr>
+</tbody>
+</table>
+<p>计算三步走：</p>
+<ol>
+<li><strong>算相关性</strong>：拿 Query 和每个 Key 做点积 → 得到一组分数（越大越相关）</li>
+<li><strong>归一化</strong>：Softmax 把分数变成加起来为 1 的<strong>权重</strong>（第二章的老朋友）</li>
+<li><strong>加权求和</strong>：按权重把所有 Value 混合起来 → 输出</li>
+</ol>
+<p>写成公式就是那条著名的式子：</p>
+<pre class="codehilite"><code>Attention(Q, K, V) = softmax( QKᵀ / √d ) · V
+</code></pre>
+
+<ul>
+<li><code>QKᵀ</code>：算所有 Query 和所有 Key 的相关性</li>
+<li><code>/√d</code>：除以维度的平方根，防止点积过大导致 Softmax 饱和（梯度消失）</li>
+<li><code>softmax</code>：变成权重</li>
+<li><code>· V</code>：加权求和</li>
+</ul>
+<pre class="codehilite"><code class="language-python">import numpy as np
+
+def attention(Q, K, V):
+    d = Q.shape[-1]
+    scores = Q @ K.T / np.sqrt(d)          # ① 相关性
+    weights = np.exp(scores - scores.max(axis=-1, keepdims=True))
+    weights /= weights.sum(axis=-1, keepdims=True)   # ② softmax
+    return weights @ V, weights            # ③ 加权求和
+
+Q = np.random.rand(3, 8)      # 3 个查询
+K = np.random.rand(5, 8)      # 5 个候选信息
+V = np.random.rand(5, 8)
+out, w = attention(Q, K, V)
+print(&quot;注意力权重矩阵（每行加起来=1）：\n&quot;, w.round(2))
+</code></pre>
+
+<h3 id="self-attention">自注意力（Self-Attention）</h3>
+<p>如果 Q、K、V 全都来自<strong>同一个句子</strong>，就叫<strong>自注意力</strong>——句子里的每个词，都去看句子里的所有词（包括自己），决定该关注谁。</p>
+<p>例："<strong>它</strong>很好吃" 中的"它"，自注意力会让它和前文的"苹果"高度关联，从而正确理解指代。</p>
+<p><strong>这一步彻底解决了 RNN 的三个伤</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>RNN 的问题</th>
+<th>自注意力的解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>长距离遗忘</td>
+<td>任意两个词<strong>直接</strong>连接，距离恒为 1 步</td>
+</tr>
+<tr>
+<td>无法并行</td>
+<td>所有位置<strong>同时</strong>计算，一个大矩阵乘法搞定</td>
+</tr>
+<tr>
+<td>信息瓶颈</td>
+<td>不压缩成单一向量，每个位置都保留完整表示</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="96-transformer">9.6 通向 Transformer</h2>
+<p>2017 年论文《Attention Is All You Need》做了一件狠事：<strong>把 RNN 彻底删掉，只留注意力。</strong></p>
+<p>Transformer 的组成部分，你现在应该全都认识了：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>出自本课程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>多头自注意力</strong></td>
+<td>本章（多头 = 并行做几组注意力，各看不同角度）</td>
+</tr>
+<tr>
+<td><strong>位置编码</strong></td>
+<td>新增（因为注意力本身没有顺序概念，得额外告诉它谁先谁后）</td>
+</tr>
+<tr>
+<td><strong>前馈网络 FFN</strong></td>
+<td>第五章（就是两层全连接 + 激活）</td>
+</tr>
+<tr>
+<td><strong>激活函数 GELU</strong></td>
+<td>第四章</td>
+</tr>
+<tr>
+<td><strong>残差连接 Add</strong></td>
+<td>第五、六章</td>
+</tr>
+<tr>
+<td><strong>层归一化 Norm</strong></td>
+<td>第七章</td>
+</tr>
+<tr>
+<td><strong>Softmax 输出</strong></td>
+<td>第二章</td>
+</tr>
+</tbody>
+</table>
+<pre class="codehilite"><code>输入 → 词嵌入 + 位置编码
+      ↓
+   ┌─ 多头自注意力 ─┐
+   │  → Add &amp; Norm  │   ← 残差 + 层归一化
+   │  → 前馈网络FFN │   ← 全连接 + GELU
+   │  → Add &amp; Norm  │
+   └────────────────┘  ×  N 层（GPT-3 是 96 层）
+      ↓
+   线性层 → Softmax → 下一个词的概率分布
+</code></pre>
+
+<p><strong>恭喜——你已经具备读懂 Transformer 的全部基础了。</strong></p>
+<blockquote>
+<p>🎓 <strong>这正是 L2 课程《大模型原理》的起点</strong>。它会展开讲多头注意力的细节、位置编码的几种做法、预训练与微调、以及 GPT 是怎么一步步生成文字的。学完本课程第十章后，直接去 <strong>llm.zbjh.top</strong> 继续。</p>
+</blockquote>
+<hr />
+<h2 id="97">9.7 注意力的代价</h2>
+<p>天下没有免费的午餐。自注意力要算<strong>每两个词之间</strong>的相关性，所以：</p>
+<pre class="codehilite"><code>计算量 ∝ 序列长度²
+</code></pre>
+
+<p>序列翻倍，计算量变 4 倍。这就是为什么：</p>
+<ul>
+<li>早期 GPT 的上下文只有 2048 个 token</li>
+<li>长上下文（128K、1M）是各家大模型竞争的硬指标</li>
+<li>出现了大量优化技术：<strong>FlashAttention</strong>（优化显存读写）、<strong>稀疏注意力</strong>、<strong>滑动窗口注意力</strong>、<strong>线性注意力</strong>、以及回归 RNN 思路的 <strong>Mamba / RWKV</strong></li>
+</ul>
+<hr />
+<h2 id="98">9.8 本章小结</h2>
+<ul>
+<li>序列数据的特点：<strong>长度可变 + 顺序有意义 + 存在长距离依赖</strong></li>
+<li><strong>RNN</strong> 靠隐藏状态 <code>h</code> 维护记忆，逐步更新，权重共享</li>
+<li>RNN 三大伤：<strong>长距离遗忘、无法并行、信息瓶颈</strong></li>
+<li><strong>LSTM/GRU</strong> 用门控 + 加法更新缓解了遗忘，但并行问题仍在</li>
+<li><strong>注意力</strong>的本质：<strong>Query 找 Key，Softmax 得权重，加权求和 Value</strong></li>
+<li><strong>自注意力</strong>让任意两个位置直接相连，一举解决 RNN 三大伤</li>
+<li><strong>Transformer = 自注意力 + 位置编码 + FFN + 残差 + LayerNorm</strong>，全是本课程学过的零件</li>
+<li>代价是计算量与序列长度<strong>平方</strong>相关</li>
+</ul>
+<hr />
+<h2 id="99">9.9 自测</h2>
+<ol>
+<li>为什么 CNN/全连接不适合处理变长文本？</li>
+<li>RNN 的隐藏状态 <code>hₜ</code> 代表什么？</li>
+<li>LSTM 的三个门分别管什么？为什么"加法更新"能缓解梯度消失？</li>
+<li>用自己的话解释 Q、K、V 三者的关系。</li>
+<li>为什么自注意力可以并行而 RNN 不行？</li>
+<li>上下文从 2K 扩到 8K，注意力计算量大约涨多少倍？</li>
+</ol>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：最后一章，我们把所有知识串成一个能跑的项目，并给出通往 L4~L8 的完整路线图。</p>
+</blockquote></body></html>

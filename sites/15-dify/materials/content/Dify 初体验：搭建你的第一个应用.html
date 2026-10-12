@@ -1,0 +1,172 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Dify 初体验：搭建你的第一个应用 | AI 应用开发平台 L15</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L15 学习路线图</a><span class='r'>AI 应用开发平台 · dify.zbjh.top</span></div><h1 id="dify">Dify 初体验：搭建你的第一个应用</h1>
+<p>上一章你理解了「AI 应用开发平台」是什么。这一章我们动真格的：把 Dify 跑起来，5 分钟搭出你的第一个聊天应用。</p>
+<h2 id="dify_1">Dify 是什么</h2>
+<p><strong>Dify</strong> 是一个开源的 LLM 应用开发平台，它的官方定位是「让开发者（甚至非开发者）用可视化的方式快速构建 AI 应用」。它把「模型接入、提示词、知识库、工作流、Agent、发布」全部产品化。</p>
+<p>几个关键特性：
+- <strong>开源</strong>：代码在 GitHub 上，可以自己部署（私有化、数据可控）；
+- <strong>可视化</strong>：拖拽配置，不用写前端后端；
+- <strong>全功能</strong>：聊天助手、工作流、Agent、知识库、工具、发布全都有；
+- <strong>模型中立</strong>：支持 OpenAI、Claude、国产模型（通义、智谱、DeepSeek）、本地模型（Ollama）等。</p>
+<h2 id="_1">两种使用方式</h2>
+<p><strong>方式一：官方云服务（最快）</strong></p>
+<p>去 Dify 官网注册账号，直接在线用。适合体验和学习，免费额度有限。</p>
+<p><strong>方式二：本地部署（Docker，推荐学习）</strong></p>
+<p>Dify 提供 Docker Compose 一键部署，几分钟就能在本地跑起来：</p>
+<pre class="codehilite"><code class="language-bash">git clone https://github.com/langgenius/dify.git
+cd dify/docker
+cp .env.example .env
+docker compose up -d
+</code></pre>
+
+<p>启动后浏览器访问 <code>http://localhost</code>，按引导创建管理员账号即可。</p>
+<blockquote>
+<p>本地部署的好处：数据在自己电脑、模型可以接本地 Ollama、随便折腾不怕花钱。</p>
+</blockquote>
+<h2 id="_2">接入你的第一个模型</h2>
+<p>Dify 本身不提供模型，需要你接入。这一步在「设置 → 模型供应商」里完成：</p>
+<ul>
+<li><strong>API Key 方式</strong>：填入 OpenAI / DeepSeek / 通义等厂商的 API Key，即可使用云端模型；</li>
+<li><strong>本地模型方式</strong>：如果你的电脑装了 Ollama（L10 讲过），选「Ollama」供应商，填本地模型名，Dify 就能调用它——<strong>免费、离线、隐私</strong>。</li>
+</ul>
+<p>对学习来说，推荐接一个便宜的云端模型（比如 DeepSeek）或本地 Ollama 模型，两条路都体验一遍。</p>
+<h2 id="_3">创建第一个应用：聊天助手</h2>
+<p>模型接好后，开始建应用：</p>
+<pre class="codehilite"><code>1. 首页点「创建空白应用」
+2. 选「聊天助手」类型
+3. 起个名字，比如「我的第一个助手」
+4. 进入编排界面
+</code></pre>
+
+<p>Dify 的应用类型主要有：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>聊天助手</td>
+<td>多轮对话，最常用</td>
+</tr>
+<tr>
+<td>文本生成</td>
+<td>单次输入输出，适合总结、写作</td>
+</tr>
+<tr>
+<td>工作流</td>
+<td>可视化流程编排（下一章讲）</td>
+</tr>
+<tr>
+<td>Agent</td>
+<td>能调用工具的智能体</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">编排界面：写你的第一个提示词</h2>
+<p>进入编排界面后，核心是<strong>系统提示词（System Prompt）</strong>。它定义了这个助手「是谁、怎么说话」。</p>
+<pre class="codehilite"><code>你是一个乐于助人的中文助手。回答要简洁、准确、友好。
+</code></pre>
+
+<p>右侧有模型选择器：模型、温度、max tokens 等参数都可以调。</p>
+<p><strong>「预览」对话框</strong>在右侧，直接输入问题试跑：</p>
+<pre class="codehilite"><code>用户：你好，你是谁？
+助手：你好！我是一个乐于助人的中文助手，有什么可以帮你？
+</code></pre>
+
+<p><strong>这就是你的第一个 AI 应用</strong>——虽然简单，但整条链路（模型接入 → 应用创建 → 提示词 → 试跑）已经打通。</p>
+<h2 id="_5">调试与迭代：平台的核心优势</h2>
+<p>现在体验平台最大的价值——<strong>快迭代</strong>：</p>
+<ol>
+<li>把系统提示词改成「你是一个暴躁的客服」；</li>
+<li>再问一次同样的问题；</li>
+<li>看回答风格立刻变化。</li>
+</ol>
+<p><strong>改提示词 → 立即试 → 看效果</strong>，这个循环在平台里只要几秒钟。这就是为什么说平台能把「懂提示词的人」的生产力放大 10 倍——你可以疯狂试验不同写法，直到找到最好的。</p>
+<h2 id="_6">几个实用小技巧</h2>
+<ul>
+<li><strong>多版本管理</strong>：Dify 支持保存多个「提示词版本」，改坏了能回滚；</li>
+<li><strong>变量</strong>：可以加变量（如用户姓名），在提示词里用 <code>{{name}}</code> 引用，让回答个性化；</li>
+<li><strong>停止条件</strong>：设置「停止词」，防止模型啰嗦地一直说；</li>
+<li><strong>对话开场白</strong>：设置欢迎语，用户一进来就有引导。</li>
+</ul>
+<h2 id="_7">常见问题</h2>
+<p><strong>Q：模型接好了但试跑报错？</strong>
+A：多半是 API Key 无效、余额不足，或网络问题。检查「设置 → 模型供应商」里的状态。</p>
+<p><strong>Q：Docker 启动失败？</strong>
+A：先看 <code>docker compose logs</code>，常见是端口被占或内存不足。Dify 官方要求至少 4GB 内存。</p>
+<p><strong>Q：本地 Ollama 模型调用慢？</strong>
+A：小模型（如 qwen2.5:3b）很快，大模型（7B+）在无 GPU 的机器上会慢，属正常。</p>
+<p><strong>Q：免费额度用完了？</strong>
+A：云服务有免费额度限制。学习推荐本地部署 + Ollama，彻底不花钱。</p>
+<h2 id="_8">编排界面的完整导览</h2>
+<p>第一次打开编排界面，别被一堆按钮吓到，其实就几块区域：</p>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>左侧（提示词）</td>
+<td>写系统提示词、配置变量</td>
+</tr>
+<tr>
+<td>中间（预览对话框）</td>
+<td>试跑应用、看回答</td>
+</tr>
+<tr>
+<td>右侧（模型与功能）</td>
+<td>选模型、调参数、开功能（对话开场白等）</td>
+</tr>
+<tr>
+<td>顶部（发布/保存）</td>
+<td>保存草稿、发布版本</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议</strong>：花 10 分钟把每个区域都点一遍，搞清楚每个开关是干嘛的——磨刀不误砍柴工。</p>
+<h2 id="_9">应用类型怎么选（进阶认知）</h2>
+<p>第 2 章的「聊天助手」只是开始。选错应用类型会事倍功半，给一个选择指南：</p>
+<ul>
+<li><strong>聊天助手</strong>：多轮对话场景，模型自由发挥为主；</li>
+<li><strong>文本生成</strong>：单次输入→输出（总结、翻译、写作），没有多轮记忆负担，更省 token；</li>
+<li><strong>工作流</strong>：流程固定、需要可控性的场景（客服分类、审核流水线）；</li>
+<li><strong>Agent</strong>：需要「临场决定调用什么工具」的场景（查询助手、研究助手）。</li>
+</ul>
+<p><strong>判断口诀</strong>：要对话 → 聊天助手；要一次转换 → 文本生成；要固定流程 → 工作流；要自由干活 → Agent。后面几章会逐个深入。</p>
+<h2 id="_10">小练习</h2>
+<ol>
+<li>部署 Dify（云服务或 Docker 二选一），接入一个模型。</li>
+<li>创建一个「聊天助手」，写一个 3 句话的系统提示词，试跑 3 个不同问题。</li>
+<li>把系统提示词改成完全不同的风格，对比回答差异，感受「提示词决定行为」。</li>
+<li>进阶：给应用加一个「用户姓名」变量，让回答带上名字。</li>
+<li>进阶：分别创建一个「聊天助手」和「文本生成」，对比同一输入下两者的交互差异。</li>
+</ol>
+<p>你已经跑通了第一个应用。下一章，让应用「按你的逻辑走」——<strong>工作流编排</strong>。</p></body></html>

@@ -1,0 +1,327 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>用 RAGFlow 搭建企业知识库 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="ragflow">用 RAGFlow 搭建企业知识库</h1>
+<p>前七篇我们从零开始讲了 RAG 的每个零件。这一篇进入"动手篇"：我们不用自己把所有零件焊接起来，而是用一个现成的开源项目把整套企业级知识库一次跑通——它就是 <strong>RAGFlow</strong>。本篇的目标很朴素：<strong>装起来，跑通，让它能回答你丢进去的文档</strong>。</p>
+<h2 id="81-ragflow">8.1 RAGFlow 是什么？</h2>
+<p>RAGFlow 是一个开源的、面向企业级场景的 RAG 引擎，中文官网的口号是"<strong>为你的知识库配备 AI 助手</strong>"。它在 GitHub 上拥有 7.5 万星标，是国内开源 RAG 项目里最受关注的一个。</p>
+<p>它凭什么受欢迎？因为它把前七篇讲的那些"脏活累活"都做成了开箱即用的功能：</p>
+<ul>
+<li><strong>强大的文档解析</strong>：PDF、Word、PPT、Excel、扫描件都能处理，自带版面分析，表格、图片、标题层级都帮你分好。</li>
+<li><strong>可视化知识库管理</strong>：网页界面里拖拽上传、看解析结果、管理分块，不用写一行代码。</li>
+<li><strong>可追溯的问答</strong>：回答时逐句给出引用来源，鼠标一点就能跳回原文——正是第 7 篇讲的"信任基石"。</li>
+<li><strong>支持多种大模型</strong>：DeepSeek、通义千问、智谱 GLM、OpenAI 等主流模型都能接入。</li>
+</ul>
+<p>一句话总结：<strong>RAGFlow = 文档解析 + 分块 + 向量库 + 混合检索 + 重排序 + 引用式问答，全部打包在一个网页应用里</strong>。对"想快速搭一个能用、可追溯的企业知识库"的团队来说，它是目前最省事的选择。</p>
+<blockquote>
+<p>如果你希望更灵活地自己拼装，前七篇的知识依然有效；如果你要快速落地，本篇的路数可以直接上手。两条路不矛盾。</p>
+</blockquote>
+<h2 id="82">8.2 部署前置条件</h2>
+<p>RAGFlow 用 Docker 部署（Docker 是"容器"技术，可以把软件连同它的运行环境一起打包，装上就能跑，免去环境配置的折磨）。需要准备：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>要求</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>操作系统</td>
+<td>Linux 或 Windows</td>
+<td>推荐 Linux 服务器（生产环境）</td>
+</tr>
+<tr>
+<td>Docker + Docker Compose</td>
+<td>已安装</td>
+<td>Docker 是部署工具，请先装好</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>至少 8GB，建议 16GB+</td>
+<td>要跑嵌入模型和解析引擎，吃内存</td>
+</tr>
+<tr>
+<td>磁盘</td>
+<td>至少 50GB</td>
+<td>向量库 + 文档 + Docker 镜像</td>
+</tr>
+<tr>
+<td>大模型 API Key</td>
+<td>准备一个</td>
+<td>DeepSeek / 通义 / GLM 都行</td>
+</tr>
+</tbody>
+</table>
+<p>检查 Docker 是否装好：</p>
+<pre class="codehilite"><code class="language-bash">docker --version
+docker compose version
+</code></pre>
+
+<p>如果提示找不到命令，请先安装 Docker Desktop（Windows/Mac 装这个最方便）并启动。</p>
+<h2 id="83-docker">8.3 Docker 一键部署</h2>
+<p>RAGFlow 提供了完整的 <code>docker-compose.yml</code>，官方推荐三步装完。以下命令在<strong>项目目录</strong>下执行：</p>
+<pre class="codehilite"><code class="language-bash"># 1. 拉取项目源码（内含部署配置）
+git clone https://github.com/infiniflow/ragflow.git
+cd ragflow
+
+# 2. 复制环境变量模板，并按需编辑（设置你的大模型 API Key、服务器 IP 等）
+cp .env.example .env
+vim .env    # 在文件里配置 RAGFLOW_API_KEY、RAGFLOW_SERVER_ADDR 等
+
+# 3. 用 Docker Compose 构建并启动
+docker compose up -d
+</code></pre>
+
+<p>启动需要下载镜像，视网速可能需要几分钟到几十分钟。看到容器都起来了，说明部署成功：</p>
+<pre class="codehilite"><code class="language-bash">docker compose ps
+</code></pre>
+
+<p>然后打开浏览器访问 <code>http://你的服务器IP</code>（本地部署就是 <code>http://localhost</code>），用注册页面建一个管理员账号，就进入 RAGFlow 的主界面了。</p>
+<blockquote>
+<p>注意事项：首次启动会自动下载嵌入模型（如 bge 系列）和文档解析引擎的镜像，耐心等日志走完。若访问不了页面，先用 <code>docker compose logs -f</code> 看日志排查。</p>
+</blockquote>
+<h2 id="84">8.4 配置大模型</h2>
+<p>登录后第一件事：在「模型供应商」页面添加大模型。因为 RAGFlow 本身不生成回答，它需要一个"大脑"。以 DeepSeek 为例：</p>
+<pre class="codehilite"><code class="language-text">供应商：选择「DeepSeek」
+API Key：填入你在 DeepSeek 开放平台申请的密钥
+模型名：deepseek-chat（对话用）
+</code></pre>
+
+<p>也支持通义千问（阿里）、智谱 GLM、Kimi 等。<strong>接入哪个都行，效果主要取决于你选的模型能力</strong>。同时系统默认使用嵌入模型生成向量，通常无需改动，保持默认的 bge 模型即可。</p>
+<p>配置完成后，系统会在每个回答时调用这个模型来"总结生成"，同时用检索链路来提供资料。</p>
+<h2 id="85">8.5 上传文档，建立你的第一个知识库</h2>
+<p>现在开始干正事。RAGFlow 里"知识库"（在界面里叫 <strong>数据集</strong>）是管理资料的基本单元。分步操作：</p>
+<pre class="codehilite"><code class="language-text">① 左侧菜单 → 「数据集」→ 点击「创建数据集」
+   命名：公司规章制度
+   解析方法：留默认「文档解析」
+   嵌入模型：留默认（bge-large-zh）
+   → 保存
+
+② 进入该数据集 → 点击「上传文件」→ 拖拽或选择文档
+   支持：PDF / Word / PPT / Excel / 图片等
+   可一次拖入几十份
+
+③ 等解析完成（文件状态从「解析中」变「就绪」）
+
+④ 点击某份文档查看「解析结果」：
+   检查文本是否干净、表格是否正确、分块是否合理
+</code></pre>
+
+<p>这个界面就是第 2、3 篇理论的"可视化版本"：你能直接看到系统是怎么把 PDF 拆成一段段文本块的。<strong>建议上传 5–10 份不同类型的文档</strong>（一份 PDF、一份 Word、一份带表格的），体会不同格式的解析差异。</p>
+<h2 id="86">8.6 可视化聊天：体验完整链路</h2>
+<p>知识库建好、文档解析完，就可以问答了：</p>
+<pre class="codehilite"><code class="language-text">① 回到「聊天」→「创建聊天助理」
+
+② 关联知识库：选择刚才创建的「公司规章制度」
+   模型：选择你配置的 DeepSeek（或通义/GLM）
+   提示词模板：可留默认，也可按第 7 篇的原则自定义
+   → 创建
+
+③ 在对话框输入问题，例如：
+   &quot;年假可以休几天？&quot;
+   &quot;报销流程是怎样的？&quot;
+
+④ 观察回答：
+   答案下方逐句带有「来源」角标
+   点击角标 → 弹出对应的原文片段和页码
+</code></pre>
+
+<p>体验重点不是"答得对不对"（可能还要调），而是感受<strong>链路完整性</strong>：一个问题从输入到输出，RAGFlow 背后自动执行了第 7 篇讲的"改写 → 检索 → 重排 → 拼装 → 生成 → 引用"全套流程，而你在界面上能清楚看到每一步的产物。</p>
+<h2 id="87-ragflow">8.7 RAGFlow 的可观测与可追溯</h2>
+<p>RAGFlow 在"企业级"上最强的两点，值得专门说：</p>
+<p><strong>可观测</strong>：每个问答回合，系统都记录完整的检索日志——召回了哪些块、rerank 后的分数、最终用了哪几块。遇到"答错了"，你能打开日志逐环排查：是解析坏了、检索偏了、还是模型生成错了？这正是第 1 篇强调的"工程可解释性"。</p>
+<p><strong>可追溯</strong>：答案里的每个断言都挂着原文出处，用户点一下就能跳到原文段落。这对需要审计的行业（法律、医疗、金融）几乎是刚需。</p>
+<pre class="codehilite"><code class="language-text">调试小技巧：
+- 在聊天界面打开「查看日志 / Trace」，看系统实际检索到的块
+- 发现答非所问 → 检查检索到的块是否相关
+- 发现相关但答错 → 问题大概率在生成环节或提示词
+</code></pre>
+
+<h2 id="88">8.8 常见问题排查</h2>
+<p>遇到问题别慌，最常遇到的几个和对应解法：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>可能原因</th>
+<th>解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>页面打不开</td>
+<td>服务没起来 / 端口被占</td>
+<td><code>docker compose ps</code> 看状态，<code>docker compose logs -f</code> 看日志</td>
+</tr>
+<tr>
+<td>上传后一直"解析中"</td>
+<td>解析引擎镜像没下载完</td>
+<td>等一等，查看容器日志确认在下载</td>
+</tr>
+<tr>
+<td>回答"找不到资料"</td>
+<td>文档没解析完 / 问题太口语</td>
+<td>确认文件状态为"就绪"；用更精确的问法再试</td>
+</tr>
+<tr>
+<td>回答乱编</td>
+<td>提示词约束不够 / 模型太弱</td>
+<td>按第 7 篇加强提示词指令；换个更强的模型</td>
+</tr>
+<tr>
+<td>中文检索不准</td>
+<td>默认嵌入模型对你们的黑话不敏感</td>
+<td>在「嵌入模型」里换成 bge-large 系列，并检查分块是否合理</td>
+</tr>
+</tbody>
+</table>
+<h2 id="89">8.9 权限与安全：企业落地的底线</h2>
+<p>RAGFlow 支持<strong>多用户与权限管理</strong>，这是它敢自称"企业级"的重要原因。上线前请务必把权限配好，别让"全员可见所有文档"成为默认状态。</p>
+<pre class="codehilite"><code class="language-text">权限配置清单：
+① 账号体系：创建管理员账号 + 各团队普通账号
+② 数据集权限：给每个数据集设置可见范围
+   例：薪酬制度 → 仅人力资源部可见
+      产品手册 → 全员可见
+③ 聊天助理权限：部分助理（如 HR 助手）仅对特定部门开放
+④ 文档级别：敏感文档单独建数据集，不要混进公共库
+</code></pre>
+
+<p>企业内部问答机器人出事故，十有八九是权限没配好——"员工把薪酬制度问出来了"这种事故一旦发生，信任就崩塌了。<strong>宁可功能少一点，权限也要严格一点</strong>，这是第 10 篇会再次强调的底线问题。</p>
+<h2 id="810">8.10 性能优化：从能用到大并发</h2>
+<p>RAGFlow 默认配置在小规模下很流畅，但几十人同时问时，可能出现响应变慢。按下面顺序优化：</p>
+<table>
+<thead>
+<tr>
+<th>优化项</th>
+<th>做法</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>缩短召回范围</td>
+<td>把数据集按部门拆分，检索时只查相关子集</td>
+<td>检索更快、更准</td>
+</tr>
+<tr>
+<td>控制返回块数</td>
+<td>默认返回块数从 10 降到 5</td>
+<td>减少 token、加快生成</td>
+</tr>
+<tr>
+<td>缓存高频问题</td>
+<td>对重复查询命中缓存（RAGFlow 支持会话级缓存）</td>
+<td>秒回</td>
+</tr>
+<tr>
+<td>模型降级</td>
+<td>生成模型从大模型换 7B 开源模型</td>
+<td>成本大幅下降，质量略降</td>
+</tr>
+<tr>
+<td>横向扩展</td>
+<td>多实例部署，负载均衡</td>
+<td>扛住大并发（后期再考虑）</td>
+</tr>
+</tbody>
+</table>
+<p>一个务实的提醒：<strong>别在 10 人试用阶段就上集群</strong>。先把检索质量、提示词、评测做扎实，再考虑性能。性能问题通常出现在"真有人用"之后，到时候按需加即可。</p>
+<h2 id="811-im-api">8.11 接入企业 IM 与 API</h2>
+<p>RAGFlow 不止有网页界面，还提供 <strong>HTTP API</strong>，可以把它接入钉钉、企业微信、飞书等 IM 工具，让同事在"已经每天在用的 App"里直接提问——这比再让他们打开一个网页体验好得多。</p>
+<pre class="codehilite"><code class="language-text">API 接入的大致流程：
+① 在 RAGFlow 管理界面生成 API Token（密钥）
+② 调用 /api/v1/chat 接口，把用户提问发过去
+③ 拿回结构化回答（含引用来源）
+④ 在 IM 机器人回调里渲染：答案文本 + 可点击的引用
+
+示例（伪代码）：
+POST /api/v1/chat/completions
+{
+  &quot;question&quot;: &quot;年假有几天？&quot;,
+  &quot;dataset_ids&quot;: [&quot;公司制度库&quot;],
+  &quot;stream&quot;: true
+}
+→ 返回答案 + citations[]（来源片段）
+</code></pre>
+
+<p>接入 IM 的收益是巨大的：<strong>问答入口变成了用户"本来就开着"的地方</strong>，使用率会成倍提升。这也是第 10 篇实战路线里"搭问答界面"一步的推荐形态。</p>
+<h2 id="812">8.12 团队协作：知识库是"养"出来的</h2>
+<p>最后说一个心态层面的关键认知：<strong>知识库不是一次性建完就完事的系统，而是需要持续维护的"活物"</strong>。</p>
+<p>建议建立一套简单的运营机制：</p>
+<ul>
+<li><strong>每周</strong>：管理员检查一次"未命中"日志（用户问了但系统没答上的问题），把高频未命中问题补进知识库。</li>
+<li><strong>每月</strong>：更新一次过期文档（制度修订后，及时替换旧版本）。</li>
+<li><strong>每次文档变更</strong>：记录变更日志，标注生效日期，避免新旧制度打架。</li>
+</ul>
+<p>把知识库当成"公司里另一份需要专人维护的资料"，而不是"AI 部署完就不用管了"。<strong>维护的频率，决定知识库在半年后是越用越准，还是越用越旧</strong>——这也是企业级和 demo 最深的差别之一。</p>
+<h2 id="813-ragflow">8.13 从 RAGFlow 反向学习架构</h2>
+<p>用 RAGFlow 不只是"用它"，更值得做的是<strong>拆开看它是怎么设计的</strong>，因为它体现了企业级 RAG 的主流架构共识。对照前七篇的理论，你会看到每个环节都有对应：</p>
+<table>
+<thead>
+<tr>
+<th>前七篇的理论</th>
+<th>RAGFlow 里的对应物</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第 2 篇 文档解析清洗</td>
+<td>「文档解析」里的版面分析、OCR 选项</td>
+</tr>
+<tr>
+<td>第 3 篇 分块策略</td>
+<td>解析模板里的"分块规则"，可调块大小、重叠</td>
+</tr>
+<tr>
+<td>第 4 篇 Embedding 与向量库</td>
+<td>「嵌入模型」选择 + 内置向量存储（Elasticsearch）</td>
+</tr>
+<tr>
+<td>第 5 篇 混合检索</td>
+<td>默认的"全文 + 向量"混合召回（Elasticsearch 的 BM25 + 向量）</td>
+</tr>
+<tr>
+<td>第 6 篇 重排序</td>
+<td>聊天设置里的"重排序模型"选项</td>
+</tr>
+<tr>
+<td>第 7 篇 问答链路</td>
+<td>聊天助理的提示词模板、引用渲染、改写逻辑</td>
+</tr>
+<tr>
+<td>第 9 篇 评测调优</td>
+<td>「命中率检测」和问答日志，配合外部评测集使用</td>
+</tr>
+</tbody>
+</table>
+<p><strong>给你的建议</strong>：先照着默认配置跑通，然后一项项把它"掰开"——改分块参数、换重排模型、自定义提示词，观察每次改动对回答的影响。这样一遍下来，你既会用工具，又真正理解了 RAG 的每一根骨头。等将来需要自研时，你已经知道该照什么样子搭了。</p>
+<h2 id="814">8.14 本篇小结</h2>
+<ul>
+<li><strong>RAGFlow</strong> 是开箱即用的企业级 RAG 引擎，把解析、分块、检索、重排、引用全打包好了。</li>
+<li>部署三步：<strong>拉代码 → 配置环境变量 → <code>docker compose up -d</code></strong>；然后配好大模型 API。</li>
+<li>建库流程：<strong>创建数据集 → 上传文档 → 等待解析 → 查看分块 → 创建聊天助理 → 开问</strong>。</li>
+<li>它的杀手锏是<strong>可观测</strong>（检索日志）和<strong>可追溯</strong>（逐句引用），这正是企业信任的基础。</li>
+</ul>
+<p>跑通之后，你大概率会想：这个系统到底答得好不好？哪里能更好？下一篇，我们进入<a href="content/知识库评测与调优.html">知识库评测与调优</a>——学会客观地"打分"和"改进"。</p></body></html>

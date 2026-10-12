@@ -1,0 +1,91 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第四章 数据集与指令格式：怎么准备训练数据 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="_1">第四章 数据集与指令格式：怎么准备训练数据</h1>
+<p>微调的效果，七分靠数据。很多人微调翻车，不是模型不行，而是给的数据"喂错了姿势"。本章讲清楚：到底给模型吃什么。</p>
+<h2 id="sft">SFT 数据长什么样？</h2>
+<p>监督微调（SFT）喂的是<strong>"指令—回答"配对</strong>。最经典的三段式：</p>
+<ul>
+<li><strong>指令（instruction）</strong>：要模型做什么。</li>
+<li><strong>输入（input）</strong>：可选的补充材料（没有就留空）。</li>
+<li><strong>输出（output）</strong>：标准回答，模型要学着模仿它。</li>
+</ul>
+<p>举个客服例子：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;instruction&quot;: &quot;根据退货政策回答用户问题&quot;,
+  &quot;input&quot;: &quot;用户问：我昨天买的衣服，今天能退吗？&quot;,
+  &quot;output&quot;: &quot;您好，商品签收后 7 天内可无理由退货。您昨天购买、今天仍在期限内，可以申请退货，运费由买家承担。&quot;
+}
+</code></pre>
+
+<p>模型学的是：<strong>看到这样的指令+输入，就产出这样的输出</strong>。</p>
+<h2 id="_2">常见数据格式</h2>
+<p>不同训练框架吃不同格式，但本质都是上面那三段：</p>
+<ul>
+<li><strong>Alpaca 格式</strong>（JSON 列表）：最通用，上面就是。</li>
+<li><strong>ShareGPT 格式</strong>：多轮对话，用 <code>messages</code> 数组，<code>role</code> 分 <code>system/user/assistant</code>。</li>
+<li><strong>纯对话格式</strong>：直接写成一段 <code>用户：…\n助手：…</code> 的文本。</li>
+</ul>
+<blockquote>
+<p>格式不重要，<strong>语义一致才重要</strong>：每一条都要有清晰的"该学什么输出"。</p>
+</blockquote>
+<h2 id="_3">数据从哪来？</h2>
+<ol>
+<li><strong>自己写</strong>：最准但最慢。适合任务很专、样本少（几百条也能起步）。</li>
+<li><strong>从现有资料提取</strong>：把产品手册、FAQ 拆成问答对。</li>
+<li><strong>用强模型"蒸馏"生成</strong>：用 GPT-4 级模型，根据你定的指令模板批量产出"问题—回答"候选，再人工抽检修正。<strong>这是今天最常见的扩量手段</strong>。</li>
+<li><strong>公开数据集</strong>：HuggingFace 上有大量 SFT 数据集（如 English 的 Dolly、中文的 ShareGPT-Chinese、COIG 等），可借鉴风格。</li>
+</ol>
+<h2 id="_4">质量 &gt; 数量</h2>
+<p>一条高质量数据，胜过一百条脏数据。坏数据的典型症状：</p>
+<ul>
+<li><strong>回答错误</strong>（事实错、逻辑错）——模型会认真学错。</li>
+<li><strong>格式不一</strong>（有的带 JSON、有的纯文本）——模型学到混乱。</li>
+<li><strong>重复刷屏</strong>（同一条复制几百遍）——模型过拟合到这句，其他都不会。</li>
+<li><strong>和任务无关</strong>（混进闲聊）——稀释学习目标。</li>
+</ul>
+<blockquote>
+<p>经验值参考：很多实用场景 <strong>几百到几千条精心打磨的数据</strong> 就能看到明显效果；盲目堆到几万条若质量差，反而更糟。</p>
+</blockquote>
+<h2 id="_5">数据要"像最终用法"</h2>
+<p>一个常被忽视的要点：你<strong>最终怎么用模型，就怎么造数据</strong>。</p>
+<ul>
+<li>想要固定 JSON 输出？那训练样本的输出就都必须是合法 JSON。</li>
+<li>想要某种语气？每条输出的语气都要一致。</li>
+<li>想要模型先"思考"再答？那输出里就包含思考过程。</li>
+</ul>
+<p>模型是"照葫芦画瓢"的高手——你画的葫芦歪，它画出的瓢也歪。</p>
+<h2 id="_6">训练/验证集切分</h2>
+<p>和评估模型一样，数据要留出一小部分（如 10%）<strong>不参与训练</strong>，专门用来监控"模型在没见过的数据上表现如何"（防过拟合，见第六章）。这一步训练脚本通常自动帮你切，但你得知道它存在。</p>
+<h2 id="_7">本章小结</h2>
+<ul>
+<li>SFT 喂的是「指令—输入—输出」配对，本质是"照着标准回答模仿"。</li>
+<li>格式（Alpaca/ShareGPT）不重要，语义一致才重要。</li>
+<li><strong>数据质量远大于数量</strong>；来源可自写、可蒸馏、可公开集。</li>
+<li>训练样本要复刻你真实的使用方式（格式、语气、结构）。</li>
+</ul>
+<h2 id="_8">小练习</h2>
+<ol>
+<li>你要训练一个"把用户口语转成 SQL 查询"的模型。写一条 instruction/input/output 样例。</li>
+<li>为什么"把同一条好数据复制 100 遍"反而是坏主意？</li>
+</ol></body></html>

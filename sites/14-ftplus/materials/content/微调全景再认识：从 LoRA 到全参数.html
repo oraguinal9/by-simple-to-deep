@@ -1,0 +1,189 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>微调全景再认识：从 LoRA 到全参数 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="lora">微调全景再认识：从 LoRA 到全参数</h1>
+<h2 id="_1">为什么你已经会了基础，还要「进阶」</h2>
+<p>在上一阶段（finetune）里，你已经知道「微调」就是拿一份新数据，让预训练好的大模型继续学一点东西，从而改变它的行为和知识。但那只讲到了「会用一个库跑起来」的程度。这一阶段，我们要回答更硬核的问题：</p>
+<ul>
+<li>LoRA 到底改了模型的哪些参数？为什么它那么省？</li>
+<li>全参数微调（Full Fine-Tuning）和 LoRA 效果差别有多大？什么时候值得上全参数？</li>
+<li>训练到一半 loss 不降了，是数据问题、学习率问题，还是显存爆了？</li>
+<li>训完的 LoRA 怎么「合并」成一份真正能拿去推理的模型？</li>
+</ul>
+<p>这一章先把整张地图铺开。后面每一章再钻进一个具体环节。请把这章当作「总纲」来读，很多术语后面都会反复用到。</p>
+<h2 id="_2">微调的三种主要方式</h2>
+<p>微调按「到底动了多少参数」可以分成三大类。搞懂它们的差别，你才能判断自己该用哪种。</p>
+<h3 id="1-full-fine-tuning">1. 全参数微调（Full Fine-Tuning）</h3>
+<p><strong>做法</strong>：把整个模型所有层的所有权重都拿去做梯度更新。</p>
+<p><strong>特点</strong>：
+- 效果上限最高，最能贴合你的任务；
+- 显存和算力需求极大。一个 7B 模型的全参数微调，除了模型权重本身，还要保存每一层的梯度、优化器状态（Adam 通常要 2 份额外状态），显存通常是模型大小的好几倍；
+- 容易过拟合，数据太少时会「背题」而不是「学会」。</p>
+<p><strong>适用</strong>：数据量足够大（几万条以上）、算力充足、且确实需要把模型能力全部翻新的场景。</p>
+<h3 id="2-peft">2. 参数高效微调（PEFT）</h3>
+<p>这一类的共同点是：<strong>大部分参数保持冻结，只训练一小撮新增的参数</strong>。最主流的就是 LoRA 和 QLoRA。</p>
+<p><strong>LoRA（Low-Rank Adaptation，低秩适配）</strong>：不直接改原权重 W，而是在每一层旁边挂两个小矩阵 A 和 B，训练时只更新 A、B。最终等效权重 = W + A×B。因为 A、B 很小，可训练参数通常只有全模型的 0.1%~1%，显存占用骤降。</p>
+<p><strong>QLoRA</strong>：在 LoRA 基础上，把冻结的基座权重先量化成 4bit 存储，进一步把显存压到最低，让「一块普通消费级显卡也能微调大模型」成为可能。</p>
+<p><strong>适用</strong>：绝大多数个人和中小团队场景。这一阶段的主角就是 LoRA / QLoRA。</p>
+<h3 id="3-adapter-prefix-tuning">3. 适配器 / 前缀微调（Adapter / Prefix Tuning）等</h3>
+<p>属于 PEFT 家族里的其他成员，原理各异，有的在层间插小网络，有的在输入前加可学习向量。理解 LoRA 后这些都不难上手，本章不多展开。</p>
+<h2 id="lora_1">一句话看懂 LoRA 为什么省</h2>
+<p>要理解 LoRA 的省，先看一个关键观察：大模型的权重 W 是巨大的矩阵（比如 4096×4096），但研究者发现，模型在微调时真正需要的变化量 ΔW 其实「秩很低」——也就是说，这个变化不需要那么多独立维度来表达，用两个低秩矩阵相乘就能近似。</p>
+<p>于是 LoRA 的玩法是：</p>
+<pre class="codehilite"><code>原权重：W（冻结，不更新）
+新增两个小矩阵：A（r×k 形状）和 B（d×r 形状）
+微调后的权重：W' = W + A × B
+</code></pre>
+
+<p>其中 r 就是「秩（rank）」，一个很小的数，比如 8、16、64。A×B 相乘的结果形状和 W 一样，但 A、B 本身很小。</p>
+<p>训练时，梯度只流向 A 和 B，原 W 纹丝不动。你不需要为整个 W 存梯度、存优化器状态，所以显存和计算量都大幅下降。</p>
+<blockquote>
+<p><strong>直观类比</strong>：想象一张一万字的合同需要「修改」。全参数微调是逐字重写整份合同；LoRA 是只在合同旁边贴几张便签，写着「这段改成这样、那段改成那样」，原合同一个字不动。</p>
+</blockquote>
+<h2 id="vs-vs-rag">微调 vs 提示词 vs RAG：到底该用哪个</h2>
+<p>很多人纠结：都 2026 年了，大模型那么强，我还要不要微调？</p>
+<p>这里给一张决策表：</p>
+<table>
+<thead>
+<tr>
+<th>你的诉求</th>
+<th>推荐方案</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>让模型知道一批最新/私有知识</td>
+<td>RAG 检索增强</td>
+<td>不改模型，答案可追溯、可更新</td>
+</tr>
+<tr>
+<td>让模型「说话风格/格式」变成你的</td>
+<td>提示词工程，必要时轻量微调</td>
+<td>风格偏好用提示词就能带</td>
+</tr>
+<tr>
+<td>让模型学会一种<strong>固定的输出协议</strong></td>
+<td>轻量微调或结构化输出</td>
+<td>稳定性比提示词更可靠</td>
+</tr>
+<tr>
+<td>让模型掌握一个<strong>需要内化推理的技能</strong></td>
+<td>微调</td>
+<td>技能很难靠检索喂进去</td>
+</tr>
+<tr>
+<td>想让模型<strong>更懂你的领域术语和习惯</strong></td>
+<td>微调</td>
+<td>术语分布靠数据改变</td>
+</tr>
+</tbody>
+</table>
+<p>微调不是万能的，它不能凭空塞给你模型没见过的知识（那是 RAG 的事），它的核心价值是<strong>改变模型的行为倾向、输出格式、领域语感</strong>。搞清这个边界，你才不会把微调用错地方。</p>
+<h2 id="_3">微调还改变了什么：几个容易忽略的细节</h2>
+<p>除了「行为」，微调还会在几个不容易察觉的地方产生影响，值得提前知道：</p>
+<p><strong>1. 输出风格会「传染」</strong>。你微调数据的语气、标点习惯、回复长度，模型都会学过去。如果你的数据是「短促、口语化」的，模型会整体变短；如果数据都是「结构化、带编号」的，模型也会倾向编号输出。这是把双刃剑——想要什么样的风格，数据就得是什么风格。</p>
+<p><strong>2. 能力会「此消彼长」</strong>。微调是「重定向」而不是「叠加」。你在 A 任务上花的训练量，会挤占模型在 B 任务上的表现。这就是为什么社区常说「微调要克制」——训得越久越专，通用能力越可能流失。</p>
+<p><strong>3. 同一条数据，顺序不同效果不同</strong>。数据排列顺序（比如把难样本放前面还是后面）会影响训练过程。实践中常见做法是「简单 → 难」或随机打乱并固定随机种子，保证可复现。</p>
+<p><strong>4. 模型大小决定「天花板」</strong>。LoRA 再厉害，也是在一个 7B 基座上改造。基座太小，能力上限就低；这就是为什么同样微调，14B 通常比 7B 更聪明——它「天生的底子」更好。</p>
+<h2 id="_4">一个完整的微调项目的成本构成</h2>
+<p>很多初学者以为微调的成本 = GPU 费用。实际上一个完整的微调项目，成本分布通常是：</p>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>占比</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据准备与清洗</td>
+<td>40%~60%</td>
+<td>最容易被低估，也最决定成败</td>
+</tr>
+<tr>
+<td>训练与调参</td>
+<td>20%~30%</td>
+<td>显存/时间，QLoRA 已大幅压缩</td>
+</tr>
+<tr>
+<td>评测与迭代</td>
+<td>15%~25%</td>
+<td>反复「评测→修数据→重训」</td>
+</tr>
+<tr>
+<td>部署与维护</td>
+<td>10%~20%</td>
+<td>合并导出、推理服务、监控</td>
+</tr>
+</tbody>
+</table>
+<p>看到没？<strong>真正的大头是数据，不是算力。</strong> 这也是为什么本课程把数据准备放在第 2 章——它不是「先凑合弄弄」的环节，而是整个项目的根基。</p>
+<h2 id="_5">一条完整的微调流水线（本阶段地图）</h2>
+<p>后面每一章会对应流水线上的一个环节。提前给你全貌：</p>
+<pre class="codehilite"><code>1. 数据准备（第2章）
+   收集/构造指令数据 → 转成模型要的格式
+
+2. 快速跑通（第3章）
+   用 Unsloth 一行代码加载 + 训练，先让流程跑起来
+
+3. 资源规划（第4章）
+   选 4bit 量化、算显存，决定模型多大
+
+4. 指令模板（第5章）
+   用 ChatML / 对话模板把数据包成模型认识的输入
+
+5. 小模型练手（第6章）
+   用 MiniMind 从零把「训练」这件事彻底搞明白
+
+6. 全参数 vs LoRA（第7章）
+   对比两者，理解效果与成本的权衡
+
+7. 合并导出（第8章）
+   把 LoRA 权重合并回基座，导出能部署的格式
+
+8. 评测（第9章）
+   用指标和人工判断你的模型到底变好了没有
+
+9. 落地（第10章）
+   做一个能实际问答的领域助手
+</code></pre>
+
+<p>这一章看到这里，你已经知道微调是「改行为」而不是「塞知识」、LoRA 是「贴便签」而不是「重写」、三种方式怎么选。接下来，我们从最根本的数据开始。</p>
+<h2 id="_6">常见误区速查</h2>
+<p>学习微调的人常踩这几个坑，提前帮你排雷：</p>
+<ul>
+<li><strong>「微调 = 让模型记住更多知识」</strong>：错。知识靠 RAG，微调改行为。硬用微调塞知识，结果是「背题」且更新困难。</li>
+<li><strong>「数据越多越好」</strong>：错。小而精胜过大而杂，配比和清洗比数量重要。</li>
+<li><strong>「loss 降到最低就成功了」</strong>：错。loss 低可能只是过拟合，要拿评测集验证泛化。</li>
+<li><strong>「LoRA 是低配凑合方案」</strong>：错。对多数任务，LoRA 效果已接近全参数，是性价比之王。</li>
+<li><strong>「训完的 LoRA 直接能部署」</strong>：错。必须合并回基座才能独立部署（第 8 章）。</li>
+</ul>
+<h2 id="_7">小练习</h2>
+<ol>
+<li>用自己的话说清：LoRA 训练时，哪些参数会被更新，哪些不会？</li>
+<li>如果公司想让你做一个「内部客服机器人」，它需要既懂公司业务（私有知识）又会按固定话术回答。你会分别用到 RAG 和微调的哪个能力？</li>
+<li>你手头只有一张 8GB 显存的显卡，想微调 7B 模型，全参数、LoRA、QLoRA 里你选哪个？为什么？</li>
+</ol>
+<p>下一章，我们走进微调的第一道工序：<strong>把杂乱的数据，变成模型听得懂的格式</strong>。</p></body></html>

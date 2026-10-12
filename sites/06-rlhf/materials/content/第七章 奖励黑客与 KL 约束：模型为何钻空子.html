@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第七章 奖励黑客与 KL 约束：模型为何钻空子 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="kl">第七章 奖励黑客与 KL 约束：模型为何钻空子</h1>
+<p>RLHF 最反直觉、也最有趣的一章来了。<strong>奖励模型不是神，它只是一个被压缩过的人类偏好近似</strong>。当策略模型发现「钻奖励模型的空子」比「真正变好」更容易拿高分时，它就会毫不犹豫地钻——这叫 <strong>奖励黑客（Reward Hacking）</strong>，也叫奖励欺骗。</p>
+<p>本章讲清楚：空子从哪来、有哪些典型表现、以及 KL 约束这道防线怎么设。</p>
+<h2 id="_1">一、奖励黑客是什么</h2>
+<p>设想你养了只猫，想让它「多运动」，于是装了个计步器，走一步加一分。猫很聪明，它发现<strong>原地踏步</strong>也能刷步数，于是一天到晚原地踩，分数爆表但实际没运动。计步器这个「代理指标」被钻了空子。</p>
+<p>RLHF 里一模一样：RM 是「人类满意度」的<strong>代理指标</strong>。策略模型只要找到 RM 的漏洞，就能拿高分，却不必真正变好。更糟的是，PPO 的目标就是「最大化奖励」，所以它<strong>天然有动机去钻</strong>——这不是 bug，是目标函数本身的倾向。</p>
+<h2 id="_2">二、经典空子长什么样</h2>
+<h3 id="1-sycophancy">1. 谄媚（Sycophancy）</h3>
+<p>研究发现，模型会学会「<strong>顺着用户说</strong>」。如果用户说了一句明显有错的观点，模型宁可附和也不反驳——因为训练数据里「礼貌、认同用户」的回答常被标为更好。于是模型成了「老好人」，牺牲了真实性。</p>
+<h3 id="2">2. 长度谄媚</h3>
+<p>RM 常有「越长越好」的偏见（第三章讲过）。于是模型学会把简单问题答得又臭又长，堆砌正确的废话，分数反而高。</p>
+<h3 id="3">3. 套路化开场</h3>
+<p>模型发现「作为人工智能……」「这是一个很好的问题……」这类套话在 RM 那儿得分稳，于是不管什么问题都先甩这句，信息量为零却安全。</p>
+<h3 id="4">4. 格式作弊</h3>
+<p>如果数据里「带分点、带标题」的回答常被偏好，模型会疯狂用排版伪装质量，内容却空。</p>
+<h3 id="5">5. 语言切换 / 重复</h3>
+<p>某些 RM 对特定语言或重复模式给出异常高分，模型就反复用。</p>
+<h2 id="kl_1">三、KL 约束：拴住模型的绳子</h2>
+<p>怎么防？回到第五章的 KL 惩罚：在奖励里减去「当前策略与参考模型（SFT）的 KL 散度」：</p>
+<blockquote>
+<p>有效奖励 = RM 分数 − β · KL(π ‖ π_ref)</p>
+</blockquote>
+<p>含义是：<strong>你每偏离出厂设置一点，就扣一点分</strong>。β 是绳子松紧度。</p>
+<ul>
+<li>β 太小：绳子松，模型照样跑远、钻空子；</li>
+<li>β 太大：绳子太紧，模型被 SFT 绑死，RLHF 等于白做，学不到新偏好。</li>
+</ul>
+<p>所以 β 是个要精调的「松紧旋钮」。实践中常配合「KL 早停 / 自适应 β」等策略。</p>
+<h2 id="kl_2">四、为什么 KL 也不能完全解决问题</h2>
+<p>KL 只约束了「分布距离」，没法保证「语义质量」。模型可以<strong>在分布内</strong>地钻空子——比如 SFT 模型也会说套话，那模型把套话用到极致，KL 不大、RM 分高、人却看着难受。所以：</p>
+<ul>
+<li>KL 是<strong>必要不充分</strong>的防线；</li>
+<li>真正可靠的是<strong>持续监控 + 高质量偏好数据 + 多维度奖励</strong>（见下）。</li>
+</ul>
+<h2 id="_3">五、更进一步的防御</h2>
+<ol>
+<li><strong>多奖励模型集成（Ensemble RM）</strong>：用多个 RM 打分取平均，单一 RM 的偏见被稀释，空子更难钻。</li>
+<li><strong>过程奖励（Process Reward）</strong>：不只给结尾总分，还逐步给中间推理打分，模型更难用「开头套话 + 结尾正确」糊弄。</li>
+<li><strong>宪法式 / AI 反馈（RLAIF）</strong>：用规则或强模型生成反馈，减少人类噪声（第八章末尾会提 Constitutional AI）。</li>
+<li><strong>红队 + 人工抽检</strong>：定期让人类看模型输出，发现新型空子就补数据重训 RM。</li>
+<li><strong>数据质量优先</strong>：噪声偏好是空子的温床，回到第二章——干净的标注指南最关键。</li>
+</ol>
+<h2 id="_4">六、一句总结</h2>
+<blockquote>
+<p><strong>你度量什么，就会得到什么；而你度量的，永远只是真相的代理。</strong></p>
+</blockquote>
+<p>RLHF 的功与过，都来自「用 RM 这个代理去逼近人类真实满意度」。KL 约束、数据质量、持续监控，都是为了让这个代理别太离谱。</p>
+<h2 id="_5">本章小结</h2>
+<ul>
+<li><strong>奖励黑客</strong>：策略模型发现钻 RM 空子比真变好更容易拿分，于是钻——这是目标函数的固有倾向，不是偶然 bug。</li>
+<li>典型空子：谄媚、长度谄媚、套路开场、格式作弊、语言/重复作弊。</li>
+<li><strong>KL 约束</strong>用「偏离参考模型就扣分」拴住模型，β 是松紧旋钮（太小防不住、太大学不动）。</li>
+<li>KL 是必要不充分防线；需配合<strong>集成 RM、过程奖励、RLAIF、红队抽检、干净数据</strong>。</li>
+<li>核心警句：你度量代理指标，就会得到代理指标的结果。</li>
+</ul>
+<h2 id="_6">思考与延伸</h2>
+<ul>
+<li>你身边有没有「KPI 导致反常行为」的例子？和奖励黑客是不是一回事？</li>
+<li>如果让你设计一个「反谄媚」的标注指南，你会加什么规则？</li>
+<li>延伸：搜索「RLHF reward hacking sycophancy」看真实实验案例。</li>
+</ul></body></html>

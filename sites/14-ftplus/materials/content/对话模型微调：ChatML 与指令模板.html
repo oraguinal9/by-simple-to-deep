@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>对话模型微调：ChatML 与指令模板 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="chatml">对话模型微调：ChatML 与指令模板</h1>
+<p>你前面准备的数据是「问题 + 答案」，但训练框架不会直接把两段文字丢给模型。它需要把对话包成模型认识的<strong>模板</strong>，模型才能学会「谁是用户、谁是助手、从哪开始回答」。这一章把模板这件事讲透。</p>
+<h2 id="_1">为什么需要模板</h2>
+<p>大模型本质是「下一个 token 预测器」。它训练时看到的输入是一长串 token。要让它在推理时表现出「对话能力」，训练数据里就必须明确区分对话的<strong>角色边界</strong>：</p>
+<ul>
+<li>哪部分是用户说的；</li>
+<li>哪部分是助手说的；</li>
+<li>哪部分是系统提示（可选）；</li>
+<li>模型应该从哪个位置开始生成回答。</li>
+</ul>
+<p>模板就是干这个的——用特殊标记符把这些边界标出来。</p>
+<h2 id="chatml_1">ChatML：最流行的对话模板</h2>
+<p>ChatML 是 OpenAI 提出的一种模板格式，后被开源社区广泛采用。它的核心是几个特殊 token：</p>
+<pre class="codehilite"><code>&lt;|im_start|&gt;role
+内容&lt;|im_end|&gt;
+</code></pre>
+
+<p>其中 <code>role</code> 可以是 <code>system</code>（系统）、<code>user</code>（用户）、<code>assistant</code>（助手）。</p>
+<p>一个完整的对话长这样：</p>
+<pre class="codehilite"><code>&lt;|im_start|&gt;system
+你是一个乐于助人的中文助手。&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+请用一句话解释什么是微调。&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+微调是指……&lt;|im_end|&gt;
+</code></pre>
+
+<p>训练时，<strong>损失只算 <code>assistant</code> 那一段</strong>。模型看到前面的 system + user，要学着续写出正确的 assistant 回答。它不会真的「学会对话」——它学会的是「看到这个模式的输入，接着写下一段」。</p>
+<h2 id="loss">关键理解：loss 只算助手回答</h2>
+<p>这一点极其重要，很多初学者搞错。</p>
+<p>如果损失把整段（包括 user 问题）都算进去，模型就只会「复读输入」，失去意义。正确做法是：<strong>屏蔽掉 user 和 system 部分的 loss，只让模型预测 assistant 部分</strong>。</p>
+<p>这对应到训练里就是一个「mask（掩码）」机制。你的训练数据如果已经是完整模板文本，框架通常会自动按模板识别 assistant 段做 mask；如果用原始格式（如 ShareGPT），框架会先把对话转成模板，再 mask。</p>
+<h2 id="_2">不同模型的模板不一样</h2>
+<p><strong>这是最容易踩的坑</strong>：每个模型的「官方模板」可能不同。Qwen 有 Qwen 的模板，Llama 有 Llama 的模板，ChatML 只是其中一种。</p>
+<p>例如 Llama 系常用：</p>
+<pre class="codehilite"><code>&lt;|begin_of_text|&gt;&lt;|start_header_id|&gt;user&lt;|end_header_id|&gt;
+
+你好&lt;|eot_id|&gt;&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;
+
+你好！&lt;|eot_id|&gt;
+</code></pre>
+
+<p>如果训练用的模板和推理时用的不一致，模型会「乱说话」甚至报错。</p>
+<p><strong>铁律</strong>：<strong>训练模板必须和该模型的 tokenizer 默认模板一致</strong>。用 HF 的 tokenizer 加载模型时，<code>tokenizer.chat_template</code> 就是它该用的模板，别自己瞎造。</p>
+<h2 id="tokenizer">实操：用 tokenizer 把对话变成训练文本</h2>
+<p>正确做法是<strong>不要手动拼字符串</strong>，而是让 tokenizer 帮你转。HF 的 <code>apply_chat_template</code> 就是干这个的：</p>
+<pre class="codehilite"><code class="language-python">messages = [
+    {&quot;role&quot;: &quot;system&quot;, &quot;content&quot;: &quot;你是一个财务助手。&quot;},
+    {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;报销截止日期是什么时候？&quot;},
+]
+text = tokenizer.apply_chat_template(
+    messages, tokenize=False, add_generation_prompt=False
+)
+</code></pre>
+
+<p>得到的 <code>text</code> 就是符合该模型模板的完整训练样本，你再把它喂给训练器即可。这样<strong>模板永远和模型匹配</strong>，不踩坑。</p>
+<h2 id="_3">系统提示要不要写进训练数据</h2>
+<p>取决于你的目标：</p>
+<ul>
+<li><strong>你的助手始终扮演固定角色</strong>（如财务专家）→ 把系统提示写进每条训练数据，让模型稳定记住这个角色；</li>
+<li><strong>你的助手要灵活处理各种对话</strong> → 系统提示可以留空，或只加通用的「乐于助人」描述。</li>
+</ul>
+<p>经验：训练数据里的 system 越稳定，推理时越可靠。如果你想让它固定当某类专家，就每条都带上那段 system。</p>
+<h2 id="_4">模板不对会发生什么：看两个翻车现场</h2>
+<p>理解「模板必须匹配」最有效的方式，是看模板错了的实际症状：</p>
+<p><strong>翻车 1：训练模板和推理模板不一致。</strong>
+你训练时用 ChatML 把数据包成 <code>&lt;|im_start|&gt;...</code>，但推理时用的基座模型默认模板是 Llama 风格。模型推理时看到的输入和训练时完全不同，回答会：乱码、重复、前言不搭后语，甚至把特殊标记原样吐出来。<strong>症状是「训练时 loss 正常，推理时模型像坏了一样」</strong>——这时优先怀疑模板。</p>
+<p><strong>翻车 2：模板里少了结尾标记。</strong>
+ChatML 的 <code>&lt;|im_end|&gt;</code> 如果漏了，模型就不知道「这句话说完了」，会一直续写下去，把下一段 user 的内容也当回答生成。<strong>症状是「回答停不下来、把问题也复述了」</strong>。</p>
+<p><strong>排查口诀</strong>：先打印 <code>tokenizer.chat_template</code> 和 <code>apply_chat_template</code> 的产物，肉眼确认「和训练数据一致」再开训。</p>
+<h2 id="mask-assistant">mask 机制：为什么「只算 assistant」如此关键</h2>
+<p>再深入一点理解 mask。训练时，一个 batch 里的每个位置都有一个「是否参与损失计算」的标记。实现上常见两种：</p>
+<ol>
+<li><strong>数据层面</strong>：把 user/system 部分的 label 设成 <code>-100</code>（HF 约定，-100 不参与 loss）；</li>
+<li><strong>模板层面</strong>：训练框架解析出 assistant 段，自动屏蔽其他段。</li>
+</ol>
+<p><strong>如果你手动拼文本训练，忘了 mask</strong>，模型会学到「把用户问题也背下来」，效果会变得很怪（复读机）。所以：</p>
+<blockquote>
+<p><strong>能用框架的自动模板转换，就别手拼；手拼就一定要做 mask。</strong></p>
+</blockquote>
+<h2 id="token">特殊 token：背后的「哑巴符号」</h2>
+<p><code>&lt;|im_start|&gt;</code>、<code>&lt;|im_end|&gt;</code> 这些看着像文本，其实是被 tokenizer 当作<strong>特殊 token</strong> 处理的——它们有独立 token id，<strong>不会被拆成普通字</strong>，因此能安全地当「角色分隔符」用，不会和正文混淆。</p>
+<p>这也是为什么「自己发明一套分隔符」很危险：如果 tokenizer 不认识你的符号，它会被拆成普通 token，训练时模型学到的边界就乱了。<strong>始终用该模型官方定义的特殊 token。</strong></p>
+<h2 id="_5">多轮对话：让助手记住上下文</h2>
+<p>指令微调不止单轮。多轮对话数据的价值是让模型学会「带着历史上下文回答」：</p>
+<pre class="codehilite"><code>&lt;|im_start|&gt;user
+报销怎么申请？&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+第一步……第二步……&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+那需要什么材料？&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+需要……&lt;|im_end|&gt;
+</code></pre>
+
+<p>第二问「那需要什么材料？」单独看是残缺的，但模型结合上文知道是在问报销。<strong>训练数据里带几轮这样的历史，推理时模型的上下文能力会明显更好。</strong></p>
+<p>准备多轮数据的建议：
+- 每条对话从 2~6 轮不等，别全是单轮；
+- 多轮里「用户追问」「用户换话题」「用户确认」等真实交互形态都要有；
+- 推理时的 <code>messages</code> 列表要和训练时的轮数习惯一致。</p>
+<h2 id="vs">指令模板 vs 对话模板</h2>
+<p>还有一类叫「指令微调（instruction tuning）」的数据，有时只有一轮 user/assistant，没有多轮对话。它和对话模板不冲突——指令样本本质就是单轮的对话，用同样的模板包起来即可。</p>
+<p>多轮对话数据（多轮 user/assistant 交替）则让模型学会「追着上下文走」，这对客服、助手类应用很有价值。准备数据时如果能带几轮历史，效果往往更好。</p>
+<h2 id="_6">小练习</h2>
+<ol>
+<li>用 <code>tokenizer.apply_chat_template</code> 把下面这段对话转成文本，观察输出的特殊标记是什么：<code>[{"role":"user","content":"你好"}]</code>。</li>
+<li>为什么「损失只算 assistant 部分」？如果全算会怎样？</li>
+<li>换一个模型（比如 Llama），看看它的模板和 ChatML 有什么不同——用 <code>tokenizer.chat_template</code> 打印出来对比。</li>
+<li>进阶：故意把模板拼错（比如用错结尾标记）训练一个小模型，观察推理时的症状，验证「模板不匹配」的后果。</li>
+</ol>
+<p>下一章我们换一个主角：用<strong>中文小模型 MiniMind 从零把训练做一遍</strong>，把前面所有概念落到最小可运行的代码里。</p></body></html>

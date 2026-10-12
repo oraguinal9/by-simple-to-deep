@@ -1,0 +1,23 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 临时与备份
+*.log
+*.tmp
+*.bak
+*.bak[0-9]*
+*~
+
+# 第三方材料（版权归属原作者，不入库）
+sites/02-llm-course/materials/
+
+# 依赖与构建产物（本项目为纯静态，通常无此需求）
+node_modules/
+dist/

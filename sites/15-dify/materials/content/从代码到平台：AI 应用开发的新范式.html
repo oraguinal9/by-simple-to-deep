@@ -1,0 +1,181 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>从代码到平台：AI 应用开发的新范式 | AI 应用开发平台 L15</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L15 学习路线图</a><span class='r'>AI 应用开发平台 · dify.zbjh.top</span></div><h1 id="ai">从代码到平台：AI 应用开发的新范式</h1>
+<h2 id="_1">这一阶段要解决的问题</h2>
+<p>前面 14 个阶梯，你已经搞懂了模型原理、RAG、Agent、微调……但你可能还有一个困惑：<strong>学完这么多，我到底怎么把它变成别人能用的东西？</strong></p>
+<p>自己写代码调 API、做前端、处理并发和权限，对大多数人来说门槛太高。这一阶段的主角——<strong>AI 应用开发平台</strong>（我们以 Dify 为代表）——就是为了回答这个问题：把「调模型、接知识库、编排流程、发布应用」这些事，从写代码变成<strong>拖拽配置</strong>。</p>
+<p>这一章先建立全局认知：为什么会出现这类平台、它解决什么问题、生态里有哪些选择。</p>
+<h2 id="_2">为什么「代码优先」不适合所有人</h2>
+<p>过去做一个 AI 应用，典型路径是：</p>
+<pre class="codehilite"><code>选模型 → 调 API → 写后端逻辑 → 接知识库 → 做前端 → 部署运维 → 迭代
+</code></pre>
+
+<p>每一步都是专业活。这带来三个现实问题：</p>
+<ol>
+<li><strong>门槛高</strong>：前端、后端、运维都要会，一个人很难全栈；</li>
+<li><strong>迭代慢</strong>：改一个提示词要改代码、重新部署，一天只能试几次；</li>
+<li><strong>浪费</strong>：每个应用都在重复造「接模型、管上下文」的轮子。</li>
+</ol>
+<p><strong>AI 应用开发平台的思路</strong>：把重复的轮子全部做成可视化组件，你只需要关心「业务逻辑」——用什么模型、喂什么资料、怎么编排回答。</p>
+<h2 id="_3">平台解决的核心问题</h2>
+<p>用一个比喻理解：<strong>写代码做 AI 应用像「从零盖楼」，用平台做像「用乐高搭楼」。</strong></p>
+<p>平台提供的核心能力：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>解决什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型接入</td>
+<td>不用自己写 SDK，选个模型就能用</td>
+</tr>
+<tr>
+<td>提示词管理</td>
+<td>可视化编辑、版本对比，不用改代码</td>
+</tr>
+<tr>
+<td>知识库</td>
+<td>上传文档自动切片、检索，RAG 开箱即用</td>
+</tr>
+<tr>
+<td>工作流编排</td>
+<td>拖拽节点定义流程，不用写后端逻辑</td>
+</tr>
+<tr>
+<td>Agent 工具</td>
+<td>内置工具/可接自定义工具，让模型干活</td>
+</tr>
+<tr>
+<td>应用发布</td>
+<td>一键生成网页、API、嵌入代码</td>
+</tr>
+<tr>
+<td>日志与监控</td>
+<td>看每次调用的输入输出、成本和错误</td>
+</tr>
+</tbody>
+</table>
+<p><strong>这些能力单独拆开你都见过</strong>（L4 的 RAG、L9 的 Agent、L11 的提示词），平台的价值是把它们<strong>集成并产品化</strong>——你不用再自己拼装。</p>
+<h2 id="_4">主流平台一览</h2>
+<p>2026 年，AI 应用开发平台已经是个热闹的赛道。按开源/闭源分两类：</p>
+<p><strong>开源平台（可自部署）</strong>：
+- <strong>Dify</strong>：目前最流行的开源 LLM 应用开发平台（GitHub 十多万星），支持工作流、Agent、知识库、模型管理等，社区活跃；
+- <strong>FastGPT</strong>：国产开源，知识库问答场景强，中文友好；
+- <strong>Langflow</strong>：可视化流式编排，偏 LangChain 生态。</p>
+<p><strong>闭源平台（托管服务）</strong>：
+- <strong>Coze（扣子）</strong>：字节跳动出品，中文上手快，插件丰富；
+- <strong>百度千帆 / 阿里百炼</strong>：国内云厂商的模型应用平台，绑定自家云生态。</p>
+<p>这一阶段我们主学 <strong>Dify</strong>——它开源可自部署、功能全面、文档中文友好，是学习这类平台的最佳入口。学会 Dify，其他平台都是「换皮」。</p>
+<h2 id="_5">一个平台的典型使用流程</h2>
+<p>不管哪个平台，使用路径基本一致：</p>
+<pre class="codehilite"><code>1. 接入模型（API Key 或本地模型）
+2. 创建应用（聊天助手 / 工作流 / Agent 等类型）
+3. 配置提示词与模型参数
+4. （可选）接入知识库 / 工具
+5. 调试：右侧对话框试跑
+6. 发布：网页链接 / API / 嵌入
+</code></pre>
+
+<p><strong>关键洞察</strong>：平台的精髓是「调试闭环快」。改提示词 → 立即试 → 看效果 → 再改，一次几分钟，一天能迭代几十版。这在传统开发里不可想象。</p>
+<h2 id="_6">用平台不等于「不懂原理」</h2>
+<p>有人担心：都用平台了，前面学的原理是不是白学了？</p>
+<p><strong>恰恰相反</strong>，懂原理的人用平台更强：</p>
+<ul>
+<li>懂 RAG 才知道<strong>知识库切片大小怎么调、检索阈值设多少</strong>；</li>
+<li>懂 Agent 才知道<strong>工具描述怎么写模型才爱调用、防 prompt 注入</strong>；</li>
+<li>懂提示词才知道<strong>结构化输出怎么写系统提示词才稳</strong>；</li>
+<li>懂模型才知道<strong>什么时候该换大模型、什么时候小模型够用</strong>。</li>
+</ul>
+<p><strong>平台是「放大器」：它把懂原理的人的生产力放大 10 倍，但不会把不懂的人变懂。</strong> 所以这一阶段你依然要带着前面所有知识来学。</p>
+<h2 id="_7">什么时候用平台，什么时候自己写代码</h2>
+<p>平台不是银弹，给出决策参考：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>快速验证想法 / 内部工具</td>
+<td>平台（天级上线）</td>
+</tr>
+<tr>
+<td>标准问答、客服、知识库</td>
+<td>平台（开箱即用）</td>
+</tr>
+<tr>
+<td>复杂定制逻辑 / 深度集成</td>
+<td>自己写代码（或平台 + 自定义代码节点）</td>
+</tr>
+<tr>
+<td>数据敏感、需完全掌控</td>
+<td>自部署 Dify（开源，私有化）</td>
+</tr>
+<tr>
+<td>高性能高并发生产</td>
+<td>平台 + 自己优化（或直接代码）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>常见误区</strong>：把平台当「玩具」或把平台当「万能」。正确姿势是——<strong>用平台快速落地 80% 的场景，剩下的 20% 用代码补齐。</strong></p>
+<h2 id="_8">常见误区速查</h2>
+<p>学习这类平台，新手常踩这几个坑：</p>
+<ul>
+<li><strong>「用平台 = 不需要懂原理」</strong>：错。原理是「调参的地图」，不懂原理只会瞎试；</li>
+<li><strong>「平台 = 低端玩具」</strong>：错。Dify 这类平台能支撑真实生产（大量公司用它上线业务）；</li>
+<li><strong>「可视化 = 不能写代码」</strong>：错。平台提供代码节点/自定义工具，进阶玩法照样写代码；</li>
+<li><strong>「平台做的东西都一样」</strong>：错。同样的平台，懂行的人配置出来的效果天差地别；</li>
+<li><strong>「学会 Dify 就完事了」</strong>：错。Dify 是入口，核心是「应用设计能力」——那是平台之外的能力。</li>
+</ul>
+<h2 id="_9">平台对「个人开发者」的意义</h2>
+<p>过去做一个 AI 产品，个人开发者要同时是前端、后端、运维、算法。平台的出现，把这个门槛大幅拉低：</p>
+<ul>
+<li><strong>一个人 = 一个产品团队</strong>：设计、配置、发布，一个人全程搞定；</li>
+<li><strong>MVP 速度</strong>：从想法到可用的产品，从几周压缩到几天甚至几小时；</li>
+<li><strong>低成本试错</strong>：做 10 个想法、只留 1 个，成本远低于传统开发；</li>
+<li><strong>专注业务</strong>：把时间花在「业务逻辑」而不是「技术栈」上。</li>
+</ul>
+<p><strong>这是 2026 年个人开发者最大的红利之一</strong>：AI 应用开发的「工程门槛」正在被平台抹平，拼的是想法和对业务的理解。</p>
+<h2 id="_10">平台生态的演进趋势</h2>
+<p>理解平台从哪里来，才能判断它往哪去：</p>
+<ul>
+<li><strong>第一代</strong>：模型 API（OpenAI 时代）——只有模型，一切自己造；</li>
+<li><strong>第二代</strong>：编排框架（LangChain）——代码库，省了些轮子但仍要写码；</li>
+<li><strong>第三代</strong>：应用平台（Dify/Coze）——可视化，把「应用开发」产品化；</li>
+<li><strong>第四代（演进中）</strong>：智能体平台——不只是编排，而是「AI 自己设计流程」的雏形。</li>
+</ul>
+<p><strong>你现在学 Dify，学的是第三代的代表</strong>——但看懂三代之间的演进逻辑，你就能更快抓住下一代的机会。</p>
+<h2 id="_11">小练习</h2>
+<ol>
+<li>用自己的话说清：AI 应用开发平台帮你省掉了哪些「重复造轮子」的工作？</li>
+<li>对比 Dify 和 Coze，查资料列出它们各自适合的场景。</li>
+<li>你已经学过 RAG、Agent、提示词——想一个场景，说说平台里分别会用哪个功能来实现它？</li>
+<li>进阶：画出「从模型 API 到应用平台」的演进图，标注每一代解决了什么问题。</li>
+</ol>
+<p>下一章，我们动手装 Dify 并搭第一个应用——<strong>Dify 初体验</strong>。</p></body></html>

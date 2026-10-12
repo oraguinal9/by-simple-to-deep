@@ -1,0 +1,339 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Embedding 与向量库选型 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="embedding">Embedding 与向量库选型</h1>
+<p>前两篇我们把文档变成了"干净文本"，又切成了"能独立回答问题的小块"。现在的问题是：这些文本块，机器怎么"理解"它们的含义，又怎么快速找到和问题最像的那几块？</p>
+<p>答案就两个字：<strong>向量（Vector）</strong>。把文本变成向量，叫 <strong>Embedding</strong>（嵌入，读作"恩贝丁"）；存向量、查向量的数据库，叫<strong>向量库（Vector Database）</strong>。这篇文章把这两件事一次讲透，并给出一份适合中文企业知识库的选型建议。</p>
+<h2 id="41-embedding">4.1 用生活比喻理解 Embedding</h2>
+<p>想象你在整理名片。张三、李四、王五的名片，你要按"工作领域"分类，但你没法问名片"你懂不懂金融"。于是你想了个办法：给每张名片打 100 个标签分，比如"金融 0.9、医疗 0.1、法律 0.05……"。整理完，你发现<strong>做金融的名片分数相近，做法律的名片分数相近，而金融和法律的名片差很远</strong>。</p>
+<p>Embedding 就是这件事，只不过标签不是 100 个，而是<strong>几百到几千个"看不见的维度"</strong>，而且标签不是人想的，是模型学出来的。每个文本块都变成一个"高维坐标点"，含义相近的文本，坐标相近；含义无关的文本，坐标很远。"找相关文本"就变成了"找最近的坐标点"——几何问题。</p>
+<blockquote>
+<p>一个关键直觉：<strong>Embedding 追求的是"语义相近 → 向量相近"，而不是"字面相同 → 向量相同"</strong>。所以问"年假几天"，系统能找到写着"员工每年可休带薪年假 5 至 15 天"的块，哪怕字面上没有一个"几"字。这就是向量检索相对关键词检索的核心优势。</p>
+</blockquote>
+<h2 id="42-embedding">4.2 怎么选 Embedding 模型</h2>
+<p>Embedding 模型五花八门，选错是最常见的翻车原因之一。尤其是<strong>中文场景</strong>，很多人在英文模型上表现不错，换到中文就"反应迟钝"。这里按语言分两类介绍。</p>
+<h3 id="bge-m3e-text2vec">中文优先：BGE / m3e / text2vec</h3>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>特点</th>
+<th>一句话点评</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BAAI/bge-large-zh-v1.5</code></td>
+<td>智源出品，中文检索榜常年前列，自带"带指令查询"模式</td>
+<td><strong>中文企业知识库首选</strong></td>
+</tr>
+<tr>
+<td><code>BAAI/bge-small-zh-v1.5</code></td>
+<td>BGE 的小号版，速度更快、更省资源，精度略低</td>
+<td>资源有限或规模超大时用</td>
+</tr>
+<tr>
+<td><code>m3e-base</code> / <code>m3e-large</code></td>
+<td>摩搭社区出品，中英混合，训练数据侧重中文</td>
+<td>中文为主、兼顾英文时的不错选择</td>
+</tr>
+<tr>
+<td><code>text2vec-large-chinese</code></td>
+<td>网易有道的开源中文模型</td>
+<td>老牌选择，如今略逊于 BGE</td>
+</tr>
+</tbody>
+</table>
+<h3 id="openaie5">英文 / 多语：OpenAI、E5</h3>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>特点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>text-embedding-3-small</code> / <code>text-embedding-3-large</code></td>
+<td>OpenAI 出品，API 调用，省心但按量付费、数据出境需合规</td>
+<td>英文为主、不在意成本与合规</td>
+</tr>
+<tr>
+<td><code>intfloat/multilingual-e5-base</code></td>
+<td>多语种模型，覆盖中文</td>
+<td>多语言知识库（如跨国企业内部资料）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_1">选型的三条判断标准</h3>
+<p>不管选哪个，都用这三条标准衡量：</p>
+<ol>
+<li><strong>中文效果</strong>：必须用<strong>中文数据集</strong>实测，别只看宣传榜。拿 20 条你们行业的典型问题去跑，看检索命中率。</li>
+<li><strong>维度与速度</strong>：维度越高越精细但越慢越贵（<code>bge-large</code> 是 1024 维，<code>bge-small</code> 是 512 维）。十万级文档，小模型往往够用。</li>
+<li><strong>部署成本</strong>：开源模型可以本地部署（公司内网、数据不出门）；API 模型省运维但每月有账单。企业知识库强烈建议<strong>优先本地部署开源中文模型</strong>——数据安全往往是硬需求。</li>
+</ol>
+<p>使用示例（bge 中文模型，注意加"查询前缀"的官方用法）：</p>
+<pre class="codehilite"><code class="language-python">from sentence_transformers import SentenceTransformer
+from sentence_transformers.util import cos_sim
+
+# 加载中文 embedding 模型
+model = SentenceTransformer(&quot;BAAI/bge-large-zh-v1.5&quot;)
+
+# 对查询加指令前缀（bge 官方推荐，能明显提升检索效果）
+query = &quot;年假有几天？&quot;
+query_vec = model.encode(&quot;为这个句子生成表示以用于检索相关文章：&quot; + query)
+
+# 文档块不加前缀
+doc_vec = model.encode(&quot;员工可根据工龄享受每年 5 至 15 天的带薪年假。&quot;)
+
+score = cos_sim(query_vec, doc_vec)
+print(f&quot;相似度：{score.item():.4f}&quot;)   # 数值越接近 1 越相关
+</code></pre>
+
+<h2 id="43">4.3 向量库怎么选：主流方案对比</h2>
+<p>向量算出来了，存哪？这里列五个最常见的方案，各有性格：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>类型</th>
+<th>优点</th>
+<th>缺点</th>
+<th>适合谁</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Milvus</strong></td>
+<td>专业向量数据库</td>
+<td>千万级规模、功能全（索引/过滤/多租户）、生态成熟</td>
+<td>部署较复杂，重</td>
+<td>大企业、海量数据、要正经架构</td>
+</tr>
+<tr>
+<td><strong>Qdrant</strong></td>
+<td>专业向量数据库</td>
+<td>轻量、易用、Rust 写的性能好、文档清晰</td>
+<td>比 Milvus 功能略少</td>
+<td>中小团队想快速上专业方案</td>
+</tr>
+<tr>
+<td><strong>Chroma</strong></td>
+<td>轻量级向量库</td>
+<td>几行代码就能跑，本地开发极方便</td>
+<td>生产环境能力弱</td>
+<td>原型验证、学习、小规模</td>
+</tr>
+<tr>
+<td><strong>pgvector</strong></td>
+<td>PostgreSQL 插件</td>
+<td>直接复用现有数据库，事务、权限齐全</td>
+<td>大并发/极大规模性能有限</td>
+<td>已有 PostgreSQL、数据量中等</td>
+</tr>
+<tr>
+<td><strong>Elasticsearch</strong></td>
+<td>搜索引擎</td>
+<td>关键词检索极强，自带 BM25，向量检索也在支持</td>
+<td>向量性能不如专业库</td>
+<td>需要"关键词 + 向量"一体化的场景</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一个非常实用的判断思路：先问自己"我现在有什么、想要多大规模"。</strong> 已有 PostgreSQL 就想少加一套系统 → 选 pgvector；从零开始、规模十万级 → 选 Qdrant 或 Milvus；只是本地学习 demo → 用 Chroma；想要"关键词 + 向量"一个系统搞定 → Elasticsearch。别为不存在的千万级需求去上重型武器。</p>
+<h2 id="44">4.4 维度与相似度度量</h2>
+<p>两个必须理解的基础概念：</p>
+<h3 id="dimensions">维度（Dimensions）</h3>
+<p>每个文本向量是一个"高维坐标"，维度就是这个坐标的个数。<strong>维度高 → 表达能力细 → 但更占存储、计算更慢、效果未必更好</strong>。常见值：<code>bge-small</code> 512 维，<code>bge-large</code> 1024 维，<code>text-embedding-3-large</code> 3072 维。选型时记住：<strong>选好模型，维度就跟着定了，不用自己纠结</strong>；只是要注意建库时维度必须和模型输出一致，换了模型要重建索引。</p>
+<h3 id="similarity-metric">相似度度量（Similarity Metric）</h3>
+<p>判断两个向量"像不像"，有三种常用数学度量：</p>
+<ul>
+<li><strong>余弦相似度（Cosine）</strong>：看两个向量的"方向"是否一致，忽略长度。<strong>最常用</strong>，对文本语义最友好。</li>
+<li><strong>点积（Dot Product）</strong>：方向一致且长度都大时分数高。适合已归一化的向量。</li>
+<li><strong>欧氏距离（Euclidean）</strong>：衡量空间直线距离，值越小越近。文本场景用得少。</li>
+</ul>
+<pre class="codehilite"><code class="language-text">余弦相似度：范围 [-1, 1]，1 表示方向完全相同（最相关）
+点积：       数值越大越相关（向量长度也参与）
+欧氏距离：   数值越小越相关
+</code></pre>
+
+<p>绝大多数中文文本场景，<strong>选"余弦相似度"就对了</strong>。选错度量会导致排名怪异，这是新手常踩的坑。</p>
+<h2 id="45">4.5 中文知识库选型建议（可直接抄作业）</h2>
+<p>综合以上，给你一份针对"企业内部中文知识库"的默认建议：</p>
+<table>
+<thead>
+<tr>
+<th>决策点</th>
+<th>推荐</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Embedding 模型</td>
+<td><code>BAAI/bge-large-zh-v1.5</code>（本地部署）</td>
+<td>中文效果好、开源可私有化、数据不出门</td>
+</tr>
+<tr>
+<td>查询指令前缀</td>
+<td>记得加"为这个句子生成表示以用于检索相关文章："</td>
+<td>bge 官方推荐，白捡的精度提升</td>
+</tr>
+<tr>
+<td>相似度度量</td>
+<td>余弦相似度</td>
+<td>文本语义场景的标准选择</td>
+</tr>
+<tr>
+<td>向量库</td>
+<td>数据量 &lt; 100 万条：Qdrant；已有 PostgreSQL：pgvector；只是学习：Chroma</td>
+<td>匹配你的真实规模，避免过度设计</td>
+</tr>
+<tr>
+<td>规模预估</td>
+<td>块数 ≈ 文档字数 ÷ 块大小（400 字）</td>
+<td>10 万字 ≈ 250 个块，可据此估算硬件</td>
+</tr>
+</tbody>
+</table>
+<h2 id="46">4.6 一个最小可跑的入库示例</h2>
+<p>把"模型 + 向量库"串起来的最小代码（以 Chroma 为例，最省事）：</p>
+<pre class="codehilite"><code class="language-python">from sentence_transformers import SentenceTransformer
+import chromadb
+
+# 1. 加载中文 embedding 模型
+model = SentenceTransformer(&quot;BAAI/bge-small-zh-v1.5&quot;)
+
+# 2. 启动 Chroma（本地文件模式）
+client = chromadb.PersistentClient(path=&quot;./vector_db&quot;)
+collection = client.get_or_create_collection(
+    name=&quot;company_kb&quot;,
+    metadata={&quot;hnsw:space&quot;: &quot;cosine&quot;},   # 相似度度量选余弦
+)
+
+# 3. 把第 3 篇切好的块 + 元数据一起入库
+chunks = [
+    {&quot;text&quot;: &quot;员工每年可休 5-15 天年假。&quot;, &quot;meta&quot;: {&quot;来源&quot;: &quot;员工手册&quot;, &quot;页&quot;: &quot;12&quot;}},
+    {&quot;text&quot;: &quot;年假申请需提前三天在 OA 提交。&quot;, &quot;meta&quot;: {&quot;来源&quot;: &quot;员工手册&quot;, &quot;页&quot;: &quot;13&quot;}},
+]
+
+collection.add(
+    documents=[c[&quot;text&quot;] for c in chunks],
+    metadatas=[c[&quot;meta&quot;] for c in chunks],
+    ids=[f&quot;chunk_{i}&quot; for i in range(len(chunks))],
+    embeddings=model.encode([c[&quot;text&quot;] for c in chunks]).tolist(),
+)
+
+# 4. 查询
+q_vec = model.encode(&quot;为这个句子生成表示以用于检索相关文章：年假几天&quot;)
+results = collection.query(query_embeddings=[q_vec.tolist()], n_results=2)
+print(results[&quot;documents&quot;])
+</code></pre>
+
+<p>入库完成后，你的知识库已经有"可搜索的索引"了。但别急着高兴——向量检索有个天生的短板：<strong>它不懂关键词、编号、专有名词</strong>。下一篇我们就来补上这块短板：混合检索。</p>
+<h2 id="47-embedding">4.7 怎么"实测"一个 Embedding 模型</h2>
+<p>前面反复强调"别只看宣传，要实测"。这里给你一套<strong>20 分钟能做完的实测方法</strong>，不需要写复杂代码，逻辑清晰可复现。</p>
+<p><strong>第一步：准备测试集。</strong> 从你的真实业务里挑 10 个典型问题，再为每个问题挑出"正确答案所在的块"和"明显无关的块"各一个。</p>
+<pre class="codehilite"><code class="language-text">测试集示例：
+问题1：&quot;年假有几天？&quot;  → 相关块：员工手册关于年假的段落
+                        → 无关块：班车路线说明
+问题2：&quot;发票怎么开？&quot;  → 相关块：财务制度报销章节
+                        → 无关块：年会通知
+</code></pre>
+
+<p><strong>第二步：计算"相关对"和"无关对"的相似度。</strong> 理想情况是：相关对的相似度显著高于无关对。用一段脚本批量算：</p>
+<pre class="codehilite"><code class="language-python">from sentence_transformers import SentenceTransformer
+from sentence_transformers.util import cos_sim
+
+model = SentenceTransformer(&quot;BAAI/bge-large-zh-v1.5&quot;)
+
+def score_pairs(model, query, related, unrelated):
+    q = model.encode(query)
+    r = cos_sim(q, model.encode(related))
+    u = cos_sim(q, model.encode(unrelated))
+    return float(r), float(u)
+
+r, u = score_pairs(model, &quot;年假有几天？&quot;, &quot;员工每年可休年假5-15天。&quot;, &quot;班车每半小时一班。&quot;)
+print(f&quot;相关对相似度：{r:.3f}，无关对相似度：{u:.3f}&quot;)
+# 好模型的表现：r 明显大于 u（比如 0.6 vs 0.3）
+</code></pre>
+
+<p><strong>第三步：算"区分度"和"平均排名"。</strong> 把所有无关块的相似度都比相关块高的问题数出来——<strong>出现一次，说明模型对这个问题理解不到位</strong>。10 个问题里，区分度失败超过 2 个，就该换模型或换策略了。</p>
+<p>这套方法的价值在于：<strong>同一套测试集可以反复用来对比不同的模型</strong>。把 bge-small 和 bge-large 都跑一遍，哪个"平均排名"更高就用哪个，用数据做决定。</p>
+<h2 id="48">4.8 本地部署：数据安全与硬件成本</h2>
+<p>企业知识库的一个硬约束是<strong>数据不出门</strong>。如果你在金融、医疗、法律行业，或资料包含薪酬、客户信息，Embedding 和生成模型几乎都必须<strong>本地部署</strong>。这里给出务实的硬件参考：</p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>显存需求（估算）</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bge-small-zh-v1.5（512 维）</td>
+<td>约 1–2 GB</td>
+<td>一台普通办公机就能跑</td>
+</tr>
+<tr>
+<td>bge-large-zh-v1.5（1024 维）</td>
+<td>约 2–4 GB</td>
+<td>推荐，性能/成本均衡</td>
+</tr>
+<tr>
+<td>bge-reranker-v2-m3</td>
+<td>约 2–4 GB</td>
+<td>重排模型，见第 6 篇</td>
+</tr>
+<tr>
+<td>生成模型（7B 开源，如 Qwen2.5-7B）</td>
+<td>约 8–16 GB</td>
+<td>本地生成，够用但需量化</td>
+</tr>
+</tbody>
+</table>
+<p>一个典型的<strong>全本地配置</strong>：一台 16GB 显存的 GPU 服务器（如 RTX 4080/4090），同时跑 bge-large 嵌入 + bge-reranker + 一个量化后的 7B 生成模型，足够支撑一个几十人使用的中小知识库。没有 GPU 的话，CPU 也能跑嵌入模型（只是慢），生成模型建议至少用 32GB 内存的机器。</p>
+<p>部署方式上，<code>sentence-transformers</code> 直接支持加载本地模型：</p>
+<pre class="codehilite"><code class="language-bash"># 下载模型（第一次运行会自动从 Hugging Face 下载）
+python -c &quot;
+from sentence_transformers import SentenceTransformer
+m = SentenceTransformer('BAAI/bge-large-zh-v1.5')
+m.save('./models/bge-large-zh')   # 保存到本地，之后离线加载
+&quot;
+</code></pre>
+
+<p>如果公司内网无法访问 Hugging Face（模型托管平台），可以让有外网的同事先下载好整个模型目录，再拷贝到内网服务器加载。<strong>先想清楚数据安全约束，再决定本地还是 API</strong>——这个决定要放在选型的第一步，而不是最后。</p>
+<h2 id="49">4.9 常见的三个认知误区</h2>
+<p>最后帮你排掉几个常见的认知雷区：</p>
+<p><strong>误区一："维度越高越好。"</strong> 不是。高维度意味着更细的语义表达，但也意味着更慢、更贵、更容易过拟合。1024 维的 bge-large 对绝大多数场景绰绰有余，3072 维的模型在十万级文档上纯粹是浪费。<strong>选"够用且实测效果最好"的，而不是"数字最大"的。</strong></p>
+<p><strong>误区二："同一个模型，Query 和文档用同一个向量就行。"</strong> 部分模型（尤其 BGE）官方明确要求：<strong>查询要加指令前缀，文档不加</strong>（第 4.2 节的代码就是这样）。如果两边都加或都不加，效果会明显下降。这是最容易被忽略的"免费午餐"。</p>
+<p><strong>误区三："向量库越专业越好，用最重的。"</strong> 对一个 5 万块的内部知识库，Milvus 的分布式能力完全用不上，反而徒增运维负担。<strong>用 Chroma 或 pgvector 完全够，先跑通，规模真到了再迁移</strong>——向量库迁移是可控的（重新灌数据而已），别为迁移的恐惧而过度设计。</p>
+<h2 id="410">4.10 本篇小结</h2>
+<ul>
+<li><strong>Embedding</strong>：把文本变成高维向量，"语义相近 → 向量相近"。中文企业场景首选 <strong>bge-large-zh</strong>，本地部署更安全。</li>
+<li><strong>向量库</strong>：Milvus（大而全）、Qdrant（轻而专）、Chroma（原型）、pgvector（复用现有库）、Elasticsearch（检索一体化）。<strong>按真实规模选，别过度设计</strong>。</li>
+<li><strong>两个参数别选错</strong>：维度跟着模型走；相似度度量选<strong>余弦</strong>。</li>
+</ul>
+<p>下一步，进入检索环节——<a href="content/混合检索：BM25 与向量的双路召回.html">第 5 篇《混合检索：BM25 与向量的双路召回》</a>。</p></body></html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第六章 反向传播：链式法则的直觉理解 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="_1">第六章 反向传播：链式法则的直觉理解</h1>
+<blockquote>
+<p>本章目标：讲清楚<strong>反向传播（Backpropagation）</strong>。这是深度学习里最"数学"的一章，但只要抓住"责任追溯"这个直觉，其实非常好懂。看完你就理解了 <code>loss.backward()</code> 这行代码背后发生了什么。</p>
+</blockquote>
+<hr />
+<h2 id="61">6.1 问题是什么</h2>
+<p>第三章我们知道，参数更新靠这条公式：</p>
+<pre class="codehilite"><code>w ← w − η · (∂L/∂w)
+</code></pre>
+
+<p>对单个参数，我们手算过导数。但现在网络有几百万个参数，<strong>每一个都需要知道自己的 <code>∂L/∂w</code></strong>——损失对它的偏导数，也就是"我动一点点，损失会变多少"。</p>
+<p>难点在于：一个第 1 层的权重，要经过第 2 层、第 3 层……才影响到最终损失。<strong>它的责任怎么算？</strong></p>
+<p>反向传播就是解决这个问题的算法。</p>
+<hr />
+<h2 id="62">6.2 直觉：一场责任追溯会议</h2>
+<p>设想一家公司业绩不佳（<strong>损失很大</strong>），老板要追责：</p>
+<ol>
+<li><strong>老板 → 部门总监</strong>："这季度亏了 100 万，各部门各占多少责任？"</li>
+<li><strong>总监 → 组长</strong>：销售总监分到 60 万责任，他再往下分给手下三个组</li>
+<li><strong>组长 → 员工</strong>：某组长分到 20 万，继续拆给组员</li>
+</ol>
+<p>追责是<strong>从上往下、逐层拆分</strong>的，而且每一层的拆分比例，取决于"这个下属对上级结果的影响有多大"。</p>
+<p><strong>反向传播一模一样</strong>：从最终损失出发，逐层往回算"每个参数应负多少责任"。这个责任的数学名字就是<strong>梯度</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>公司类比</th>
+<th>神经网络</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总亏损 100 万</td>
+<td>损失 L</td>
+</tr>
+<tr>
+<td>某部门的责任</td>
+<td>该层输出的梯度 ∂L/∂h</td>
+</tr>
+<tr>
+<td>某员工的责任</td>
+<td>该参数的梯度 ∂L/∂w</td>
+</tr>
+<tr>
+<td>"他影响多大"</td>
+<td>局部导数</td>
+</tr>
+<tr>
+<td>从上往下追责</td>
+<td>从输出层往输入层反向传播</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="63">6.3 数学工具：链式法则</h2>
+<p>链式法则（Chain Rule）说的是：</p>
+<pre class="codehilite"><code>如果 z 依赖 y，y 依赖 x，那么   dz/dx = (dz/dy) × (dy/dx)
+</code></pre>
+
+<p><strong>用齿轮理解</strong>：</p>
+<ul>
+<li>大齿轮 x 转 1 圈 → 中齿轮 y 转 3 圈（<code>dy/dx = 3</code>）</li>
+<li>中齿轮 y 转 1 圈 → 小齿轮 z 转 2 圈（<code>dz/dy = 2</code>）</li>
+<li>所以 x 转 1 圈 → z 转 <strong>3 × 2 = 6</strong> 圈</li>
+</ul>
+<p><strong>影响是"相乘"传递的</strong>，这就是链式法则的全部。</p>
+<p>多层网络就是多个齿轮串联：</p>
+<pre class="codehilite"><code>w₁ → z₁ → h₁ → z₂ → h₂ → z₃ → ŷ → L
+</code></pre>
+
+<p>那么：</p>
+<pre class="codehilite"><code>∂L/∂w₁ = (∂L/∂ŷ)·(∂ŷ/∂z₃)·(∂z₃/∂h₂)·(∂h₂/∂z₂)·(∂z₂/∂h₁)·(∂h₁/∂z₁)·(∂z₁/∂w₁)
+</code></pre>
+
+<p>看着吓人，但它只是<strong>一串乘法</strong>。而且每一项都很简单（下面就看到）。</p>
+<hr />
+<h2 id="64">6.4 手算一个两层网络</h2>
+<p>我们用最小的例子，把每个数字都算出来。</p>
+<p><strong>网络</strong>（为了简单，不加偏置，激活用 ReLU）：</p>
+<pre class="codehilite"><code>x → [w₁] → z₁ → ReLU → h → [w₂] → ŷ → 损失 L=(ŷ−y)²
+</code></pre>
+
+<p><strong>给定</strong>：<code>x = 2</code>，<code>w₁ = 0.5</code>，<code>w₂ = 3</code>，真实值 <code>y = 4</code></p>
+<h3 id="_2">第一步：前向传播（算出预测和损失）</h3>
+<pre class="codehilite"><code>z₁ = w₁ · x   = 0.5 × 2 = 1
+h  = ReLU(1)  = 1                 （正数原样通过）
+ŷ  = w₂ · h   = 3 × 1 = 3
+L  = (ŷ − y)² = (3 − 4)² = 1
+</code></pre>
+
+<h3 id="_3">第二步：反向传播（从后往前算梯度）</h3>
+<p><strong>① 损失对预测的导数</strong></p>
+<pre class="codehilite"><code>L = (ŷ − y)²
+∂L/∂ŷ = 2(ŷ − y) = 2(3 − 4) = −2
+</code></pre>
+
+<p>含义：ŷ 每增大 1，L 减少 2。所以 ŷ 应该<strong>增大</strong>。</p>
+<p><strong>② 对 w₂ 的梯度</strong></p>
+<pre class="codehilite"><code>ŷ = w₂ · h        →  ∂ŷ/∂w₂ = h = 1
+∂L/∂w₂ = (∂L/∂ŷ) × (∂ŷ/∂w₂) = −2 × 1 = −2
+</code></pre>
+
+<p>梯度是负的 → 更新时 <code>w₂ ← w₂ − η·(−2)</code> → <strong>w₂ 会变大</strong>。合理，因为预测 3 小于真实 4。</p>
+<p><strong>③ 梯度继续往回传给 h</strong></p>
+<pre class="codehilite"><code>∂ŷ/∂h = w₂ = 3
+∂L/∂h = (∂L/∂ŷ) × (∂ŷ/∂h) = −2 × 3 = −6
+</code></pre>
+
+<p><strong>④ 穿过 ReLU</strong></p>
+<p>ReLU 的导数极其简单：</p>
+<pre class="codehilite"><code>z &gt; 0  →  导数 = 1（原样通过）
+z ≤ 0  →  导数 = 0（梯度被掐断）
+</code></pre>
+
+<p>这里 <code>z₁ = 1 &gt; 0</code>，所以：</p>
+<pre class="codehilite"><code>∂L/∂z₁ = −6 × 1 = −6
+</code></pre>
+
+<p><strong>⑤ 对 w₁ 的梯度</strong></p>
+<pre class="codehilite"><code>z₁ = w₁ · x       →  ∂z₁/∂w₁ = x = 2
+∂L/∂w₁ = −6 × 2 = −12
+</code></pre>
+
+<h3 id="001">第三步：更新参数（学习率 0.01）</h3>
+<pre class="codehilite"><code>w₂ ← 3   − 0.01×(−2)  = 3.02
+w₁ ← 0.5 − 0.01×(−12) = 0.62
+</code></pre>
+
+<p><strong>验算</strong>：用新参数再前向一次</p>
+<pre class="codehilite"><code>z₁ = 0.62 × 2 = 1.24
+h  = 1.24
+ŷ  = 3.02 × 1.24 = 3.74
+L  = (3.74 − 4)² = 0.0676     ← 从 1 降到 0.068 ✅
+</code></pre>
+
+<p><strong>损失确实下降了。这就是一次完整的学习。</strong></p>
+<hr />
+<h2 id="65">6.5 代码验证</h2>
+<p>用 PyTorch 跑一遍，看梯度是不是我们手算的那些数：</p>
+<pre class="codehilite"><code class="language-python">import torch
+
+x = torch.tensor(2.0)
+y = torch.tensor(4.0)
+w1 = torch.tensor(0.5, requires_grad=True)   # 标记：需要算梯度
+w2 = torch.tensor(3.0, requires_grad=True)
+
+# 前向
+z1 = w1 * x
+h  = torch.relu(z1)
+y_hat = w2 * h
+loss = (y_hat - y) ** 2
+
+# 反向：一行搞定
+loss.backward()
+
+print(&quot;loss   =&quot;, loss.item())      # 1.0
+print(&quot;dL/dw1 =&quot;, w1.grad.item())   # -12.0  ✅ 和手算一致
+print(&quot;dL/dw2 =&quot;, w2.grad.item())   #  -2.0  ✅ 和手算一致
+</code></pre>
+
+<p><strong><code>loss.backward()</code> 这一行，做的就是我们上面手算的 5 步。</strong> 只不过 PyTorch 会对几百万个参数同时做，且全自动。</p>
+<hr />
+<h2 id="66">6.6 为什么叫"反向"，以及为什么它高效</h2>
+<p>关键在于<strong>复用中间结果</strong>。</p>
+<p>注意 ④ 和 ⑤ 两步：算 <code>∂L/∂w₁</code> 时，我们直接用了上一步算出的 <code>∂L/∂h = −6</code>，不需要从头再乘一遍。</p>
+<p>如果每个参数都从头算，复杂度是 O(参数量 × 层数)。反向传播<strong>从后往前算一遍，顺手把所有参数的梯度都得到了</strong>，复杂度只有 O(参数量)——和前向传播差不多。</p>
+<blockquote>
+<p>这正是深度学习能训练超大模型的工程基础。经验法则：<strong>一次反向传播的耗时大约是一次前向的 2 倍</strong>。</p>
+</blockquote>
+<hr />
+<h2 id="67">6.7 梯度消失与梯度爆炸</h2>
+<p>链式法则是<strong>连乘</strong>，这带来两个著名问题：</p>
+<p><strong>梯度消失（Vanishing Gradient）</strong></p>
+<p>如果每层的导数都小于 1（比如 Sigmoid 最大导数只有 0.25）：</p>
+<pre class="codehilite"><code>0.25^10 ≈ 0.00000095    ← 传了 10 层，梯度几乎没了
+</code></pre>
+
+<p><strong>后果</strong>：浅层参数几乎不更新，网络"前半截"学不动。</p>
+<p><strong>梯度爆炸（Exploding Gradient）</strong></p>
+<p>如果每层导数都大于 1：</p>
+<pre class="codehilite"><code>1.5^20 ≈ 3325           ← 梯度暴涨
+</code></pre>
+
+<p><strong>后果</strong>：参数一步跳到天上，损失变成 <code>NaN</code>，训练崩溃。</p>
+<p><strong>现代解决方案</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>解法</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>梯度消失</td>
+<td><strong>ReLU</strong> 系激活</td>
+<td>正区间导数恒为 1，不衰减</td>
+</tr>
+<tr>
+<td>梯度消失</td>
+<td><strong>残差连接</strong> <code>out = F(x)+x</code></td>
+<td>梯度有一条"直达高速路"</td>
+</tr>
+<tr>
+<td>两者</td>
+<td><strong>BatchNorm / LayerNorm</strong></td>
+<td>归一化，让每层输入分布稳定</td>
+</tr>
+<tr>
+<td>梯度爆炸</td>
+<td><strong>梯度裁剪</strong> clip</td>
+<td>超过阈值就按比例缩回来</td>
+</tr>
+<tr>
+<td>两者</td>
+<td>合理的<strong>权重初始化</strong></td>
+<td>He / Xavier</td>
+</tr>
+</tbody>
+</table>
+<pre class="codehilite"><code class="language-python"># 梯度裁剪：训练大模型/RNN 时几乎必加
+torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+</code></pre>
+
+<hr />
+<h2 id="68">6.8 计算图与自动微分</h2>
+<p>PyTorch 之所以能自动求导，是因为它在前向传播时<strong>偷偷记录了一张计算图</strong>：</p>
+<pre class="codehilite"><code>w1 ──×── z1 ──ReLU── h ──×── ŷ ──(−y)²── L
+      ↑                    ↑
+      x                    w2
+</code></pre>
+
+<ul>
+<li>每做一次运算，就在图上加一个节点，并记住"这个运算的导数怎么算"</li>
+<li>调用 <code>.backward()</code> 时，沿着图<strong>从 L 往回走</strong>，逐节点套链式法则</li>
+</ul>
+<p>这套机制叫 <strong>自动微分（Autograd）</strong>。它意味着：<strong>你只需要写前向传播，反向传播框架自动帮你搞定。</strong> 这是深度学习框架最大的价值之一。</p>
+<p>三个实用要点：</p>
+<pre class="codehilite"><code class="language-python">optimizer.zero_grad()   # ① 梯度是累加的，不清零会把上一轮的加进来（新手头号 bug）
+
+with torch.no_grad():   # ② 推理时关掉计算图，省显存、提速
+    preds = model(x)
+
+loss.backward()         # ③ 默认反向后就释放计算图，同一张图不能 backward 两次
+</code></pre>
+
+<hr />
+<h2 id="69">6.9 本章小结</h2>
+<ul>
+<li>反向传播 = <strong>从损失出发，逐层往回追溯每个参数的责任（梯度）</strong></li>
+<li>数学工具是<strong>链式法则</strong>：影响沿着路径<strong>相乘</strong>传递</li>
+<li>手算流程：前向算出损失 → 从输出层往回逐层求偏导 → 得到每个参数的梯度 → 更新</li>
+<li>ReLU 的导数只有 0 和 1，正区间原样传、负区间掐断</li>
+<li>反向传播高效的关键是<strong>复用中间梯度</strong>，一次回传拿到所有梯度</li>
+<li>连乘导致<strong>梯度消失/爆炸</strong>，靠 ReLU、残差连接、归一化、梯度裁剪解决</li>
+<li><strong><code>loss.backward()</code></strong> 背后是计算图 + 自动微分，你只需写前向</li>
+</ul>
+<hr />
+<h2 id="610">6.10 自测</h2>
+<ol>
+<li>用齿轮的例子解释链式法则。</li>
+<li>把 6.4 节的例子改成 <code>x=1, w₁=2, w₂=−1, y=3</code>，手算一遍两个梯度。</li>
+<li>ReLU 在 z = −3 处的导数是多少？这会对梯度传播产生什么影响？</li>
+<li>为什么 Sigmoid 容易导致梯度消失？（提示：它的最大导数是多少）</li>
+<li>忘记写 <code>optimizer.zero_grad()</code> 会发生什么？</li>
+</ol>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：模型在训练集上表现完美，一到真实数据就拉胯——这就是<strong>过拟合</strong>。下一章讲怎么识别和治疗它。</p>
+</blockquote></body></html>

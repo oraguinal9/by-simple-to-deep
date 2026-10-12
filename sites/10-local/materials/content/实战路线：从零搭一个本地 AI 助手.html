@@ -1,0 +1,351 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>实战路线：从零搭一个本地 AI 助手 | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="ai">实战路线：从零搭一个本地 AI 助手</h1>
+<p>这是本阶课程的收官篇。前 9 篇你学会了：为什么本地部署（第 1 篇）、硬件怎么选（第 2 篇）、用 Ollama 跑模型（第 3 篇）、理解量化格式（第 4 篇）、挑选开源模型（第 5 篇）、认清推理引擎（第 6 篇）、装上网页界面（第 7 篇）、把模型变成接口（第 8 篇）、做性能调优（第 9 篇）。</p>
+<p>这一篇不教新东西，而是<strong>把所有技能串起来</strong>，给你一条完整的「从零到一」实战路线：一个能在自己电脑上运行、有网页界面、能通过接口被程序调用的本地 AI 助手。并附上最常见的坑和「新手怎么逐步加料」的路线图。</p>
+<h2 id="1">1. 整体蓝图：你要盖的「三层楼」</h2>
+<p>把最终目标拆开，是一栋三层小楼：</p>
+<pre class="codehilite"><code>第三层：应用层
+    Open WebUI（网页界面） / 你的程序（API 调用）
+        ↕ HTTP
+第二层：服务层
+    Ollama 服务（http://localhost:11434，含 /v1 兼容接口）
+        ↕ 内部调用
+第一层：模型层
+    GGUF 量化模型（如 qwen2.5:7b） + 你的硬件（GPU/CPU/内存）
+</code></pre>
+
+<p><strong>建议顺序：先盖第一层，再盖第二层，最后盖第三层。</strong> 每一层跑通了再往上盖，出问题时也知道去哪里找。</p>
+<p>这套三层结构还有一个隐藏的好处：<strong>每一层都可以独立替换</strong>。第一层不满意就换模型（一行命令的事），第三层不满意就换界面（换个前端工具），中间的 Ollama 服务层完全不用动。模块化设计，正是这套生态最有生命力的地方。</p>
+<h2 id="2-5">2. 第一步：选模型（5 分钟）</h2>
+<p>复习第 5 篇的决策流程：</p>
+<ol>
+<li>中文为主 → <strong>Qwen</strong> 系；数学/代码 → <strong>DeepSeek</strong> 系；</li>
+<li>按显存定规模：新手统一从 <strong>7B</strong> 起步，量化用 <strong>Q4_K_M</strong> 级别；</li>
+<li>本教程默认选择：<strong><code>qwen2.5:7b</code></strong>——中文能力强、硬件要求亲民、社区资料多。</li>
+</ol>
+<blockquote>
+<p>还没把握就再看一眼对照表：</p>
+<table>
+<thead>
+<tr>
+<th>你的显存</th>
+<th>起步模型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无独显/4GB</td>
+<td><code>qwen2.5:3b</code></td>
+</tr>
+<tr>
+<td>8GB</td>
+<td><code>qwen2.5:7b</code></td>
+</tr>
+<tr>
+<td>12GB+</td>
+<td><code>qwen2.5:14b</code></td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<h2 id="3-ollama-15">3. 第二步：安装 Ollama 并跑起来（15 分钟）</h2>
+<h3 id="31">3.1 安装</h3>
+<p>按第 3 篇的方法装好 Ollama（官网下载或 <code>curl</code> 脚本），验证：</p>
+<pre class="codehilite"><code class="language-bash">ollama --version
+</code></pre>
+
+<h3 id="32">3.2 拉取并运行模型</h3>
+<pre class="codehilite"><code class="language-bash">ollama run qwen2.5:7b
+</code></pre>
+
+<p>第一次会下载约 4.5GB，稍等片刻，然后聊几句验证：</p>
+<pre class="codehilite"><code>&gt;&gt;&gt; 你好，请用三句话介绍你自己
+&gt;&gt;&gt; /bye
+</code></pre>
+
+<blockquote>
+<p>到这里，你已经完成了「模型层 + 服务层」的最小闭环。<strong>恭喜，你的本地 AI 助手已经存在了。</strong></p>
+</blockquote>
+<h3 id="33">3.3 确认服务在跑</h3>
+<pre class="codehilite"><code class="language-bash">curl http://localhost:11434/api/tags
+</code></pre>
+
+<p>能看到模型列表，说明服务就绪。这个服务是后续所有东西的地基。</p>
+<blockquote>
+<p>这里做一次「开工自检」：确认电脑磁盘剩余空间大于 10GB、内存大于等于 16GB（跑 7B 更从容）。条件不满足也别放弃——第 2 篇 <code>content/硬件怎么选：显存、内存与 CPU 的账.md</code> 里讲了低配方案，先从 3B 小模型起步即可。</p>
+</blockquote>
+<h2 id="4-20">4. 第三步：装上网页界面（20 分钟）</h2>
+<p>按第 7 篇部署 Open WebUI（二选一）：</p>
+<p><strong>路线 A（推荐，需要 Docker）：</strong></p>
+<pre class="codehilite"><code class="language-bash">docker run -d -p 3000:8080 --add-host=host.docker.internal:host-gateway \
+  -v open-webui:/app/backend/data \
+  --name open-webui --restart always \
+  ghcr.io/open-webui/open-webui:main
+</code></pre>
+
+<p>浏览器打开 <code>http://localhost:3000</code> → 注册账号 → 在设置里把 Ollama 地址填成 <code>http://host.docker.internal:11434</code> → 下拉选择 <code>qwen2.5:7b</code>。</p>
+<p><strong>路线 B（无 Docker）：</strong></p>
+<pre class="codehilite"><code class="language-bash">pip install open-webui
+open-webui serve
+</code></pre>
+
+<p>访问 <code>http://localhost:3000</code>，Ollama 地址填 <code>http://localhost:11434</code>。</p>
+<blockquote>
+<p><strong>验收标准</strong>：网页上能发出第一条消息并收到回答。做到这一步，你已经拥有一个「长得像 ChatGPT 但完全本地」的 AI 助手了。</p>
+<p>Windows 用户提示：装 Docker 通常需要 WSL2 支持（Docker Desktop 安装时会自动引导开启）。如果你的电脑较旧、系统版本低，装不了 Docker，<strong>直接走路线 B 用 Python 安装 Open WebUI 即可</strong>，功能几乎没有差别。</p>
+</blockquote>
+<h2 id="5-10">5. 第四步：把接口也打通（10 分钟）</h2>
+<p>按第 8 篇，写一个最小调用脚本 <code>assistant.py</code>：</p>
+<pre class="codehilite"><code class="language-python">from openai import OpenAI
+
+client = OpenAI(
+    base_url=&quot;http://localhost:11434/v1&quot;,  # 指向本地
+    api_key=&quot;ollama&quot;,                       # 本地不校验，随意
+)
+
+resp = client.chat.completions.create(
+    model=&quot;qwen2.5:7b&quot;,
+    messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;你好，介绍一下你自己&quot;}],
+)
+
+print(resp.choices[0].message.content)
+</code></pre>
+
+<p>运行：</p>
+<pre class="codehilite"><code class="language-bash">python assistant.py
+</code></pre>
+
+<p>看到输出，你的助手就同时具备了「网页入口」和「程序接口」两种使用方式。</p>
+<h2 id="6">6. 第五步：调优与加料（按需进行）</h2>
+<h3 id="61-9">6.1 基础调优（第 9 篇）</h3>
+<ul>
+<li>上下文嫌慢 → 把 <code>num_ctx</code> 调到 4096 或 8192；</li>
+<li>写代码/总结乱说 → 调低 <code>temperature</code> 到 0.2；</li>
+<li>显存不够 → 换 Q4、缩上下文、降并行数；</li>
+<li>太慢 → <code>ollama ps</code> 看 GPU/CPU 分配，确认 GPU 用足。</li>
+</ul>
+<h3 id="62">6.2 进阶加料（自由选择）</h3>
+<table>
+<thead>
+<tr>
+<th>加料</th>
+<th>用什么</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>知识库问答</td>
+<td>Open WebUI 的「文档/知识库」功能</td>
+<td>让它基于你的资料回答（RAG）</td>
+</tr>
+<tr>
+<td>联网搜索</td>
+<td>Open WebUI 的 Web Search 配置</td>
+<td>问实时信息不再受训练截止日期限制</td>
+</tr>
+<tr>
+<td>换更强模型</td>
+<td>32B 量化版（显存够时）</td>
+<td>回答质量上一个台阶</td>
+</tr>
+<tr>
+<td>接进自己的程序</td>
+<td><code>/v1</code> 接口 + OpenAI 库</td>
+<td>写自动日报、批量总结、自定义机器人</td>
+</tr>
+<tr>
+<td>多用户团队</td>
+<td>Open WebUI 账号系统 + 局域网访问</td>
+<td>全公司内网共用一个本地 AI</td>
+</tr>
+</tbody>
+</table>
+<p><strong>加料的优先级怎么定？</strong> 一句话：按你的使用场景排序。主要查公司资料 → 先上知识库；主要问实时信息 → 先配联网搜索；团队多人用 → 先管好账号。<strong>一次只加一个功能，跑稳了再加下一个</strong>——避免「叠了五个功能，出问题不知道怪哪层」。</p>
+<h2 id="7">7. 三大常见坑与解法</h2>
+<h3 id="71-oom">7.1 坑一：显存不足（OOM）</h3>
+<p><strong>表现</strong>：对话报 <code>out of memory</code> / 模型加载失败 / 回答到一半中断。</p>
+<p><strong>解法</strong>（按顺序试）：
+1. 换更小量化：<code>qwen2.5:7b</code> → 确认是 Q4 级别；
+2. 缩短上下文：重开会话、或调低 <code>num_ctx</code>；
+3. 关掉其他吃显存的程序；
+4. 换更小模型：7B → 3B；
+5. 实在不行用 CPU 混合推理（慢但能跑）。</p>
+<h3 id="72">7.2 坑二：中文乱码 / 中英文混杂</h3>
+<p><strong>表现</strong>：回答出现 <code>???</code>、方块字，或英文模型偶尔冒出英文。</p>
+<p><strong>解法</strong>：
+- 乱码：终端编码问题，Windows 执行 <code>chcp 65001</code> 切到 UTF-8，或换 Windows Terminal；
+- 中英混杂：这是<strong>模型本身的语言偏好</strong>——换 Qwen 系模型（中文语料充足）基本解决；或在系统提示词里写「请始终用简体中文回答」。</p>
+<h3 id="73">7.3 坑三：模型「一本正经地胡说八道」（幻觉）</h3>
+<p><strong>表现</strong>：编造不存在的书、错误的法律条文、自信地给错答案。</p>
+<p><strong>解法</strong>：
+- 降低 <code>temperature</code>，减少发散；
+- 事实敏感的任务，要求它「不知道就明确说不知道」；
+- 让它给出依据（引用原文）；知识库场景（RAG）天然缓解幻觉；
+- 记住：<strong>本地小模型的能力边界就在那里</strong>——重要决策务必人工复核。</p>
+<h3 id="74">7.4 坑四：硬盘空间不足</h3>
+<p><strong>表现</strong>：下载模型到一半提示空间不足，或系统越来越卡。</p>
+<p><strong>解法</strong>：
+1. 下载前先看磁盘剩余空间（一个模型通常占 4～8GB）；
+2. 把模型目录放到空间充足的分区；
+3. 定期 <code>ollama list</code> 看清单、<code>ollama rm</code> 删掉不再用的模型。</p>
+<blockquote>
+<p>补充一个实用技巧：想自定义模型存放位置（比如放到 D 盘），Windows 上设置环境变量 <code>OLLAMA_MODELS=D:/ollama/models</code> 后再启动 Ollama，模型就会下载到新目录——对 C 盘紧张的用户非常友好。</p>
+</blockquote>
+<h2 id="8">8. 新手路线图：先跑通最小闭环，再逐步加料</h2>
+<p>给完全从零开始的你一张「分阶段验收单」，每一阶段都有明确的「跑通信号」：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>做什么</th>
+<th>跑通信号</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>装 Ollama</td>
+<td><code>ollama --version</code> 有输出</td>
+</tr>
+<tr>
+<td>1</td>
+<td>跑 7B 模型</td>
+<td><code>ollama run qwen2.5:7b</code> 能聊天</td>
+</tr>
+<tr>
+<td>2</td>
+<td>装 Open WebUI</td>
+<td>网页能选模型、能对话</td>
+</tr>
+<tr>
+<td>3</td>
+<td>调优（缩上下文/调温度）</td>
+<td>回答更快、更稳定</td>
+</tr>
+<tr>
+<td>4</td>
+<td>API 打通</td>
+<td>Python 脚本输出回答</td>
+</tr>
+<tr>
+<td>5</td>
+<td>加料（知识库/联网/换大模型）</td>
+<td>新功能生效</td>
+</tr>
+<tr>
+<td>6</td>
+<td>长期使用（定时任务/团队共享）</td>
+<td>稳定运行不崩溃</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>核心心法：永远先跑通「最小的那个版本」，再往上加东西。</strong> 很多人失败不是因为难，而是因为一口气想把所有功能装齐——结果每个环节都半吊子，出了问题不知道怪谁。一次只改一个变量。</p>
+</blockquote>
+<h2 id="9">9. 延伸实战：让它「自动干活」</h2>
+<p>跑通人工对话后，可以再加一步「自动化」。举个最简单的例子：<strong>每天早上自动生成一份昨天的工作日报草稿</strong>。</p>
+<p>写一个 <code>daily_report.py</code>，配合系统的定时任务，每天 9 点自动执行：</p>
+<pre class="codehilite"><code class="language-python">from openai import OpenAI
+
+client = OpenAI(base_url=&quot;http://localhost:11434/v1&quot;, api_key=&quot;ollama&quot;)
+
+logs = &quot;昨天完成：修复登录页 bug、评审新需求文档、与设计团队对齐视觉稿&quot;
+
+resp = client.chat.completions.create(
+    model=&quot;qwen2.5:7b&quot;,
+    messages=[
+        {&quot;role&quot;: &quot;system&quot;, &quot;content&quot;: &quot;你是日报生成器，把零散记录整理成条理清晰的日报&quot;},
+        {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: f&quot;请整理成日报：\n{logs}&quot;},
+    ],
+    temperature=0.3,  # 事实整理类任务，低温度更稳定
+)
+print(resp.choices[0].message.content)
+</code></pre>
+
+<ul>
+<li><strong>Windows</strong>：用系统自带的「任务计划程序」，创建基本任务，设置每天 9:00 运行 <code>python daily_report.py</code>；</li>
+<li><strong>macOS / Linux</strong>：用 <code>crontab -e</code>，添加一行 <code>0 9 * * * python /路径/daily_report.py</code>。</li>
+</ul>
+<p>原理其实就一句话：<strong>本地 API + 定时任务 = 你的专属自动化助手</strong>。数据全程不出本机，放心让它「替你干活」而不必担心隐私外泄。</p>
+<h2 id="10">10. 常见问题速查（贴在电脑边）</h2>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>快速解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开机后 Open WebUI 打不开</td>
+<td><code>docker start open-webui</code>，并确认 Ollama 服务在运行</td>
+</tr>
+<tr>
+<td>模型越聊越慢</td>
+<td>上下文被撑大，开新会话或调低 <code>num_ctx</code></td>
+</tr>
+<tr>
+<td>想换模型但硬盘不够</td>
+<td><code>ollama rm 旧模型</code> 释放空间，再 <code>ollama pull 新模型</code></td>
+</tr>
+<tr>
+<td>断网后还能用吗</td>
+<td>能——本地部署全流程离线可用，这正是它的优势</td>
+</tr>
+<tr>
+<td>手机连不上局域网页面</td>
+<td>确认同一 Wi-Fi、防火墙放行 3000 端口、地址用电脑的局域网 IP</td>
+</tr>
+<tr>
+<td>回答总是不对劲</td>
+<td>先降 <code>temperature</code>，再考虑换家族/升规模（见第 5 篇）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="11">11. 本章小结：你的十篇收获</h2>
+<p>回头看这 10 篇，其实是一条清晰的「认知—选型—实操—优化」路线：</p>
+<ol>
+<li><strong>认知</strong>：为什么本地部署（隐私/成本/离线）及其代价；</li>
+<li><strong>选型</strong>：硬件账、模型格式与量化、开源模型家族、推理引擎；</li>
+<li><strong>实操</strong>：Ollama 跑起来、Open WebUI 网页界面、API 服务化；</li>
+<li><strong>优化</strong>：并发/批处理/显存三大主题的调优清单；</li>
+<li><strong>落地</strong>：一条从零到一的实战路线 + 三大坑的解法。</li>
+</ol>
+<p>现在，去完成你的「阶段 0」吧——装好 Ollama，输入那行魔法命令：</p>
+<pre class="codehilite"><code class="language-bash">ollama run qwen2.5:7b
+</code></pre>
+
+<p>最后补充三条「长期使用习惯」，让你的助手能稳定服役很久：</p>
+<ol>
+<li><strong>定期清理模型</strong>：模型文件动辄几个 GB，<code>ollama list</code> 看看装了啥，不用的用 <code>ollama rm</code> 删掉；</li>
+<li><strong>重要对话要备份</strong>：在 Open WebUI 里导出关键对话，或定期备份数据卷；</li>
+<li><strong>升级前先看口碑</strong>：模型和工具的大版本更新前，先到社区看看反馈，稳定优先。</li>
+</ol>
+<p>等你打出第一句「你好」，你就不再是「大模型的用户」，而是「大模型的拥有者」了。祝玩得开心，持续折腾。</p>
+<p><strong>下一阶预告</strong>：本地部署跑通之后，你可以继续往三个方向深造——「微调（让模型学你的风格）」「多模态（看图、听音）」「分布式推理（多机跑大模型）」。每一阶，我们都会像这一阶一样：先讲为什么，再讲怎么选，最后带你把每一步跑通。</p>
+<blockquote>
+<p>想复习某一块？各篇可以独立回看：<code>content/为什么需要本地部署：隐私、成本与离线.md</code>、<code>content/硬件怎么选：显存、内存与 CPU 的账.md</code>、<code>content/Ollama 入门：一行命令跑起大模型.md</code>、<code>content/模型格式与量化：GGUF 与 Q4/Q8.md</code>、<code>content/开源模型怎么挑：Llama、Qwen 与 DeepSeek.md</code>、<code>content/推理引擎对比：llama.cpp、vLLM 与 Ollama.md</code>、<code>content/Open WebUI：给本地模型装上网页界面.md</code>、<code>content/API 服务化：把本地模型变成接口.md</code>、<code>content/性能调优：并发、批处理与显存优化.md</code>。</p>
+</blockquote></body></html>

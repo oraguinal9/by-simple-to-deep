@@ -1,0 +1,137 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>规划与任务分解：把大目标拆成小步骤 | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="_1">规划与任务分解：把大目标拆成小步骤</h1>
+<p>让大模型直接回答「怎么做一个完整的市场调研报告」，它会给你一箩筐正确的废话。但让它<strong>真的去做</strong>一份报告，它需要先把这件事拆成一步步可执行的动作——这就是<strong>规划（Planning）</strong>。规划能力，是 Agent 从「玩具」走向「生产力」的分水岭。</p>
+<h2 id="_2">为什么必须拆任务</h2>
+<p>大模型的强项是「一段一段地想」，弱项是「一口吃成胖子」。任务太大时，它会：</p>
+<ul>
+<li>目标漂移：做着做着忘了原始需求。</li>
+<li>上下文爆炸：所有内容都堆在窗口里，很快超限。</li>
+<li>出错难修：一步错，后面全错，找不到病根。</li>
+</ul>
+<p>而拆成小任务之后，每一小步都在上下文窗口内、可单独验证、可单独重试——<strong>复杂度从「一次想清」降级为「一步步走」</strong>。</p>
+<h2 id="_3">两种主流规划范式</h2>
+<h3 id="1-react">1. ReAct：走一步看一步（隐式规划）</h3>
+<p>前面第 3 章讲过，ReAct 不显式列计划，而是每次根据观察结果决定下一步。适合：任务不重、路径不复杂、需要灵活应变。</p>
+<h3 id="2-plan-and-execute">2. Plan-and-Execute：先计划，后执行（显式规划）</h3>
+<p>遇到大任务，先让模型<strong>生成一份完整计划</strong>，再逐步执行，每步可以回头看计划、必要时<strong>修订计划</strong>：</p>
+<pre class="codehilite"><code>用户：帮我写一份「新能源汽车市场调研报告」。
+
+计划生成：
+  1. 调研市场规模与增长数据（查资料）
+  2. 调研主要玩家与竞争格局（查资料）
+  3. 调研政策与消费者趋势（查资料）
+  4. 整理数据、生成图表
+  5. 撰写报告结构并输出全文
+
+执行：
+  第 1 步 → 调用 web_search / browse 收集数据
+  第 2 步 → ……（发现某数据过时，修订计划，补充查 2026 年最新数据）
+  ……
+  最后：输出完整报告
+</code></pre>
+
+<p>对比一下：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>ReAct（隐式）</th>
+<th>Plan-and-Execute（显式）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>先有完整计划？</td>
+<td>否，边做边想</td>
+<td>是，先列计划</td>
+</tr>
+<tr>
+<td>适合任务</td>
+<td>简单、路径多变</td>
+<td>复杂、多步骤、可预测</td>
+</tr>
+<tr>
+<td>长任务稳定性</td>
+<td>易漂移</td>
+<td>稳定，计划是「锚」</td>
+</tr>
+<tr>
+<td>资源消耗</td>
+<td>每步都重新想，token 多</td>
+<td>计划一次，执行更省</td>
+</tr>
+<tr>
+<td>可解释性</td>
+<td>看思考记录</td>
+<td>直接看计划清单</td>
+</tr>
+</tbody>
+</table>
+<p>实战中两者常<strong>混合</strong>：先 Plan 列大步骤，每步内部再用 ReAct 灵活执行。</p>
+<h2 id="_4">拆任务的方法论</h2>
+<h3 id="top-down">自顶向下拆解（Top-Down）</h3>
+<p>大目标 → 中任务 → 小动作，层层分解。比如「订杭州两日游」：</p>
+<pre class="codehilite"><code>订杭州两日游
+├── 行：查高铁票 → 订票
+├── 住：查酒店 → 比价 → 订酒店
+├── 玩：查天气 → 排景点（室内/室外）→ 排时间线
+└── 汇总：生成行程单 → 发给用户确认
+</code></pre>
+
+<h3 id="reflection">反思与修订（Reflection）</h3>
+<p>计划不是一成不变的。执行中发现新情况（下雨了、没票了、超预算了），Agent 要能<strong>更新计划</strong>。这一步通常靠「再问一次模型」：</p>
+<pre class="codehilite"><code>System: 你的执行遇到了新情况，请重新评估计划，需要修改吗？
+Observation: 原计划第 2 步的酒店已满房。
+Thought: 换同价位备选酒店，或建议用户调整预算。
+Action: search_hotel[备选条件] → 修订计划第 2 步。
+</code></pre>
+
+<h3 id="state">状态管理（State）</h3>
+<p>每完成一步，把结果写进「工作记忆」——一个结构化的状态对象（JSON），让计划、已完成步骤、待办一目了然：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;goal&quot;: &quot;订杭州两日游&quot;,
+  &quot;plan&quot;: [&quot;查票&quot;,&quot;订酒店&quot;,&quot;排景点&quot;,&quot;汇总&quot;],
+  &quot;done&quot;: [&quot;查票&quot;],
+  &quot;current&quot;: &quot;订酒店&quot;,
+  &quot;notes&quot;: { &quot;天气&quot;: &quot;周六小雨&quot; }
+}
+</code></pre>
+
+<p>有了状态，Agent 中途被打断也能接着干，不会「忘事」。</p>
+<h2 id="_5">几个工程小技巧</h2>
+<ol>
+<li><strong>计划要可验证</strong>：每步目标写得「能判断完成没完成」，比如「收集 5 条 2026 年销量数据」而不是「收集数据」。</li>
+<li><strong>限制步骤数</strong>：超过 N 步就停下来问用户，避免死循环烧钱。</li>
+<li><strong>超时与重试</strong>：一步失败重试 1~2 次，还失败就跳过或上报。</li>
+<li><strong>大任务先「侦察」</strong>：先快速查一遍资料再定计划，比空想计划靠谱。</li>
+</ol>
+<h2 id="_6">本章小结</h2>
+<ul>
+<li>任务太大必须拆，拆解让复杂度可控、可验证、可重试。</li>
+<li>两种范式：ReAct（隐式，边做边想）vs Plan-and-Execute（显式，先计划后执行），复杂任务常两者混合。</li>
+<li>拆解三件套：自顶向下分解、反思修订计划、状态管理（JSON 记录进度）。</li>
+<li>工程技巧：计划可验证、限步数、超时重试、先侦察后规划。</li>
+</ul>
+<p>下一章，单个 Agent 忙不过来怎么办？——<strong>多智能体协作</strong>。</p></body></html>

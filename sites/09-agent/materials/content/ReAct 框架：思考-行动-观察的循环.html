@@ -1,0 +1,108 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>ReAct 框架：思考-行动-观察的循环 | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="react-">ReAct 框架：思考-行动-观察的循环</h1>
+<p>上一章我们看到，Agent 干活的节拍是「调用工具 → 拿结果 → 再决定」。这个节拍的规范化版本，就是 2022 年由谷歌研究者提出的 <strong>ReAct 框架</strong>——这个名字是 <strong>Re</strong>asoning（推理）和 <strong>Act</strong>ion（行动）的组合。</p>
+<p>ReAct 的核心思想只有一句话：<strong>让模型一边想、一边做、看着结果继续想</strong>，像人解决问题一样。</p>
+<h2 id="react">ReAct 的三种动作</h2>
+<p>在 ReAct 里，模型每一步都输出三样东西之一：</p>
+<table>
+<thead>
+<tr>
+<th>动作</th>
+<th>含义</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Thought（思考）</strong></td>
+<td>分析现状，决定下一步</td>
+<td>「用户想去杭州，先查天气决定行程」</td>
+</tr>
+<tr>
+<td><strong>Action（行动）</strong></td>
+<td>调用某个工具</td>
+<td>「Action: get_weather[杭州]」</td>
+</tr>
+<tr>
+<td><strong>Observation（观察）</strong></td>
+<td>看到工具返回的结果</td>
+<td>「Observation: 周六小雨 18°C」</td>
+</tr>
+</tbody>
+</table>
+<p>循环就是：<strong>Thought → Action → Observation → 新的 Thought → …… → 直到得出结论（Final Answer）</strong>。</p>
+<h2 id="react_1">一个完整的 ReAct 例子</h2>
+<p>我们用「北京的天气适合穿什么」走一遍：</p>
+<pre class="codehilite"><code>Question: 北京明天适合穿什么？
+
+Thought 1: 我需要知道北京明天的天气，才能给出穿衣建议。
+Action 1: get_weather[北京]
+Observation 1: 明天多云，最高 10°C，最低 2°C，北风 4 级
+
+Thought 2: 10°C 且风大，体感会很冷，建议穿厚外套。
+Action 2: 不需要再查了，直接回答。
+Final Answer: 北京明天 2~10°C、北风 4 级，体感偏冷，建议穿羽绒服或厚大衣，注意防风。
+</code></pre>
+
+<p>注意第 2 步的 Thought：模型<strong>看了结果之后改变了思路</strong>——它发现温度低，于是得出「穿厚」的结论。如果没有 Observation 这一步，它就只能瞎猜。</p>
+<h2 id="react_2">为什么 ReAct 有效</h2>
+<h3 id="1">1. 减少幻觉（一本正经地胡说八道）</h3>
+<p>模型参数里存的知识可能过时、可能记错。ReAct 逼它<strong>先查证再回答</strong>：关键事实从工具的真实返回里来，而不是凭记忆编。</p>
+<h3 id="2">2. 可追踪、可解释</h3>
+<p>每一步的 Thought / Action / Observation 都记录在案。出了错，你能回放 Agent 的「心路历程」，知道它哪一步想岔了。</p>
+<h3 id="3">3. 能自我纠错</h3>
+<p>工具返回「查询失败」或「数据不对」，模型看到 Observation 后可以换一种方式重试，而不是硬着头皮往下编。</p>
+<h2 id="_1">用代码感受一下</h2>
+<p>下面是最简版本的 ReAct 循环（伪代码），逻辑极其朴素，但已经具备了 Agent 的灵魂：</p>
+<pre class="codehilite"><code class="language-python">while True:
+    # 1. 让模型基于当前对话历史，输出下一步（Thought/Action 或最终答案）
+    step = llm.generate(prompt + &quot;\n&quot;.join(history))
+
+    if step 是 Final Answer:
+        print(step)          # 收工
+        break
+
+    if step 是 Action:        # 例如 Action: get_weather[北京]
+        tool_name, args = parse_action(step)
+        result = call_tool(tool_name, args)   # 真·执行工具
+        history.append(&quot;Observation: &quot; + str(result))   # 观察结果
+</code></pre>
+
+<p>就这么简单——<strong>一个 while 循环，就是 Agent 的心脏</strong>。真正工程化的 ReAct 无非是在这个循环外面加上安全、记忆、错误处理、多工具注册等包装。</p>
+<h2 id="react_3">ReAct 的局限</h2>
+<p>ReAct 不是银弹，主要有三个短板：</p>
+<ol>
+<li><strong>慢</strong>：一步一停，来回折腾，复杂任务可能要几十次调用，成本高、延迟大。</li>
+<li><strong>规划能力有限</strong>：遇到特别复杂的任务，ReAct 这种「走一步看一步」的方式容易走岔路，需要更强的<strong>规划机制</strong>（后面第 6 章会讲 Plan-and-Execute）。</li>
+<li><strong>上下文膨胀</strong>：思考记录会越来越多，挤占上下文窗口（第 5 章「记忆与上下文管理」专门讲这个问题）。</li>
+</ol>
+<h2 id="_2">本章小结</h2>
+<ul>
+<li>ReAct = 思考（Thought）+ 行动（Action）+ 观察（Observation）的循环，直到给出最终答案。</li>
+<li>核心价值：先查证再回答（减少幻觉）、全程可追踪、能自我纠错。</li>
+<li>一个 <code>while</code> 循环就是 Agent 的骨架，工程化只是在它外面加包装。</li>
+<li>局限：慢、长任务规划弱、上下文会膨胀。</li>
+</ul>
+<p>下一章，我们把镜头拉回到<strong>提示词</strong>——Agent 的聪明程度，很大程度上取决于你怎么给它写系统提示。</p></body></html>

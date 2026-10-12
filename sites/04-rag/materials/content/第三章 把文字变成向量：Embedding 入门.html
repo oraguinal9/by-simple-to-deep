@@ -1,0 +1,97 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第三章 把文字变成向量：Embedding 入门 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="embedding">第三章 把文字变成向量：Embedding 入门</h1>
+<p>上一章我们把资料切成了小块。现在问题来了：用户问一句话，模型怎么判断"哪块资料和这句话意思最相关"？</p>
+<p>如果靠"有没有共同的关键词"，会遇到尴尬：用户问"猫主子掉毛咋办"，资料里写的是"宠物脱毛的护理方法"——<strong>字面完全不同，意思却一样</strong>。纯关键词匹配会认为"不相关"，直接漏掉正确答案。</p>
+<p>RAG 要的是<strong>按意思找，而不是按字面找</strong>。这就要请出本章的主角：<strong>Embedding（嵌入 / 向量化）</strong>。</p>
+<h2 id="embedding_1">一、什么是 Embedding：给文字发一张"语义坐标卡"</h2>
+<p>Embedding 做的事，可以一句话概括：</p>
+<blockquote>
+<p><strong>把一段文字，变成一串有顺序的数字（向量），让"意思相近的文字，数字也相近"。</strong></p>
+</blockquote>
+<p>比如：</p>
+<ul>
+<li>"猫主子掉毛" → <code>[0.21, -0.83, 0.55, ...]</code>（假设 8 个数字）</li>
+<li>"宠物脱毛护理" → <code>[0.19, -0.80, 0.52, ...]</code></li>
+</ul>
+<p>你会发现，这两句话的向量<strong>长得几乎一样</strong>——因为它们的意思一样。而"今天股市大涨"会变成一串完全不同的数字。</p>
+<p>这串数字，就是文字的"语义坐标"。Embedding 模型（比如 OpenAI 的 text-embedding、阿里的 bge、智谱的 embedding 等）就是干这个映射的"翻译官"。</p>
+<h2 id="_1">二、一个生活类比：把"意思"画到地图上</h2>
+<p>想象一张巨大的"语义地图"：</p>
+<ul>
+<li>地图上每个点代表一个意思；</li>
+<li>"猫"和"狗"离得近（都是宠物），"猫"和"火箭"离得远；</li>
+<li>"高兴"和"开心"几乎重叠，"高兴"和"悲伤"在地图两端。</li>
+</ul>
+<p>Embedding 就是把文字"定位"到这张地图的某个坐标上。所谓"向量"，其实就是这个坐标的一串数字写法（比如三维坐标 (x, y, z) 就是长度为 3 的向量）。</p>
+<p>现实里的 Embedding 维度通常是 <strong>768、1024 甚至 3072 维</strong>——人类画不出这么高维的地图，但计算机算得飞起。你只要记住：<strong>维度越高，能表达的语义细节越丰富</strong>（代价是存储和计算更贵）。</p>
+<h2 id="_2">三���为什么"相近"这么重要</h2>
+<p>回到 RAG 的检索：</p>
+<ol>
+<li>把知识库里<strong>每一块资料</strong>都提前 Embedding 成向量，存进向量数据库；</li>
+<li>用户提问时，把问题也 Embedding 成向量；</li>
+<li>在向量数据库里，找<strong>和"问题向量"距离最近</strong>的那几个资料向量——也就是"意思最像"的几块。</li>
+</ol>
+<p>注意，第 3 步比的不是"有没有共同字"，而是"坐标近不近"。所以"猫主子掉毛"能正确命中"宠物脱毛护理"，因为它们在语义地图上挨着。</p>
+<p>这就是 RAG 能做到"按意思检索"的根本原因。</p>
+<h2 id="_3">四、距离怎么算：先有个概念，下章细讲</h2>
+<p>两个向量"近不近"，数学上用一个叫<strong>余弦相似度（cosine similarity）</strong> 的量来衡量：</p>
+<ul>
+<li>值越接近 <strong>1</strong>：意思越像；</li>
+<li>值接近 <strong>0</strong>：八竿子打不着；</li>
+<li>值接近 <strong>-1</strong>：意思相反（比如"好"和"坏"）。</li>
+</ul>
+<p>本章你只要建立直觉：<strong>Embedding 把文字变成坐标，相似度衡量坐标近不近</strong>。下一章我们会亲手算一遍余弦相似度，并讲向量数据库怎么高效找"最近的邻居"。</p>
+<h2 id="_4">五、几个常见误区</h2>
+<p><strong>误区 1：Embedding 是"把文字编码成密文"。</strong>
+不是。它不是为了保密，是为了让计算机能用"距离"来衡量语义关系。同一句话的 Embedding 是确定的（同一模型下），不是随机加密。</p>
+<p><strong>误区 2：Embedding 能"读懂"文字。</strong>
+Embedding 模型只是学到了"哪些文字经常出现在相似语境"，从而把相似文字映射到相近坐标。它并不真正"理解"，但足够让检索变聪明。</p>
+<p><strong>误区 3：不同模型的 Embedding 能混用。</strong>
+不能。用模型 A 生成的向量，必须和模型 A 生成的"问题向量"比。换模型就得全部重新 Embedding（重嵌）。所以选好一个 embedding 模型后，知识库和查询要<strong>始终用同一个</strong>。</p>
+<h2 id="practical">六、 practical 建议（新手向）</h2>
+<ul>
+<li><strong>选模型</strong>：中文场景优先考虑在中文语料上训练过的模型（如 bge-large-zh、m3e、智谱/通义系列 embedding），效果优于直接拿英文模型硬套中文。</li>
+<li><strong>切块和 Embedding 要配套</strong>：先切块（第二章），再对每块做 Embedding；查询时也整句 Embedding，保持粒度一致。</li>
+<li><strong>维度不是越大越好</strong>：768 维对绝大多数业务足够，盲目上 3072 维只会让存储和检索变慢。</li>
+</ul>
+<h2 id="_5">七、本章小结</h2>
+<ul>
+<li>RAG 要"按意思找资料"，纯关键词匹配会被同义改写坑掉。</li>
+<li><strong>Embedding = 把文字变成一串数字（向量），意思相近 → 向量相近</strong>。</li>
+<li>可以想象成"语义地图"：语义相近的文字，在地图上坐标挨得近；维度越高表达越细。</li>
+<li>检索时把"问题"和"资料"都变向量，找<strong>距离最近</strong>的资料块。</li>
+<li>衡量"近不近"用<strong>余弦相似度</strong>（接近 1 像、接近 0 无关），下章细算。</li>
+<li>注意：Embedding 不是加密、不是真理解；不同模型的向量不能混比。</li>
+</ul>
+<h2 id="_6">八、小练习</h2>
+<ol>
+<li>下面哪一对在语义地图上应该离得更近？为什么？</li>
+<li>A. "手机没电了" 与 "手机电量耗尽"</li>
+<li>B. "手机没电了" 与 "今天天气真好"</li>
+<li>假设你用模型 X 给资料做了 Embedding 存进数据库。某天你换成了模型 Y，查询时用 Y 生成问题向量去比——会发生什么？该怎么办？</li>
+<li>用自己的话解释：为什么说"Embedding 让计算机能用距离衡量语义"？</li>
+</ol>
+<hr />
+<p><em>我们已经能把文字变成坐标了。下一章，就来解决"怎么在成千上万块资料里，快速找到离问题坐标最近的几块"——也就是</em><em>向量检索与相似度计算</em><em>。</em></p></body></html>

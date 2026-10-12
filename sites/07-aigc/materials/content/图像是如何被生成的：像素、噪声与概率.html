@@ -1,0 +1,73 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>图像是如何被生成的：像素、噪声与概率 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="_1">第二章 图像是如何被生成的：像素、噪声与概率</h1>
+<p>上一章我们说：生成模型是从一团噪声里「显影」出画面。这一章我们把这句话拆开——到底什么是噪声？模型又是怎么把噪声变成猫、变成山、变成你描述的一切？</p>
+<p>理解这些，你才能明白为什么扩散模型要那样训练、那样采样。</p>
+<h2 id="21">2.1 图像在计算机眼里是什么</h2>
+<p>对模型来说，一张图不是「一只猫」，而是一个<strong>三维数字矩阵</strong>：</p>
+<ul>
+<li>高 × 宽：比如 512 × 512 个像素点；</li>
+<li>每个像素点有 3 个通道（红 R、绿 G、蓝 B），取值 0–255。</li>
+</ul>
+<p>所以一张 512×512 的彩色图，本质是 <strong>512 × 512 × 3 ≈ 78 万个数</strong>。模型「生成图像」，在数学上就是<strong>生成这 78 万个数字</strong>，使得它们拼起来像你说的东西。</p>
+<p>关键难点：<strong>这 78 万个数不是独立的</strong>。相邻像素高度相关（猫的耳朵旁边大概率还是猫毛）。模型必须学会这种「结构关系」，而不能一个一个乱填。</p>
+<h2 id="22">2.2 什么是噪声</h2>
+<p>「噪声」就是<strong>毫无结构、每个数都随机</strong>的图像。比如：</p>
+<ul>
+<li>每个像素的 RGB 都从 0–255 里独立随机取值；</li>
+<li>放大看是一粒一粒的彩色雪花点；</li>
+<li>人眼完全看不出任何物体。</li>
+</ul>
+<p>在数学上，我们常用<strong>高斯噪声（正态分布）</strong>表示：每个像素值围绕中间值上下随机波动。用均值 0、方差较大的正态分布采样，得到的东西就是「纯噪声图」。</p>
+<p>生成模型的目标，就是<strong>把一张纯噪声图，逐步变成一张有结构、有意义的图</strong>。</p>
+<h2 id="23">2.3 生成的本质：从「所有可能」里挑出「像你说的那一种」</h2>
+<p>想象一个巨大的空间，里面住着<strong>所有可能的图像</strong>：有的清晰、有的模糊、有的像猫、有的像车。一张纯噪声图，就落在这个空间的某个随机角落。</p>
+<p>文字提示「戴帽子的猫」划定了一个<strong>区域</strong>——所有「戴帽子的猫」图像构成的小圈子。生成的过程，就是让模型<strong>把噪声点一步步搬到那个小圈子里去</strong>。</p>
+<p>怎么搬？这就要靠<strong>概率</strong>。</p>
+<p>模型在训练时学会了：给定提示词，什么样的像素组合更「合理」。生成时，它每一步都<strong>以更高的概率保留/生成「符合提示」的像素值</strong>，以更低的概率保留「不像」的。最终落脚的那张图，就是高概率样本。</p>
+<p>一句话：<strong>生成 = 在高维概率分布里采样</strong>。噪声是起点（均匀分布），目标是提示词对应的分布（集中在一小片猫/山区域）。</p>
+<h2 id="24">2.4 为什么不用「一步到位」而要用「逐步去噪」</h2>
+<p>你可能会问：既然要的是最终那张图，为什么不直接一次算出来？</p>
+<p>原因有二：</p>
+<ol>
+<li><strong>太难</strong>：从 78 万个随机数直接跳到「合理的猫」，这个映射极其复杂，模型很难学。</li>
+<li><strong>逐步更简单</strong>：如果每次只去掉「一点点」噪声，每步的任务都很简单（估计「当前图再干净一点该长什么样」）。把简单的事重复做 50 次，就能完成复杂任务。</li>
+</ol>
+<p>这就是扩散模型的聪明之处——它不直接学「噪声→图」，而是学「图 + 一点噪声 → 图」，然后反复应用。下一章我们正式进入扩散模型。</p>
+<h2 id="25">2.5 两个重要概念先记住</h2>
+<ul>
+<li><strong>潜空间（Latent Space）</strong>：真实图像太大（78 万维），现代模型会先把它压缩到一个更小的「潜表示」里再生成，最后再放大回像素。Stable Diffusion 就是这么做的（第三章细讲）。</li>
+<li><strong>随机性（Seed）</strong>：因为起点是随机噪声，所以同一句话每次生成的图都不一样。一个「种子数（Seed）」固定了初始噪声，就能复现同一张图。</li>
+</ul>
+<h2 id="26">2.6 本章小结</h2>
+<ul>
+<li>图像 = 78 万个数字；生成 = 算出这组数字。</li>
+<li>噪声 = 毫无结构、随机的数字图；它是生成的起点。</li>
+<li>生成 = 在高维概率分布里采样：从随机噪声，搬到「符合提示词」的那片区域。</li>
+<li>用「逐步去噪」而非「一步到位」，是因为每步任务更简单、可学习。</li>
+<li>潜空间让生成更高效；Seed 让结果可复现。</li>
+</ul>
+<blockquote>
+<p><strong>小实验预告</strong>：第三章我们会动手，看一张图是怎么被「加噪」再「去噪」的。你可以在本站的「扩散去噪可视化台」里亲眼看到这个过程。</p>
+</blockquote></body></html>

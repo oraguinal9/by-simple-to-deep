@@ -1,0 +1,106 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>训练推理模型：从 SFT 到强化学习 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="sft">训练推理模型：从 SFT 到强化学习</h1>
+<p>提示词思维链是「外挂」，推理模型是「内功」。这一章回答硬核问题：<strong>o1/R1 这类推理模型到底是怎么训练出来的？</strong> 你会看到一条从「模仿」到「自我进化」的完整路径——这也串起了你前面学过的 SFT（L14）和 RLHF（L6）。</p>
+<h2 id="_1">训练推理模型的三阶段路线</h2>
+<p>推理模型的训练不是一步到位的，通常走三个阶段的路线：</p>
+<pre class="codehilite"><code>阶段 1：SFT（监督微调）——让模型学会「先推理再回答」
+阶段 2：RL（强化学习）——让模型学会「找到更优的推理路径」
+阶段 3：推理时扩展（Test-time Scaling）——推理时给更多思考预算
+</code></pre>
+
+<p>下面逐个展开。</p>
+<h2 id="1sft">阶段 1：SFT——教模型「会写推理过程」</h2>
+<p>第一步是让模型「见过」什么是好的推理过程。做法（L14 学的 SFT）：</p>
+<ul>
+<li><strong>构造数据</strong>：收集/生成「问题 → 带推理过程的解答 → 答案」三元组；</li>
+<li><strong>微调基座</strong>：用这些数据做监督微调，让模型学会「先输出推理，再输出结论」的格式。</li>
+</ul>
+<p><strong>数据从哪来</strong>？两条路：
+1. <strong>人工精标</strong>：专家写高质量推理题解（贵但质量高）；
+2. <strong>蒸馏大模型</strong>：用强推理模型（如 R1 原版）生成推理数据，拿来训练小模型（DeepSeek-R1-Distill 就是这么做蒸馏出来的）。</p>
+<p><strong>关键认知</strong>：SFT 让模型「会写」推理，但「写得好不好」取决于数据质量。它学的是「模仿」，还没学会「自我改进」。</p>
+<h2 id="2">阶段 2：强化学习——教模型「把推理做对」</h2>
+<p>光会写推理过程还不够——模型可能「写得很像样但答案是错的」。怎么让模型学会「推理得更好」？答案是<strong>强化学习</strong>（RL）。</p>
+<p>回顾 L6 的 RLHF 框架：模型生成 → 奖励模型打分 → 用分数更新策略。推理模型的训练复用这个框架，但<strong>奖励设计更直接</strong>：</p>
+<pre class="codehilite"><code>问题：17×23 = ？
+模型生成一段推理 + 答案：391
+奖励：
+  ✅ 答案正确（391）→ +1
+  ❌ 答案错误 → -1（不管推理过程写得多漂亮）
+</code></pre>
+
+<p><strong>这就是推理模型训练的灵魂</strong>：<strong>答案对不对是唯一标准</strong>（或者主要标准）。模型通过大量尝试发现：「推理越仔细，答案越容易对，得分越高」——于是它自发地学会更长的、更仔细的推理。</p>
+<h3 id="rl">RL 训练中的两个关键技术</h3>
+<p><strong>1. 策略优化算法（如 GRPO）</strong>：DeepSeek-R1 使用的轻量级策略优化算法。相比传统的 PPO，GRPO 不用单独的「价值模型」，显存和训练成本大幅下降——这是 R1 能用很少算力训练出强推理能力的关键。</p>
+<p><strong>2. 规则型奖励（Rule-based Reward）</strong>：数学、代码这类「有标准答案」的任务，直接用「答案和标准答案一致」判断对错，不需要训练奖励模型。简单、客观、可规模化。</p>
+<h3 id="_2">「自我进化」的涌现</h3>
+<p>R1 论文里有个著名现象：模型在 RL 训练中<strong>自发学会了「重新思考」</strong>——遇到难题，先写一段推理，发现不对，写「等等，让我重新想」，然后换个思路再来。<strong>没有人教它这么做</strong>，是强化学习在「奖励正确答案」的压力下涌现出来的行为。</p>
+<p>这就是推理模型和普通模型的本质差异：<strong>它不只是「会推理」，而是在学习过程中「学会了怎么推理更有效」。</strong></p>
+<h2 id="3">阶段 3：推理时扩展——用时间换精度</h2>
+<p>训练完的推理模型，推理时还能「想得更久」来换更高准确率。这叫 <strong>Test-time Scaling（推理时扩展）</strong>：</p>
+<pre class="codehilite"><code>思考预算少：快速出结果，准确率一般
+思考预算多：反复检查、换思路，准确率更高（也更贵更慢）
+</code></pre>
+
+<p>o1 的 API 就支持 <code>reasoning_effort</code>（思考努力程度）参数；R1 通过控制输出 token 数近似实现。<strong>这给了用户一个旋钮：在「快但普通」和「慢但准」之间调节。</strong></p>
+<h2 id="_3">蒸馏：把推理能力「复制」到小模型</h2>
+<p>训练一个大推理模型很贵。<strong>蒸馏（Distillation）</strong>提供了一条捷径：</p>
+<pre class="codehilite"><code>大推理模型（教师）生成大量「问题→推理→答案」数据
+→ 小模型（学生）用这些数据做 SFT
+→ 得到小号的推理模型
+</code></pre>
+
+<p>DeepSeek-R1-Distill-Qwen 系列就是这么做出来的：用 R1 的数据微调 Qwen 小模型，<strong>小模型获得了接近大模型的推理能力，但体积和成本小得多</strong>。这是个人/小团队获得推理能力的最现实路径。</p>
+<h2 id="_4">一张图总结训练路线</h2>
+<pre class="codehilite"><code>普通基座模型
+   ↓ SFT（学格式：会写推理过程）
+会推理格式的模型
+   ↓ RL/GRPO（学目标：答案正确）
+推理模型（自我纠正能力涌现）
+   ↓ 蒸馏
+小推理模型（便宜可用）
+   ↓ 推理时扩展
+任意精度可调（快/慢旋钮）
+</code></pre>
+
+<p><strong>和前面课程的联系</strong>：SFT 是 L14 学的，RLHF 是 L6 学的，蒸馏和 L14 的微调同源——推理模型不是新魔法，是<strong>已知技术的组合</strong>，只是目标从「学会说话」升级为「学会思考」。</p>
+<h2 id="_5">训练推理模型的常见问题</h2>
+<p><strong>Q：为什么不用纯 SFT 训练推理模型？</strong>
+A：SFT 是「模仿」，模型只会照抄训练数据里的推理样式，遇到新题就露馅。RL 让模型在「答案对错」的反馈下自己摸索「怎么推理更有效」，能力泛化性远超 SFT。</p>
+<p><strong>Q：RL 训练会不会让模型「变傻」（通用能力退化）？</strong>
+A：会——这就是为什么 R1 要「拒绝采样 + 全量 SFT + 全场景 RL」（第 5 章的第三步、第四步）。纯推理 RL 会让模型只擅长数学代码，通用对话能力下降。<strong>推理和通用必须平衡训练</strong>。</p>
+<p><strong>Q：没有「标准答案」的任务能用 RL 训练推理吗？</strong>
+A：可以，但奖励设计更难。没有规则型奖励时，要么训练奖励模型（回到 RLHF 路线），要么用「人类偏好对比」做信号。成本更高、更复杂——这是为什么现有推理模型主要扎堆在数学/代码（有客观标准）的原因。</p>
+<p><strong>Q：个人能训练推理模型吗？</strong>
+A：从头训大推理模型不现实（算力要求高），但「蒸馏」可行——用现成推理模型生成数据微调小模型（L14 的技能 + 第 5 章的蒸馏），个人电脑也能做。</p>
+<h2 id="_6">小练习</h2>
+<ol>
+<li>用自己的话复述推理模型训练的「三阶段路线」。</li>
+<li>为什么「答案是否正确」能直接当奖励信号，不需要像 RLHF 那样训练奖励模型？（提示：数学题有标准答案）</li>
+<li>查资料了解 GRPO 和 PPO 的差异，说出 GRPO 省了什么。</li>
+<li>思考：如果任务「没有标准答案」（比如写作文），规则型奖励还行得通吗？该怎么办？</li>
+<li>进阶：读 R1 论文中关于「冷启动」的描述，总结为什么它说「直接 RL 会输出格式混乱」？</li>
+</ol>
+<p>理论讲完了。下一章看一个真实案例——<strong>DeepSeek-R1 深度解析</strong>。</p></body></html>

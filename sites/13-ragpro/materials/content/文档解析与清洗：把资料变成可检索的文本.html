@@ -1,0 +1,260 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>文档解析与清洗：把资料变成可检索的文本 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="_1">文档解析与清洗：把资料变成可检索的文本</h1>
+<p>在上一篇文章里我们说，企业级知识库的起点是"把资料收拾干净"。这一篇就来做这件最脏、最累、但决定成败的事：<strong>文档解析与清洗</strong>。</p>
+<p>打个比方：你要建一座图书馆，但送来的"书"其实是一箱箱没整理过的纸——有印刷清晰的正规书，有边角发黄的扫描件，有折得皱巴巴还印着页码的复印稿，甚至有几页是表格、几页是照片。你不能直接把这一箱纸扔进书架就让读者"搜索"。图书馆员的第一步，永远是<strong>把纸变成字、把字排成行、把行收拾整齐</strong>。文档解析干的就是图书馆员的活。</p>
+<h2 id="21">2.1 企业资料都有哪些"脏"形态？</h2>
+<p>先认清敌人。企业中真实存在的文档，远比我们以为的复杂：</p>
+<ul>
+<li><strong>PDF</strong>：最普遍，也最麻烦。PDF 有两种——<strong>文本型 PDF</strong>（文字还能被选中复制）和<strong>扫描型 PDF</strong>（本质是图片，文字全靠"拍"出来的）。</li>
+<li><strong>Word / PPT</strong>：本身有段落结构，但可能混入批注、修订、页眉页脚、文本框。</li>
+<li><strong>Excel / 表格</strong>：信息在行与列里，读出来是一堆数字和文字，顺序和含义都藏在表格结构里。</li>
+<li><strong>扫描件 / 图片 / 传真</strong>：纯图片，必须 OCR（光学字符识别，把图片里的字"认"出来）。</li>
+<li><strong>网页 / HTML</strong>：有大量导航、广告、脚本等噪声，正文需要单独抽出来。</li>
+<li><strong>PDF 里嵌套的图片/流程图</strong>：一张架构图，文字识别出来可能是一团乱麻。</li>
+</ul>
+<p>记住一句话：<strong>在解析之前，任何一份文档都只是"一堆字节"，不是"文本"</strong>。解析的目标，就是把它变成一行行干净、有序、机器能读懂的文本。</p>
+<h2 id="22">2.2 解析工具怎么选？</h2>
+<p>工具的选择取决于"源文档长什么样"。我们按需挑选，没有银弹。下表列出最常用的几个：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>擅长</th>
+<th>适合场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pdfplumber</code>（Python 库）</td>
+<td>精确提取文本型 PDF，保留坐标、表格结构</td>
+<td>印刷清晰的合同、报告、说明书</td>
+</tr>
+<tr>
+<td><code>PyMuPDF</code>（fitz）</td>
+<td>速度极快，支持文字、图片、标注提取</td>
+<td>批量处理大量 PDF</td>
+</tr>
+<tr>
+<td><code>Unstructured</code>（开源库）</td>
+<td>一站式解析 PDF/Word/PPT/HTML/图片，自动识别块</td>
+<td>想省事，用统一接口处理多种格式</td>
+</tr>
+<tr>
+<td><code>Apache Tika</code>（Java 工具）</td>
+<td>几乎所有格式都能"嚼"，老牌全能选手</td>
+<td>需要兼容几十种格式的异构环境</td>
+</tr>
+<tr>
+<td><code>OCR</code>（如 <code>PaddleOCR</code>、<code>Tesseract</code>）</td>
+<td>把扫描件/图片里的字认出来</td>
+<td>扫描件、照片、传真</td>
+</tr>
+</tbody>
+</table>
+<p>一个粗浅的选型口诀：<strong>文本型 PDF 用 pdfplumber 或 PyMuPDF；混合格式用 Unstructured；扫描件先走 OCR；全公司什么格式都有，考虑 Tika。</strong> 要注意，工具不是万能的，解析结果一定要抽样人工检查——机器读错字、丢段落是家常便饭。</p>
+<h2 id="23-pdf">2.3 一个最常用的解析示例：PDF 提取文本</h2>
+<p>我们看一段真实可用的代码。假设有一份文本型 PDF，用 <code>pdfplumber</code> 把每一页的文字和表格提出来：</p>
+<pre class="codehilite"><code class="language-python">import pdfplumber
+
+# 打开 PDF 文件
+with pdfplumber.open(&quot;产品说明书.pdf&quot;) as pdf:
+    print(f&quot;总页数：{len(pdf.pages)}&quot;)
+    all_text = []
+    for i, page in enumerate(pdf.pages, start=1):
+        text = page.extract_text()          # 提取该页文字
+        tables = page.extract_tables()      # 提取该页表格（返回二维列表）
+        page_text = f&quot;\n===== 第 {i} 页 =====\n&quot; + (text or &quot;&quot;)
+        if tables:
+            page_text += &quot;\n[表格]\n&quot;
+            for row in tables:
+                page_text += &quot; | &quot;.join(str(c) for c in row) + &quot;\n&quot;
+        all_text.append(page_text)
+        print(f&quot;第 {i} 页：提取到 {len(text or '')} 个字符&quot;)
+
+clean_text = &quot;\n&quot;.join(all_text)
+with open(&quot;说明书_清洗前.txt&quot;, &quot;w&quot;, encoding=&quot;utf-8&quot;) as f:
+    f.write(clean_text)
+print(&quot;提取完成&quot;)
+</code></pre>
+
+<p>这段代码做了三件事：<strong>逐页提取文字 → 逐页提取表格 → 拼接成一个带页码标记的文本文件</strong>。注意我们刻意在每页开头插入了"第 N 页"标记——这个标记后面会成为"引用来源"的锚点：用户问"这条规定在哪？"系统能回答"在第 12 页"。</p>
+<h2 id="24-ocr">2.4 扫描件怎么办：OCR</h2>
+<p>如果 PDF 里的文字复制不出来，那就是扫描件（图片）。这时提取文字没用，需要 <strong>OCR</strong>。国内最推荐 <code>PaddleOCR</code>，中文识别效果好、免费开源。</p>
+<p>OCR 的基本流程是：<strong>PDF 转图片 → 逐张识别 → 拼接文本</strong>。代码示意如下：</p>
+<pre class="codehilite"><code class="language-python">from paddleocr import PaddleOCR
+import fitz  # PyMuPDF
+
+# 1. 把 PDF 每一页渲染成图片
+doc = fitz.open(&quot;扫描合同.pdf&quot;)
+ocr = PaddleOCR(use_angle_cls=True, lang=&quot;ch&quot;)  # 中文识别
+
+full_text = []
+for i, page in enumerate(doc, start=1):
+    pix = page.get_pixmap(dpi=300)  # 300 DPI，识别更准
+    img_path = f&quot;page_{i}.png&quot;
+    pix.save(img_path)
+
+    # 2. OCR 识别这一页
+    result = ocr.ocr(img_path, cls=True)
+    page_text = &quot;\n&quot;.join(line[1][0] for line in result[0])
+    full_text.append(f&quot;\n===== 第 {i} 页 =====\n{page_text}&quot;)
+
+with open(&quot;扫描合同_OCR.txt&quot;, &quot;w&quot;, encoding=&quot;utf-8&quot;) as f:
+    f.write(&quot;\n&quot;.join(full_text))
+</code></pre>
+
+<p>几个实操要点：</p>
+<ul>
+<li><strong>DPI 调到 300</strong>：太低识别率骤降，太高文件巨大又拖慢速度。</li>
+<li><strong>扫描件一定要人工抽查</strong>：印章、手写、模糊字，OCR 都会出错或漏掉。</li>
+<li><strong>能搞到源文件就别 OCR</strong>：扫描件识别率再高也不如原文，这是"最后手段"。</li>
+<li><strong>先小样后全量</strong>：先用 3–5 页测试 OCR 效果和耗时，确认满意后再处理整批文档，避免跑了半天才发现参数不对。</li>
+</ul>
+<p>如果扫描件里既有印刷体又有手写体（比如填写的申请表），最好把 OCR 的<strong>"文字方向检测"打开</strong>（对应代码里的 <code>use_angle_cls=True</code>），它能自动纠正拍歪的页面。实在识别不了的手写区域，不要硬扛——<strong>在文本里保留一个"[此处为手写内容，未识别]"占位标记</strong>，宁可让系统知道"这里缺失"，也不要让错误内容混进知识库。</p>
+<h2 id="25">2.5 清洗：把文本变得更"干净"</h2>
+<p>解析出来的文本是"能读了"，但还很脏。清洗要处理这几类问题：</p>
+<p><strong>（1）去页眉页脚和页码。</strong> 每页顶部的公司名、底部的"第 X 页 / 共 X 页"、网站链接，属于噪声。它们会污染分块，让检索系统误以为"公司名"是正文关键词。处理办法：统计高频短行，直接删掉，或按页面边界裁剪。</p>
+<p><strong>（2）去掉无意义噪声。</strong> 连续空行、特殊符号（如大量 <code>-----</code>、<code>****</code>）、乱码字符（如 <code>锟斤拷</code> 这类编码错误产物）、OCR 产生的孤立单字。用正则清洗：</p>
+<pre class="codehilite"><code class="language-python">import re
+
+def clean_text(text: str) -&gt; str:
+    # 去掉连续空白行，合并为单个空行
+    text = re.sub(r&quot;\n{3,}&quot;, &quot;\n\n&quot;, text)
+    # 去掉页眉页脚里的横线装饰
+    text = re.sub(r&quot;-{5,}&quot;, &quot;&quot;, text)
+    # 去掉乱码字符
+    text = re.sub(r&quot;[\x00-\x08\x0b\x0c\x0e-\x1f]&quot;, &quot;&quot;, text)
+    # 去掉无意义空格（中文字符之间的空格）
+    text = re.sub(r&quot;(?&lt;=[\u4e00-\u9fa5]) (?=[\u4e00-\u9fa5])&quot;, &quot;&quot;, text)
+    return text.strip()
+</code></pre>
+
+<p><strong>（3）统一编码和换行符。</strong> 全角/半角混乱（<code>，</code> 与 <code>,</code>）、英文引号与中文引号不一致、Windows 换行（<code>\r\n</code>）与 Unix 换行（<code>\n</code>）混用。统一成 UTF-8 编码、统一成 <code>\n</code>，能避免后面很多诡异的 bug。</p>
+<p><strong>（4）处理表格。</strong> 表格提取出来后，可以转成"可读的句子"再入库。比如 <code>| 姓名 | 电话 |</code> 这种表，可以转成 <code>员工的姓名是张三，电话是 138xxxx</code>。这样检索时用户问"张三的电话"，系统能直接命中，而不必理解表格结构。</p>
+<h2 id="26-pdf">2.6 一个完整流程示例：一份混乱 PDF 的"从脏到净"</h2>
+<p>把以上所有步骤串成一个真实流程，你会更清楚每一步的位置：</p>
+<pre class="codehilite"><code>【原始输入】一份 2019 年扫描版《员工手册》，共 80 页，
+           含页眉&quot;XX 集团机密&quot;、页码、两张组织结构图、若干表格
+
+ ① 判断类型 ──► 扫描型 PDF（文字无法选中）
+ ② 渲染图片 ──► PyMuPDF，DPI=300，逐页转 PNG
+ ③ OCR 识别 ──► PaddleOCR 中文模型，输出每页文本
+ ④ 粗清洗   ──► 去掉&quot;XX集团机密&quot;页眉、页码、横线装饰
+ ⑤ 表格还原 ──► 把表格行转成&quot;字段是值&quot;的句子
+ ⑥ 图说处理 ──► 组织结构图 OCR 效果差，人工补一段文字说明
+ ⑦ 编码统一 ──► UTF-8、统一换行、去空白行
+ ⑧ 输出     ──► 一份带页码标记的干净文本，附 JSON 元数据
+</code></pre>
+
+<p>第 ⑧ 步输出的"干净文本 + 元数据"，才是真正可以进入分块、向量化的原料。顺便说一句，第 ⑥ 步的"图说处理"特别重要但常被忽略：<strong>一张图在知识库里的价值，取决于你能不能给它配一句文字说明</strong>。</p>
+<h2 id="27-html">2.7 网页与 HTML 的清洗</h2>
+<p>企业知识库常常也要抓取内部网页、帮助中心、Wiki。网页比 PDF 好解析，但噪声更多：导航菜单、广告位、页脚、面包屑、脚本标签，全是垃圾。</p>
+<p>主流做法是用 <strong><code>trafilatura</code></strong> 或 <code>readability</code> 这类"正文抽取"库——它们能自动识别并剥离噪声，只留下文章主体：</p>
+<pre class="codehilite"><code class="language-python">import trafilatura
+
+html = open(&quot;help_center.html&quot;, encoding=&quot;utf-8&quot;).read()
+# 抽取正文（自动去导航、去广告、去脚本）
+content = trafilatura.extract(html, include_links=False, include_tables=True)
+print(content[:500])
+</code></pre>
+
+<p>对内部 Wiki（如 Confluence），更推荐<strong>直接走官方 API 导出为结构化文本</strong>，比抓网页干净得多。记住一个原则：<strong>能用结构化接口（API）就别抓 HTML，能抓 HTML 就别 OCR</strong>。解析手段的"成本"和"风险"是从低到高的。</p>
+<h2 id="28">2.8 清洗流程的自动化设计</h2>
+<p>既然要处理几十万份文档，清洗不能靠手工，得设计成一条<strong>可重复执行的流水线</strong>。给你一个推荐的工程结构：</p>
+<pre class="codehilite"><code class="language-text">pipeline/
+├── 1_convert/      # 各种格式 → PDF 或中间格式
+├── 2_parse/        # PDF → 文本 + 表格 + 元数据
+├── 3_clean/        # 去噪声、去页眉页脚、统一编码
+├── 4_validate/     # 抽样检查 + 质量统计（错字率、空块率）
+└── 5_output/       # 干净的 .txt + .json 元数据
+</code></pre>
+
+<p>流水线每一段输出都要<strong>可审计</strong>：每份文档处理完，生成一行日志——"文件 X：1200 字，含 3 个表格，错字 2 处，可疑块 1 个"。这样出了问题你能快速定位是哪一步干的。</p>
+<p>另外强烈建议在清洗阶段做<strong>"质量门禁"（Quality Gate）</strong>：计算每个块的<strong>信息密度</strong>（有效汉字占比）和<strong>可疑率</strong>（乱码/孤立单字比例），低于阈值的块直接标记为"待人工处理"，而不是静默进入知识库。宁可让一份文档"缺失"，也不能让一堆垃圾进入检索。</p>
+<h2 id="29-word-ppt">2.9 Word 与 PPT 的解析细节</h2>
+<p>除了 PDF，Word 和 PPT 也是企业文档大户，它们的解析有一些"坑"值得单独说。</p>
+<p><strong>Word（<code>.docx</code>）</strong>：本质是带结构的 XML（可扩展标记语言，一种带标签的文本格式），用 <code>python-docx</code> 能同时拿到段落和表格：</p>
+<pre class="codehilite"><code class="language-python">from docx import Document
+
+doc = Document(&quot;员工手册.docx&quot;)
+texts = []
+for para in doc.paragraphs:          # 读段落
+    if para.text.strip():
+        texts.append(para.text)
+for table in doc.tables:             # 读表格
+    for row in table.rows:
+        texts.append(&quot; | &quot;.join(cell.text for cell in row.cells))
+print(&quot;\n&quot;.join(texts)[:500])
+</code></pre>
+
+<p>要注意的坑：<strong>批注、修订痕迹</strong>经常残留在文档里，解析前先"接受所有修订并删除批注"；文本框里的内容 <code>python-docx</code> 默认读不到，要额外遍历。</p>
+<p><strong>PPT（<code>.pptx</code>）</strong>：每张幻灯片有标题和正文，还有备注。对企业知识库，<strong>备注往往是隐藏金矿</strong>（演讲人把要点写在那里）。用 <code>python-pptx</code>：</p>
+<pre class="codehilite"><code class="language-python">from pptx import Presentation
+
+prs = Presentation(&quot;产品培训.pptx&quot;)
+for i, slide in enumerate(prs.slides, start=1):
+    title = slide.shapes.title.text if slide.shapes.title else &quot;&quot;
+    body = &quot;；&quot;.join(
+        shape.text for shape in slide.shapes
+        if shape.has_text_frame and shape.text.strip()
+    )
+    notes = slide.notes_slide.notes_text_frame.text if slide.has_notes_slide else &quot;&quot;
+    print(f&quot;第{i}页 | 标题：{title} | 正文：{body[:100]} | 备注：{notes[:100]}&quot;)
+</code></pre>
+
+<p><strong>Excel（<code>.xlsx</code>）</strong>：一整个工作簿几十个 sheet（工作表），每个 sheet 又有几百行。直接整表转文本会爆炸。推荐按 sheet 拆分处理，把每一行转成"键值对"句子（第 2.5 节的做法），并<strong>在块开头保留 sheet 名和表头</strong>，这样"查台账"类问题才有线索可循。</p>
+<h2 id="210">2.10 元数据设计：被忽视的宝藏</h2>
+<p>前面的"黄金原则"里提到过元数据，这里展开说——它是很多知识库"检索对但引用乱"的元凶。</p>
+<p>每个块入库时，至少要带这些字段：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;id&quot;: &quot;chunk_000123&quot;,
+  &quot;doc_id&quot;: &quot;doc_20240715_012&quot;,
+  &quot;title&quot;: &quot;员工手册_2024版&quot;,
+  &quot;chapter&quot;: &quot;第四章 休假制度&quot;,
+  &quot;page&quot;: 12,
+  &quot;author&quot;: &quot;人力资源部&quot;,
+  &quot;created_at&quot;: &quot;2024-07-15&quot;,
+  &quot;permission&quot;: &quot;all_employees&quot;,
+  &quot;chunk_index&quot;: 3,
+  &quot;chunk_total&quot;: 42
+}
+</code></pre>
+
+<p>这些字段的价值：</p>
+<ul>
+<li><strong>page / chapter</strong>：第 7 篇讲引用时，答案要标注"出自第 12 页"，靠的就是它们。</li>
+<li><strong>permission</strong>：权限控制（第 10 篇的坑五）靠它实现——薪酬资料只对 HR 可见。</li>
+<li><strong>created_at</strong>：资料过期检测，"2021 年的制度"和"2024 年的制度"冲突时，系统能提示以新版为准。</li>
+<li><strong>chunk_index / chunk_total</strong>：分块太碎时，可以追溯"这个块属于哪份文档的哪一段"，便于回溯原文。</li>
+</ul>
+<p>设计元数据要趁早，<strong>因为向量库建好后再补字段，往往要全量重建索引</strong>。宁可开始多花半天设计，也别后面返工三天。</p>
+<h2 id="211">2.11 本篇小结</h2>
+<p>最后给你三条可以长期使用的原则，帮你少踩坑：</p>
+<ol>
+<li><strong>"垃圾进，垃圾出"是全流程的铁律。</strong> 解析和清洗不做好，后面所有的分块、检索、生成都是在给脏数据做美容。宁可在这一步多花 3 天，也不要让 3 天变成 30 天的返工。</li>
+<li><strong>解析结果必须抽样验收。</strong> 抽 5% 的页面人工检查，定一个"可接受标准"（比如每页错字率低于 1%），不合格就换工具、调参数。</li>
+<li><strong>保留元数据。</strong> 来源文件名、页码、章节标题、作者、日期，这些"关于文本的文本"要跟着每一段走，它们是后面做引用、做权限、做审计的根基。</li>
+</ol>
+<p>到这里，你的资料已经是一份份干净的文本了。下一步，就是把这些"干净但很长"的文本，切成适合检索的小块——这就是<a href="content/分块策略：怎么切文本最合适.html">下一篇《分块策略》</a>要解决的问题。</p></body></html>

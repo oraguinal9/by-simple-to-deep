@@ -1,0 +1,127 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>变量与对话管理：让应用记住上下文 | AI 应用开发平台 L15</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L15 学习路线图</a><span class='r'>AI 应用开发平台 · dify.zbjh.top</span></div><h1 id="_1">变量与对话管理：让应用记住上下文</h1>
+<p>一个「高级」的 AI 应用不止会「一问一答」，还要会<strong>记住</strong>：记住用户是谁、记住之前聊过什么、记住用户的偏好。这一章讲 Dify 里的变量系统和对话管理——让应用「有记忆」。</p>
+<h2 id="_2">为什么需要记忆</h2>
+<p>试想一个客服应用：用户说「我刚才问的报销流程，还有后续吗？」——如果应用不记得之前聊了什么，这句就变成无意义的孤句。</p>
+<p>应用的「记忆」分两层：</p>
+<ol>
+<li><strong>会话记忆</strong>：记住本轮对话的历史（说了什么）；</li>
+<li><strong>变量记忆</strong>：记住业务数据（用户是谁、订单号、偏好设置）。</li>
+</ol>
+<p>Dify 对这两层都有支持。</p>
+<h2 id="_3">会话记忆：对话历史的自动管理</h2>
+<p>在 Dify 的聊天助手里，<strong>对话历史默认被自动管理</strong>：</p>
+<ul>
+<li>平台把之前的用户消息和助手回复按顺序存起来；</li>
+<li>每次新请求，把最近 N 轮历史拼进上下文，模型「记得」之前的对话；</li>
+<li>你可以通过参数控制「记住几轮」（上下文窗口有限，太久的会丢）。</li>
+</ul>
+<p><strong>实现原理</strong>（你一定熟悉）：就是把历史消息序列化后塞进提示词的 messages 里——L5 讲过的对话模板思想，平台自动做了。</p>
+<h2 id="_4">变量：应用级的「业务记忆」</h2>
+<p>除了对话历史，你还需要记住业务信息。Dify 的<strong>变量系统</strong>支持：</p>
+<ul>
+<li><strong>会话变量（Conversation Variables）</strong>：整个会话内有效，比如用户当前选择的「订单号」「偏好语言」；</li>
+<li><strong>环境变量（Environment Variables）</strong>：应用级配置，所有会话共享，比如「公司名称」「API 地址」；</li>
+<li><strong>临时变量</strong>：单次运行内有效，工作流节点间传值用。</li>
+</ul>
+<p><strong>会话变量的用法示例</strong>：客服应用里，用户第一次说「我的订单是 ORD-123」，变量 <code>{{order_id}}</code> 记下；之后用户问「它到哪了」，应用自动带上这个订单号去查——<strong>用户不需要每次重复订单号</strong>。</p>
+<h2 id="_5">对话开场白与建议问题</h2>
+<p>一个容易被忽略但很提升体验的功能：<strong>对话开场白（Opening Statement）</strong>。</p>
+<pre class="codehilite"><code>欢迎语：你好，我是公司助手。你可以问我报销、请假、采购相关问题。
+建议问题：
+  · 报销流程是什么？
+  · 怎么申请年假？
+  · 采购需要什么流程？
+</code></pre>
+
+<p><strong>为什么有用</strong>：
+- 降低用户上手成本（不知道问什么的人直接被引导）；
+- 暗示应用能力边界（用户知道你会什么）；
+- 引导高质量提问（建议问题往往是数据准备过的）。</p>
+<p>配置在应用编排的「功能」面板里，和「对话开场白」开关一起。</p>
+<h2 id="_6">多轮对话的常见问题与对策</h2>
+<p><strong>问题 1：历史太长导致超 token / 变贵 / 变慢</strong>
+对策：限制历史轮数；用「总结」节点把早期对话压缩成摘要再放入上下文（Dify 工作流支持）。</p>
+<p><strong>问题 2：模型把「历史」当「当前输入」</strong>
+对策：在系统提示词里区分「以下是对话历史，仅供参考，请只回应最新消息」。</p>
+<p><strong>问题 3：不同会话串了（用户 A 看到用户 B 的数据）</strong>
+对策：Dify 用「会话 ID」隔离对话。API 接入时每个用户传独立的 <code>conversation_id</code>，就不会串。</p>
+<h2 id="_7">用工作流做「高级记忆」</h2>
+<p>聊天助手的记忆是「自动的」，但如果你想更精细地控制记忆，可以用工作流：</p>
+<pre class="codehilite"><code>开始（接收用户消息 + 会话变量）
+ → LLM 节点（带历史总结）
+ → 判断是否要更新会话变量（如记录新订单号）
+ → 更新变量节点
+ → LLM 生成回答
+ → 结束
+</code></pre>
+
+<p><strong>进阶玩法</strong>：
+- <strong>记忆总结</strong>：每轮结束把对话压缩成要点存进会话变量，长对话也不怕丢；
+- <strong>用户画像</strong>：从对话里抽取用户偏好（行业、规模）存入变量，后续回答个性化；
+- <strong>状态机</strong>：用会话变量当「当前流程状态」，实现多步骤表单式对话（先问 A 再问 B）。</p>
+<h2 id="_8">数据与隐私：记忆的边界</h2>
+<p>「记住」越多的应用，越要注意：</p>
+<ul>
+<li><strong>最小化原则</strong>：只记完成任务必要的信息，别什么都记；</li>
+<li><strong>脱敏</strong>：敏感信息（身份证、密码）不要存进变量，更不要放进日志；</li>
+<li><strong>合规</strong>：涉及个人信息的收集要符合隐私法规，用户要有知情权；</li>
+<li><strong>清理机制</strong>：会话结束后考虑是否清除敏感会话变量。</li>
+</ul>
+<p><strong>工程提醒</strong>：变量被拼进提示词后，会出现在模型调用的日志里——生产环境务必确认没有把机密写进变量。</p>
+<h2 id="_9">记忆设计的常见坑</h2>
+<p><strong>坑 1：把「对话历史」和「变量」混为一谈</strong>
+对话历史是自动管理的；变量需要你显式读写。想清楚「哪些该自动、哪些该存变量」，别让该存变量的信息只存在于历史里（历史会被裁剪）。</p>
+<p><strong>坑 2：会话变量越存越多、越来越贵</strong>
+每个会话变量都会拼进每次请求的提示词。变量太多 = 每次调用都背着大包袱。<strong>定期清理不用的变量，重要信息用摘要代替全文</strong>。</p>
+<p><strong>坑 3：多轮对话被「截断」后上下文断裂</strong>
+限制历史轮数后，早期关键信息会丢。<strong>对策</strong>：把关键信息（订单号、偏好）主动存进会话变量，而不是依赖对话历史。</p>
+<p><strong>坑 4：会话 ID 不隔离导致串话</strong>
+API 接入时如果所有用户共用同一个 <code>conversation_id</code>，大家的数据就混了。<strong>每个用户独立会话 ID 是底线</strong>。</p>
+<h2 id="_10">记忆的进阶设计：用户画像</h2>
+<p>给应用加「用户画像」是记忆能力的进阶玩法，让回答更个性化：</p>
+<pre class="codehilite"><code>第 1 轮：用户说「我是做跨境电商的，主要卖欧美」
+→ LLM 抽取画像：{行业: 跨境电商, 市场: 欧美}
+→ 存入会话变量 {{user_profile}}
+
+第 2 轮：用户问「有什么建议？」
+→ 提示词引用 {{user_profile}}：结合跨境电商/欧美市场给建议
+→ 回答明显更「懂用户」
+</code></pre>
+
+<p><strong>实现要点</strong>：
+- 用代码节点或 LLM 节点做「画像抽取」，输出结构化数据；
+- 画像要「增量更新」而不是每次覆盖（新信息合并进旧画像）；
+- 画像只存业务相关字段，别存敏感个人信息。</p>
+<p><strong>这就是「记住用户」的产品感</strong>——同样的应用，老用户会觉得「它越来越懂我」。</p>
+<h2 id="_11">小练习</h2>
+<ol>
+<li>给聊天助手开启「对话开场白」，写欢迎语和 3 个建议问题，体验引导效果。</li>
+<li>用会话变量实现「用户首次说订单号，之后不用重复」的体验。</li>
+<li>故意问一个「需要上文才能理解」的问题，验证会话记忆是否生效；再把历史轮数调小，观察记忆丢失的表现。</li>
+<li>进阶：在工作流里实现「对话摘要存入会话变量」，让超长对话也不丢失关键信息。</li>
+<li>进阶：实现一个简易「用户画像」——第一轮收集用户行业，第二轮让回答引用画像，观察个性化效果。</li>
+</ol>
+<p>应用「有记忆」了。下一章，管理你的模型资源——<strong>模型接入与管理</strong>。</p></body></html>

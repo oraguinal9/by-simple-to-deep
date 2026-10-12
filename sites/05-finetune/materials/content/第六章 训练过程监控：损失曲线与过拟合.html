@@ -1,0 +1,97 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第六章 训练过程监控：损失曲线与过拟合 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="_1">第六章 训练过程监控：损失曲线与过拟合</h1>
+<p>微调跑起来后，屏幕上会刷一堆数字。新手最容易犯的错是"看不懂就忽略"。本章教你把训练"体检表"读明白。</p>
+<h2 id="loss">损失（Loss）是什么</h2>
+<p>复习 L2/L3：损失衡量"模型答得有多离谱"。训练的目标就是<strong>让损失越来越小</strong>。</p>
+<p>每个 step（训练步），模型用一批数据算损失 → 反传梯度 → 更新参数。你看到的是这些损失随步数画成的<strong>损失曲线</strong>。</p>
+<h2 id="_2">一条健康的训练曲线</h2>
+<p>理想情况下：</p>
+<ul>
+<li><strong>train loss（训练损失）</strong>：从较高处<strong>平滑下降</strong>，最后趋于平缓（不是垂直砸到 0，那叫记答案）。</li>
+<li><strong>eval loss（验证损失）</strong>：跟着降，且在训练集和验证集上<strong>差距不大</strong>。</li>
+</ul>
+<pre class="codehilite"><code>loss
+ ↑
+ |    ╲
+ |      ╲___
+ |          ‾╲___   ← train 和 eval 都平稳下行后走平
+ +----------------→ steps
+</code></pre>
+
+<h2 id="_3">过拟合：背下了，没学会</h2>
+<p><strong>过拟合</strong> = 模型把训练集"背"下来了，但遇到新题就不会。信号是：</p>
+<ul>
+<li>train loss 一直降，甚至接近 0；</li>
+<li><strong>eval loss 先降后升</strong>（拐点出现）。</li>
+</ul>
+<pre class="codehilite"><code>loss
+ ↑
+ |    ╲___
+ |        ‾╲___ eval loss 回升 = 过拟合！
+ |              ╱
+ +----------------→ steps
+</code></pre>
+
+<blockquote>
+<p>类比：学生把练习册答案全背了（train 满分），考试换道题（eval）就傻眼。训练集好不代表真学会。</p>
+</blockquote>
+<h3 id="_4">怎么治过拟合？</h3>
+<ul>
+<li><strong>少训几轮 / 早停</strong>：看到 eval loss 回升就停。</li>
+<li><strong>加数据</strong>：最根本的解药。</li>
+<li><strong>降 rank r</strong>：LoRA 旁路容量小，天然不易过拟合。</li>
+<li><strong>正则化</strong>：如 weight decay（权重衰减），框架通常带默认值。</li>
+</ul>
+<h2 id="_5">欠拟合：还没学够</h2>
+<p>反过来，<strong>欠拟合</strong> = 模型压根没学会。</p>
+<ul>
+<li>train loss 和 eval loss <strong>都很高、降不下去</strong>；</li>
+<li>或是两者都低但模型实际输出仍很差（可能是数据质量/标签问题）。</li>
+</ul>
+<p>对策：调大学习率、多训几轮、检查数据对不对、加大 rank。</p>
+<h2 id="_6">发散：学习率太大</h2>
+<p>如果 loss <strong>不降反升、最后变成 NaN/Inf</strong>，基本是学习率太大或数据有坏样本：</p>
+<ul>
+<li>立刻停，把学习率降一个数量级（如 <code>2e-4</code> → <code>2e-5</code>）；</li>
+<li>检查有无标签全空、文本乱码的样本。</li>
+</ul>
+<h2 id="_7">其他值得盯的指标</h2>
+<ul>
+<li><strong>grad_norm（梯度范数）</strong>：突然飙高可能是脏数据或学习率问题。</li>
+<li><strong>learning rate</strong>：确认 warmup 后按预期调度。</li>
+<li><strong>GPU 显存占用</strong>：接近爆满就降 batch 或开梯度累积。</li>
+</ul>
+<h2 id="_8">本章小结</h2>
+<ul>
+<li>训练主看 <strong>train loss 与 eval loss</strong> 两条曲线。</li>
+<li><strong>eval loss 回升 = 过拟合</strong>，靠早停/加数据/降 rank 治。</li>
+<li><strong>两者都高降不动 = 欠拟合</strong>，靠调学习率/加轮数/查数据。</li>
+<li><strong>loss 变 NaN = 发散</strong>，通常是学习率太大或有脏样本。</li>
+</ul>
+<h2 id="_9">小练习</h2>
+<ol>
+<li>曲线显示 train loss 一路降到 0.01，eval loss 却在 0.5 附近开始上升。诊断并给出两条对策。</li>
+<li>发散（loss 变 NaN）时，你第一件该做的事是什么？</li>
+</ol></body></html>

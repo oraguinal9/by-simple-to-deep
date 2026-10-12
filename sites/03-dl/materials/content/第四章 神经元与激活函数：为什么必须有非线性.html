@@ -1,0 +1,312 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第四章 神经元与激活函数：为什么必须有非线性 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="_1">第四章 神经元与激活函数：为什么必须有"非线性"</h1>
+<blockquote>
+<p>本章目标：理解一个<strong>人工神经元</strong>长什么样，以及为什么去掉激活函数，再深的网络也等于一条直线。</p>
+</blockquote>
+<hr />
+<h2 id="41">4.1 一个神经元 = 加权求和 + 挤一下</h2>
+<p>生物神经元的工作方式大致是：接收多个电信号 → 累加 → 超过某个阈值就"放电"。</p>
+<p>人工神经元照抄了这个思路，只有两步：</p>
+<pre class="codehilite"><code>       x₁ ──w₁──┐
+       x₂ ──w₂──┼──►  z = w₁x₁ + w₂x₂ + w₃x₃ + b  ──►  a = f(z)  ──► 输出
+       x₃ ──w₃──┘         ↑ 第一步：加权求和         ↑ 第二步：激活函数
+</code></pre>
+
+<ul>
+<li><strong>第一步</strong>：把所有输入乘上权重再加起来，加个偏置 b —— 这就是第一章的线性模型</li>
+<li><strong>第二步</strong>：把结果 <code>z</code> 丢进一个<strong>激活函数 f</strong>，"挤"一下再输出</li>
+</ul>
+<p>第一步是老朋友，本章的主角是<strong>第二步</strong>。</p>
+<hr />
+<h2 id="42">4.2 为什么一定要有激活函数？</h2>
+<p>这是本章最重要的问题。答案可以严格证明，而且非常好懂。</p>
+<p>假设我们不要激活函数，直接堆两层：</p>
+<pre class="codehilite"><code>第一层： h = W₁·x + b₁
+第二层： y = W₂·h + b₂
+</code></pre>
+
+<p>把第一层代入第二层：</p>
+<pre class="codehilite"><code>y = W₂·(W₁·x + b₁) + b₂
+  = (W₂W₁)·x + (W₂b₁ + b₂)
+  = W'·x + b'          ← 又变回一条直线！
+</code></pre>
+
+<p><strong>结论</strong>：<code>W₂W₁</code> 还是一个矩阵，<code>W₂b₁+b₂</code> 还是一个向量。所以<strong>两层线性 = 一层线性</strong>。</p>
+<p>推而广之：</p>
+<blockquote>
+<p><strong>不加激活函数，堆 100 层和 1 层的表达能力完全一样，全是直线。</strong></p>
+</blockquote>
+<p>这就是激活函数存在的唯一理由——<strong>打破线性，让网络能长出弯曲的形状</strong>。</p>
+<h3 id="xor">用 XOR 直观感受</h3>
+<p>经典的异或问题：</p>
+<table>
+<thead>
+<tr>
+<th>x₁</th>
+<th>x₂</th>
+<th>输出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>0</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>0</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>把这四个点画在平面上，你会发现：<strong>没有任何一条直线能把 0 和 1 分开</strong>。</p>
+<pre class="codehilite"><code> x₂
+  1 │  ●(1)      ○(0)
+    │
+  0 │  ○(0)      ●(1)
+    └─────────────── x₁
+       0          1
+</code></pre>
+
+<p>用纯线性模型，无论训练多久，准确率都卡在 50%。但只要加一层带激活函数的隐藏层（2~4 个神经元就够），立刻能完美分开。</p>
+<blockquote>
+<p>💡 首页的「迷你神经网络训练台」里有 XOR 数据集，把隐藏层设成 0 层再训练，你会亲眼看到它永远学不会；加到 1 层立刻搞定。<strong>建议一定去点一下</strong>。</p>
+</blockquote>
+<hr />
+<h2 id="43">4.3 常见激活函数图鉴</h2>
+<h3 id="sigmoids">Sigmoid（S 型函数）</h3>
+<pre class="codehilite"><code>σ(z) = 1 / (1 + e^(−z))
+</code></pre>
+
+<ul>
+<li>输出范围：<strong>(0, 1)</strong></li>
+<li>形状：平滑的 S 形，把任意实数压到 0~1</li>
+<li>用途：<strong>二分类的输出层</strong>（输出即"是正类的概率"）</li>
+</ul>
+<p><strong>缺点（很致命）</strong>：</p>
+<ol>
+<li><strong>梯度消失</strong>。当 z 很大或很小时，曲线几乎水平，导数趋近 0。反向传播时梯度层层相乘，几层之后就变成 0，深层网络学不动。</li>
+<li>输出不以 0 为中心，收敛慢。</li>
+<li>有指数运算，计算稍慢。</li>
+</ol>
+<blockquote>
+<p>📌 现在 Sigmoid <strong>基本只用在输出层</strong>，隐藏层早就不用了。</p>
+</blockquote>
+<h3 id="tanh">Tanh（双曲正切）</h3>
+<pre class="codehilite"><code>tanh(z) = (e^z − e^(−z)) / (e^z + e^(−z))
+</code></pre>
+
+<ul>
+<li>输出范围：<strong>(−1, 1)</strong></li>
+<li>相当于把 Sigmoid 拉伸并平移，<strong>以 0 为中心</strong>，比 Sigmoid 好用</li>
+<li>仍然有梯度消失问题</li>
+<li>现在主要出现在 RNN/LSTM 里</li>
+</ul>
+<h3 id="relu">ReLU（修正线性单元）⭐ 最重要</h3>
+<pre class="codehilite"><code>ReLU(z) = max(0, z)
+</code></pre>
+
+<p>翻译：<strong>正数原样输出，负数一律变 0。</strong> 就这么简单粗暴。</p>
+<pre class="codehilite"><code>     │      ╱
+     │    ╱
+     │  ╱
+─────┼╱─────────
+     │
+</code></pre>
+
+<p><strong>为什么它统治了深度学习？</strong></p>
+<table>
+<thead>
+<tr>
+<th>优点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不会梯度消失</td>
+<td>正区间导数恒为 1，梯度原样传下去</td>
+</tr>
+<tr>
+<td>计算极快</td>
+<td>一个比较操作，没有指数运算</td>
+</tr>
+<tr>
+<td>稀疏激活</td>
+<td>约一半神经元输出 0，网络更简洁、泛化更好</td>
+</tr>
+<tr>
+<td>收敛快</td>
+<td>实测比 Sigmoid 快好几倍</td>
+</tr>
+</tbody>
+</table>
+<p><strong>缺点：Dead ReLU（神经元死亡）</strong>。如果某个神经元的输入长期为负，它的输出恒为 0，梯度也恒为 0，<strong>这个神经元就永久失活了</strong>，再也学不回来。学习率过大时尤其容易发生。</p>
+<h3 id="leaky-relu-gelu-silu">Leaky ReLU / GELU / SiLU</h3>
+<p>针对 Dead ReLU 的改进：</p>
+<table>
+<thead>
+<tr>
+<th>函数</th>
+<th>公式</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Leaky ReLU</td>
+<td><code>max(0.01z, z)</code></td>
+<td>负区间给一点小斜率，不至于彻底死掉</td>
+</tr>
+<tr>
+<td><strong>GELU</strong></td>
+<td><code>z · Φ(z)</code>（Φ 是正态分布累积函数）</td>
+<td>平滑版 ReLU，<strong>BERT / GPT 系列的标配</strong></td>
+</tr>
+<tr>
+<td><strong>SiLU / Swish</strong></td>
+<td><code>z · σ(z)</code></td>
+<td>平滑，<strong>LLaMA 等现代大模型常用</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>🔑 如果你去读 GPT 或 LLaMA 的源码，看到的激活函数基本是 <strong>GELU</strong> 或 <strong>SwiGLU</strong>（SiLU 的门控变体）。它们的共同点是：<strong>像 ReLU 一样简单有效，但曲线是平滑的</strong>，在负区间保留一点点信息。</p>
+</blockquote>
+<hr />
+<h2 id="44">4.4 一张表选激活函数</h2>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>推荐</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>隐藏层（通用）</td>
+<td><strong>ReLU</strong></td>
+<td>简单、快、够用</td>
+</tr>
+<tr>
+<td>隐藏层（Transformer）</td>
+<td><strong>GELU / SwiGLU</strong></td>
+<td>平滑，效果更好</td>
+</tr>
+<tr>
+<td>隐藏层（RNN）</td>
+<td>tanh</td>
+<td>历史习惯，输出有界</td>
+</tr>
+<tr>
+<td>输出层·回归</td>
+<td><strong>不加激活</strong></td>
+<td>需要输出任意实数</td>
+</tr>
+<tr>
+<td>输出层·二分类</td>
+<td><strong>Sigmoid</strong></td>
+<td>输出 0~1 的概率</td>
+</tr>
+<tr>
+<td>输出层·多分类</td>
+<td><strong>Softmax</strong></td>
+<td>输出一组和为 1 的概率</td>
+</tr>
+</tbody>
+</table>
+<p><strong>新手记住这三条就够了</strong>：隐藏层用 ReLU、二分类输出用 Sigmoid、多分类输出用 Softmax。</p>
+<hr />
+<h2 id="45">4.5 亲手实现一个神经元</h2>
+<pre class="codehilite"><code class="language-python">import numpy as np
+
+def relu(z):
+    return np.maximum(0, z)
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
+
+class Neuron:
+    def __init__(self, n_inputs, activation=relu):
+        self.w = np.random.randn(n_inputs) * 0.1   # 随机初始化
+        self.b = 0.0
+        self.f = activation
+
+    def forward(self, x):
+        z = np.dot(self.w, x) + self.b   # 第一步：加权求和
+        return self.f(z)                 # 第二步：激活
+
+n = Neuron(3)
+print(n.forward(np.array([1.0, 2.0, 3.0])))
+</code></pre>
+
+<p><strong>整个深度学习，就是把这个 10 行的小东西复制几百万份，连成网络。</strong></p>
+<hr />
+<h2 id="46">4.6 为什么参数要随机初始化？</h2>
+<p>注意上面代码里的 <code>np.random.randn(...) * 0.1</code>。为什么不全部初始化为 0？</p>
+<p>因为<strong>如果所有权重都相同，同一层的所有神经元会计算出完全一样的结果，收到完全一样的梯度，永远保持相同</strong>——那么这一层有 100 个神经元和 1 个神经元没有区别。这叫<strong>对称性问题</strong>。</p>
+<p>随机初始化打破对称，让每个神经元有机会学到不同的特征。</p>
+<p>常用初始化方法（了解即可）：</p>
+<ul>
+<li><strong>Xavier / Glorot</strong>：搭配 Sigmoid、tanh</li>
+<li><strong>He 初始化</strong>：搭配 ReLU（PyTorch 默认）</li>
+</ul>
+<p>初始化的方差也有讲究：太大容易梯度爆炸，太小容易梯度消失。好在现代框架都帮你选好了默认值。</p>
+<hr />
+<h2 id="47">4.7 本章小结</h2>
+<ul>
+<li>神经元 = <strong>加权求和 + 激活函数</strong>，两步而已</li>
+<li><strong>没有激活函数，堆多少层都等价于一条直线</strong>——这是激活函数存在的根本理由</li>
+<li><strong>XOR 问题</strong>是最经典的例证：线性模型永远学不会，加一层隐藏层立刻搞定</li>
+<li><strong>Sigmoid</strong>：输出 0~1，用于二分类输出层，有梯度消失问题</li>
+<li><strong>ReLU</strong>：<code>max(0,z)</code>，隐藏层默认选择，快且不易梯度消失，注意 Dead ReLU</li>
+<li><strong>GELU / SwiGLU</strong>：现代大模型的选择，平滑版 ReLU</li>
+<li>权重必须<strong>随机初始化</strong>，否则同层神经元会永远一模一样</li>
+</ul>
+<hr />
+<h2 id="48">4.8 自测</h2>
+<ol>
+<li>证明一下：两层不带激活函数的线性层，为什么等价于一层？</li>
+<li>为什么直线画不出 XOR 的分界？（在纸上画四个点试试）</li>
+<li>ReLU 相比 Sigmoid 的三个优点是什么？</li>
+<li>什么是 Dead ReLU？什么情况下容易发生？</li>
+<li>如果把所有权重初始化为 0，会发生什么？</li>
+</ol>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：单个神经元能力有限，把它们排成层、层层堆叠，就成了<strong>神经网络</strong>。下一章看信息如何在网络里向前流动。</p>
+</blockquote></body></html>

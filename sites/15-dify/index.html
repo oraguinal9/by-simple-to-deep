@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 应用开发平台 L15 · 由简入深</title>
+<style>
+  :root{
+    --l1:#34d399; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#ecfdf5; --ink:#022c22; --sub:#4d7c6a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#ecfdf5,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#047857,#10b981 55%,#34d399);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(16,185,129,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#d1fae5;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#34d399)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#10b981;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #a7f3d0;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(16,185,129,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(16,185,129,.16);border-color:#34d399}
+  .card .day{font-size:12px;color:#10b981;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #6ee7b7;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#10b981;border-color:#10b981}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #a7f3d0;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(16,185,129,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#10b981}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#ecfdf5;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #6ee7b7}
+  .btn{background:#10b981;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#059669}
+  .btn.ghost{background:#fff;color:#10b981;border:1px solid #10b981}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#d1fae5;color:#10b981;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#022c22;color:#a7f3d0;padding:2px 7px;border-radius:6px;font-size:12px}
+  .sel{display:inline-block;background:#fff;border:1px solid #6ee7b7;border-radius:10px;padding:8px 14px;margin:5px 6px 0 0;font-size:14px;cursor:pointer;transition:.15s}
+  .sel:hover{border-color:#34d399}
+  .sel.on{background:#10b981;color:#fff;border-color:#10b981}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+  .node{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #6ee7b7;font-weight:600}
+  .node.on{background:#10b981;color:#fff;border-color:#10b981}
+  .arrow{color:#10b981;font-weight:700}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#d1fae5;border:1px solid #6ee7b7;border-radius:12px;padding:12px 16px;font-size:13px;color:#064e3b;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L15 · 由简入深 AI 学习路线</div>
+  <h1>🧩 AI 应用开发平台</h1>
+  <p>不写一行代码也能做 AI 应用：用 Dify 可视化搭建工作流、接入知识库、编排 Agent，到一键发布成 API 与网页应用，把想法变成产品。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · <a href="https://agent.zbjh.top/">agent</a> · <a href="https://local.zbjh.top/">local</a> · <a href="https://prompt.zbjh.top/">prompt</a> · <a href="https://comfy.zbjh.top/">comfy</a> · <a href="https://ragpro.zbjh.top/">ragpro</a> · <a href="https://ftplus.zbjh.top/">ftplus</a> · dify</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「AI 应用开发的新范式」到「用 Dify 做一个完整的业务应用」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里看懂 AI 应用平台的三大关键环节。</p>
+    <div class="demos">
+
+      <!-- 演示1 工作流编排 -->
+      <div class="demo">
+        <h3>① 工作流编排台</h3>
+        <p class="sub">看一个「客户咨询分类 → 知识库检索 → 生成回答」的完整工作流，节点怎么串联。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">换一种流程 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示2 知识库检索 -->
+      <div class="demo">
+        <h3>② 知识库检索流程台</h3>
+        <p class="sub">Dify 里挂知识库的问答应用，从提问到带上下文的回答，看检索增强怎么走。</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn" id="next2">换一个查询 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示3 发布方式 -->
+      <div class="demo">
+        <h3>③ 应用发布方式对比台</h3>
+        <p class="sub">WebApp 分享链接、嵌入网页、API 接入三种发布方式，各自适合什么场景。</p>
+        <div class="stage" id="stage3"></div>
+        <div class="row">
+          <button class="btn" id="next3">换一种发布方式 ▶</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示中的「工作流/检索/发布」为教学模拟，展示机制与典型流程。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · agent · local · prompt · comfy · ragpro · ftplus · <b>dify</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L15</b> · AI 应用开发平台 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"从代码到平台：AI 应用开发的新范式"},
+  {no:"第2天", t:"Dify 初体验：搭建你的第一个应用"},
+  {no:"第3天", t:"工作流编排：让应用按你的逻辑走"},
+  {no:"第4天", t:"知识库接入：RAG 应用的可视化实现"},
+  {no:"第5天", t:"Agent 模式：让应用自己调用工具"},
+  {no:"第6天", t:"提示词工程在 Dify 中的实践"},
+  {no:"第7天", t:"变量与对话管理：让应用记住上下文"},
+  {no:"第8天", t:"模型接入与管理：多模型路由与成本控制"},
+  {no:"第9天", t:"应用发布：API、嵌入与分享"},
+  {no:"第10天", t:"实战路线：用 Dify 做一个完整的业务应用"},
+];
+const KEY = "dify_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：工作流编排台 ============ */
+(function(){
+  const cases = [
+    {name:"客户咨询分类流程", desc:"入门级：一个分类节点 + 两条分支",
+     nodes:["开始","问题分类","售后？→转人工","售前？→生成回答","结束"],
+     tip:"条件分支让同一个应用面对不同问题走不同路径，是工作流最基本的用法。"},
+    {name:"知识库问答流程", desc:"进阶：分类 + 检索 + 生成三步",
+     nodes:["开始","分类","知识库检索","拼上下文","LLM 生成回答","结束"],
+     tip:"检索节点把「开卷考试的资料」喂给大模型，回答更准、可溯源。"},
+    {name:"多步编排流程", desc:"高级：检索 + 代码处理 + 多模型",
+     nodes:["开始","意图识别","知识库检索","代码节点(格式化)","LLM 生成","HTTP 请求(查库存)","汇总回答","结束"],
+     tip:"高级工作流可以调外部 API、跑代码节点，把 AI 应用接进真实业务系统。"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage1");
+  function render(){
+    const c = cases[ci];
+    const chips = c.nodes.map((n,i)=>
+      '<span class="pill" style="background:#d1fae5;color:#047857">'+(i+1)+'. '+n+'</span>').join('');
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>流程：</b>'+c.name+'（'+c.desc+'）</div>'
+      +'<div style="line-height:2">'+chips+'</div>'
+      +'<div class="muted" style="margin-top:8px">💡 '+c.tip+'</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示2：知识库检索流程台 ============ */
+(function(){
+  const cases = [
+    {q:"2026 年报销截止日期？",
+     step:"问题进入应用 → 检索节点在知识库命中「财务报销通知」→ 把相关段落拼进上下文 → 模型基于资料回答",
+     ans:"2026 年 12 月 15 日前提交报销单据。",
+     src:"参考来源：财务报销通知.pdf（第 3 段）"},
+    {q:"怎么申请年假？",
+     step:"问题进入应用 → 检索命中「考勤制度」「HR 常见问答」→ 合并上下文 → 模型回答并附来源",
+     ans:"提前 3 个工作日通过 OA 提交年假申请，经直属上级审批即可。",
+     src:"参考来源：考勤制度.docx（第 2 章）+ HR 常见问答.md"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage2");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:8px"><b>查询：</b>'+c.q+'</div>'
+      +'<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:10px;font-size:13px;margin-bottom:8px">'
+      +'<b>流程：</b>'+c.step+'</div>'
+      +'<div style="background:#fff;border:1px solid #6ee7b7;border-radius:10px;padding:10px;font-size:13px">'
+      +'<div class="ok" style="margin-bottom:4px">🤖 回答：'+c.ans+'</div>'
+      +'<div class="muted">📎 '+c.src+'</div></div>'
+      +'<div class="muted" style="margin-top:8px">Dify 的知识库应用会自动把「引用来源」附在回答旁，用户能点开核对，这是企业场景的关键能力。</div>';
+  }
+  document.getElementById("next2").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示3：应用发布方式对比台 ============ */
+(function(){
+  const cases = [
+    {name:"WebApp 分享链接", desc:"生成一个网页链接，直接发给用户",
+     good:"最快上手，无需任何开发", bad:"分享范围难控制，需设置访问权限", icon:"🔗"},
+    {name:"嵌入网页", desc:"一行 iframe 代码嵌进你的官网/系统",
+     good:"用户不用跳出你的站点", bad:"样式受 iframe 限制，交互有限", icon:"🧩"},
+    {name:"API 接入", desc:"调用 RESTful API，接进自己的业务系统",
+     good:"完全可控，可编程集成", bad:"需要开发能力，有调用量计费", icon:"⚙️"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage3");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>方式：</b>'+c.name+'（'+c.desc+'）</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0">'
+      +'<div style="flex:1;min-width:200px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:10px;text-align:center">'
+      +'<div style="font-size:26px">'+c.icon+'</div><div style="font-weight:700;margin-top:4px">优点</div><div class="muted">'+c.good+'</div></div>'
+      +'<div style="flex:1;min-width:200px;background:#fff;border:1px solid #6ee7b7;border-radius:10px;padding:10px;text-align:center">'
+      +'<div style="font-size:26px">⚠️</div><div style="font-weight:700;margin-top:4px">注意</div><div class="muted">'+c.bad+'</div></div>'
+      +'</div>'
+      +'<div class="muted" style="margin-top:8px">选择顺序建议：先用 WebApp 验证效果 → 再决定嵌入 or API，别一上来就做最复杂的。</div>';
+  }
+  document.getElementById("next3").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+</script>
+</body>
+</html>

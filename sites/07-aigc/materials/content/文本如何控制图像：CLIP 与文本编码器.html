@@ -1,0 +1,86 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>文本如何控制图像：CLIP 与文本编码器 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="clip">第四章 文本如何控制图像：CLIP 与文本编码器</h1>
+<p>前面三章我们讲清楚了「图像怎么从噪声里生成」。但还差最关键的一环：<strong>模型怎么知道你要的是「戴帽子的猫」而不是「雪山」？</strong></p>
+<p>答案藏在「条件（conditioning）」机制里：文字提示要先被「编码」成一串数字向量，再注入到去噪网络，指挥每一步往哪个方向去噪。本章讲这套「文字→数字→控制图像」的 pipeline，核心是 CLIP 与文本编码器。</p>
+<h2 id="41">4.1 文字不能直接喂给图像网络</h2>
+<p>图像去噪网络吃的是「带噪图 + 步数」，输入是像素张量。而「戴帽子的猫」是一串汉字/英文单词。两种数据格式完全不同，中间必须有一座桥。</p>
+<p>这座桥分两步：</p>
+<ol>
+<li><strong>文本编码器（Text Encoder）</strong>：把提示词变成一组高维向量（比如 77 个 token，每个 768 维）。它捕捉了「词与词之间的语义关系」。</li>
+<li><strong>交叉注意力（Cross-Attention）</strong>：在去噪网络的每一层，让「图像特征」去「看」这些文本向量，从而把文字语义「揉」进图像生成过程。</li>
+</ol>
+<p>于是「猫」这个词对应的向量，会在去噪时让图像区域长出猫的特征。</p>
+<h2 id="42-clip">4.2 CLIP：让「文字」和「图像」住进同一栋楼</h2>
+<p>2021 年 OpenAI 提出的 <strong>CLIP（Contrastive Language–Image Pre-training）</strong> 是个里程碑。它的训练方式很特别：</p>
+<ul>
+<li>收集 4 亿对「图片 + 文字说明」；</li>
+<li>同时训练一个<strong>图像编码器</strong>和一个<strong>文本编码器</strong>；</li>
+<li>训练目标：让「一张猫的图」和它的文字「a cat」在向量空间里<strong>离得近</strong>，和无关的「a car」离得远。</li>
+</ul>
+<p>训练完后，文字和图像就被映射到<strong>同一个向量空间</strong>——同一个「语义坐标」里。这带来了两个神级能力：</p>
+<ol>
+<li><strong>零样本分类</strong>：不用重新训练，就能判断一张图是猫还是狗（比一比谁更近）。</li>
+<li><strong>文图对齐</strong>：文字向量可以直接作为生成模型的「控制指令」，因为图像生成模型也用这套空间。</li>
+</ol>
+<p>Stable Diffusion 里的文本编码器（CLIPTextModel）正是 CLIP 的文本侧，它把提示词编码成去噪网络能懂的「语义向量」。</p>
+<h2 id="43">4.3 提示词在训练时是怎么用的</h2>
+<p>扩散模型训练时，每张训练图都带文字说明。训练去噪网络时，我们把：</p>
+<ul>
+<li>带噪图 $x_t$</li>
+<li>步数 $t$</li>
+<li><strong>这张图的文字说明编码后的向量</strong></li>
+</ul>
+<p>一起喂给网络，让它预测噪声。</p>
+<p>这样网络就学会了「在含『猫』的图上去噪时，应该长出猫的结构」。推理时，你换上自己的提示词向量，网络就朝你描述的方向去噪。</p>
+<p>注意一个细节：训练时文字是「真实图注」，推理时文字是「你的指令」。网络把两者都当成「条件」，所以同一套权重既能学结构、又能听指挥。</p>
+<h2 id="44">4.4 交叉注意力：文字是怎么「注入」每一步的</h2>
+<p>去噪 UNet 内部有很多层。在部分层里，除了处理图像自身的特征，还会插入一个<strong>交叉注意力</strong>模块：</p>
+<ul>
+<li>图像特征作为「查询（Query）」；</li>
+<li>文本向量作为「键值（Key/Value）」；</li>
+<li>图像特征去「检索」和自己相关的文字语义。</li>
+</ul>
+<p>结果是：当网络在处理「该画猫头的位置」时，会更多地关注文本里「猫」的向量，从而把猫的特征画上去。这就是「文字真的控制了像素」的微观机制。</p>
+<h2 id="45">4.5 为什么提示词写得好，图就好</h2>
+<p>因为文本向量直接决定去噪方向。一个含糊的提示（「好看的图」）对应的向量很「平」，网络不知道往哪走，容易出平庸结果；一个具体的提示（「戴红帽子的猫，水彩风格，柔和侧光，8k」）向量信息密度高，给网络明确的去噪目标，画面就更有针对性。</p>
+<p>这也引出了第六章要专门讲的「提示词工程」。</p>
+<h2 id="46">4.6 中文提示词怎么办</h2>
+<p>CLIP 的原始文本编码器主要吃英文。要支持中文，常见做法有两种：</p>
+<ol>
+<li><strong>翻译</strong>：先把中文提示翻成英文再编码（很多国产工具默认这么做）。</li>
+<li><strong>中文 CLIP / 多语言模型</strong>：直接用在中英文图文对上训练过的编码器，中文词也能映射到正确语义空间。</li>
+</ol>
+<p>无论哪种，本质都是「把中文语义变成可被去噪网络使用的向量」。</p>
+<h2 id="47">4.7 本章小结</h2>
+<ul>
+<li>文字控制图像靠「条件机制」：文本编码器把提示变成向量，再经交叉注意力注入去噪网络。</li>
+<li><strong>CLIP</strong> 让文字和图像进入同一向量空间，是文生图能「听懂人话」的基石。</li>
+<li>训练时「图 + 图注」一起喂，网络学会「带『猫』语义时该长猫」；推理时换成你的提示。</li>
+<li>交叉注意力是文字控制像素的微观入口。</li>
+<li>提示词越具体，去噪目标越明确，图越可控。</li>
+</ul>
+<blockquote>
+<p><strong>动手试</strong>：本站「CLIP 文本-图像匹配台」用简化模型演示——输入一句话，看它如何给几张候选图打分、排序，直观感受「文字向量怎么衡量图像相关性」。</p>
+</blockquote></body></html>

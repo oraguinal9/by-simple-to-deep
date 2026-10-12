@@ -1,0 +1,137 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>思维链 CoT：让模型一步一步想 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="cot">思维链 CoT：让模型一步一步想</h1>
+<p>上一章讲了「快思考 vs 慢思考」的框架。这一章进入核心机制：<strong>思维链（Chain-of-Thought，CoT）</strong>——让模型「一步一步想」的技术，它既是提示词技巧，也是推理模型的底层能力。</p>
+<h2 id="_1">思维链是什么</h2>
+<p>思维链（CoT）最早由 Google 在 2022 年的论文中提出，核心思想极其简单：</p>
+<blockquote>
+<p><strong>让模型在给出答案之前，先输出中间的推理步骤（一步一步的思考过程），再基于这些步骤给出结论。</strong></p>
+</blockquote>
+<p>看一个经典对比：</p>
+<pre class="codehilite"><code>问题：超市促销买 2 送 1，每个 3 元，买 6 个实际付多少钱？
+
+❌ 不引导思维链：
+&quot;12 元&quot;（直接跳答案，可能对但不可信、易错）
+
+✅ 引导思维链：
+&quot;买 2 送 1 意味着付 2 个的钱拿 3 个。
+ 要拿 6 个 = 2 组买 2 送 1。
+ 每组付 2×3=6 元。
+ 两组共付 6×2=12 元。
+ 答案：12 元&quot;
+</code></pre>
+
+<p><strong>为什么有效？</strong> 两个层面：</p>
+<ol>
+<li><strong>计算层面</strong>：多步问题的中间状态被显式写下来，模型「看着自己的草稿」继续算，不容易跳步、漏项；</li>
+<li><strong>概率层面</strong>：模型每一步只需要「接着上一步推理」而不是「一步跳到答案」，单步出错的概率低得多，而错误在传递中更容易被后续步骤暴露。</li>
+</ol>
+<h2 id="_2">思维链的两种形态</h2>
+<h3 id="prompting-cot">形态一：提示词引导（Prompting CoT）</h3>
+<p>不训练模型，只是在提示词里引导它「一步一步想」。这是 L11 讲过的方法，也是最容易上手的：</p>
+<pre class="codehilite"><code>用户：请一步一步思考，然后回答：17×23 等于多少？
+模型：
+  17×20 = 340
+  17×3 = 51
+  340 + 51 = 391
+  答案：391
+</code></pre>
+
+<p><strong>优点</strong>：零成本，任何模型都能试。
+<strong>缺点</strong>：效果依赖模型本身能力，弱模型可能「假装思考」仍然错。</p>
+<h3 id="trained-cot">形态二：训练内化（Trained CoT）</h3>
+<p>把「带推理过程的问答」作为训练数据，让「先推理再回答」成为模型本能——这就是推理模型的做法（第 4、5 章详述）。</p>
+<pre class="codehilite"><code>训练数据：
+  问题：17×23 等于多少？
+  输出：17×20=340 → 17×3=51 → 340+51=391 → 答案：391
+</code></pre>
+
+<p><strong>优点</strong>：不需要用户提示，模型自动先思考；能力更稳定。
+<strong>缺点</strong>：需要专门训练，成本高。</p>
+<h2 id="_3">思维链的变体</h2>
+<p>思维链有几个常见变体，在不同场景各有优势：</p>
+<p><strong>1. 零样本思维链（Zero-shot CoT）</strong>
+不举例子，只加一句「让我们一步一步思考」（Let's think step by step）：</p>
+<pre class="codehilite"><code>用户：让我们一步一步思考：小明 3 小时走了 15 公里，速度是多少？
+</code></pre>
+
+<p>简单粗暴，很多场景已经够用。</p>
+<p><strong>2. 少样本思维链（Few-shot CoT）</strong>
+先给 1~3 个「带推理过程」的示例，再问目标问题。示例让模型「照着样子推理」，效果通常比零样本稳。</p>
+<p><strong>3. 自洽性（Self-Consistency）</strong>
+同一问题让模型用思维链<strong>回答多次</strong>（不同采样），取「多数答案」。因为思维链每次可能走不同路径，多数投票能显著提高准确率——这是最实用的增强技巧之一。</p>
+<p><strong>4. 思维树（Tree-of-Thoughts, ToT）</strong>
+思维链是「一条线走到底」，思维树是「每步分多个分支探索」。更强但更贵，适合极难问题。</p>
+<h2 id="_4">思维链的边界与风险</h2>
+<p>思维链不是万能药，要知道它的局限：</p>
+<ul>
+<li><strong>不是所有问题都需要</strong>：常识问答加思维链纯属浪费时间（更慢更贵没收益）；</li>
+<li><strong>弱模型可能「假思考」</strong>：能力不足的模型可能输出「看似合理但逻辑错误」的推理，比直接答更糟；</li>
+<li><strong>推理过程可能不对</strong>：模型可能推理到错误结论还自信满满——<strong>思维链提升的是概率，不是保证</strong>；</li>
+<li><strong>token 成本上升</strong>：每道题都多输出几百到几千 token，贵（第 8 章细算）。</li>
+</ul>
+<h2 id="_5">思维链与推理模型的关系</h2>
+<p>到这里你应该能看清两者的关系了：</p>
+<pre class="codehilite"><code>思维链（CoT）= 让模型先想再答的「机制」
+推理模型 = 把这种机制「训练进模型」的产物
+</code></pre>
+
+<ul>
+<li>思维链是<strong>方法</strong>：既能当提示词技巧用，也能当训练目标用；</li>
+<li>推理模型是<strong>产品</strong>：o1/R1 等把「自动思维链 + 强化学习自我纠正」做成了开箱即用的能力。</li>
+</ul>
+<p>所以学思维链 = 学推理模型的「地基」。后面几章的地基就绪了。</p>
+<h2 id="_6">思维链与推理模型的进阶关系图</h2>
+<p>把这一章的要点串成一张「关系地图」，帮助你记忆：</p>
+<pre class="codehilite"><code>推理能力来源
+├─ 提示词层（本章）：零样本 CoT / Few-shot CoT / 自洽性
+│   优点：零成本、立即可用
+│   局限：受限于模型本身能力
+├─ 模型层（第4/5章）：训练内化 CoT
+│   优点：自动思考、能力稳定
+│   局限：需要训练成本
+└─ 推理时层（第4章）：test-time scaling
+    优点：精度可调
+    局限：更贵更慢
+</code></pre>
+
+<p><strong>工程上的组合拳</strong>：即使你在用推理模型，提示词层的技巧仍然有效——比如在推理模型提示词里加「请验证你的答案」，往往还能再提升一点准确率。</p>
+<h2 id="_7">常见问题速查</h2>
+<p><strong>Q：加了思维链提示词，模型还是直接答？</strong>
+A：触发词太弱或模型太弱。换更强硬的说法（「请务必先写出完整推理步骤，再给出结论」），或改用少样本示范。</p>
+<p><strong>Q：思维链输出太长，token 太贵？</strong>
+A：提示词里限定「推理控制在 N 步以内」「只写必要步骤」，或用 reasoning_effort 调思考强度（第 8 章）。</p>
+<p><strong>Q：推理过程看着对，答案却错？</strong>
+A：这是「推理幻觉」。用自洽性多数投票，或让模型「每一步都验证上一步」，或换更强的模型。</p>
+<p><strong>Q：思维链对中文模型效果差？</strong>
+A：用中文触发词（「请一步一步思考」）；少样本时用中文示例，不要中英混搭。</p>
+<h2 id="_8">小练习</h2>
+<ol>
+<li>用「零样本思维链」提示词（让我们一步一步思考）问一个多步应用题，对比不加提示词时的回答。</li>
+<li>用「少样本思维链」：给模型 2 个带推理过程的示例，再问第 3 道同类题，观察效果是否更稳。</li>
+<li>试「自洽性」：同一道题让模型答 3 次（每次换一下问法），统计多数答案，看是否比单次更准。</li>
+<li>找一个「不该用思维链」的场景（比如闲聊），实际验证加了思维链后的体验损失。</li>
+<li>进阶：对同一道题，比较「零样本 CoT」和「少样本 CoT」的答案结构，总结两者的适用条件。</li>
+</ol>
+<p>下一章，深入提示词里的思维链技巧——<strong>Few-shot 与零样本</strong>。</p></body></html>

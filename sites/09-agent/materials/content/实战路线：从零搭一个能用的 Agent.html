@@ -1,0 +1,144 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>实战路线：从零搭一个能用的 Agent | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="agent">实战路线：从零搭一个能用的 Agent</h1>
+<p>九章理论讲完了。这一章把它们串成一条<strong>可执行的实战路线</strong>——照着走，你就能从零搭出一个「能干活」的 Agent。我们不堆概念，只给步骤、取舍和工具选型。</p>
+<h2 id="agent_1">先明确一个原则：从最小可行 Agent 开始</h2>
+<p>别一上来就上多智能体、接十个工具。业界反复验证的路径是：<strong>先做出一个能用 10 分钟搞定的最小闭环，再逐步加东西。</strong> 一个最小 Agent 只要三样东西：</p>
+<ol>
+<li>一个大模型 API（DeepSeek、Qwen、GPT、Claude 都行）。</li>
+<li>一个工具（比如天气查询）。</li>
+<li>一个 ReAct 循环（上一章那段 while 循环的完整版）。</li>
+</ol>
+<p>跑通它，你就理解了 Agent 的全部精髓。</p>
+<h2 id="7">实战路线图（7 步）</h2>
+<h3 id="1">第 1 步：定场景，选「能动手」的任务</h3>
+<p>不要选「写诗」这种纯生成任务（聊天机器人就够），要选<strong>需要调用工具</strong>的任务，比如：</p>
+<ul>
+<li>日程助手：查日程、创建提醒。</li>
+<li>文件整理助手：扫描目录、移动文件（注意权限）。</li>
+<li>知识库客服：查文档回答问题（配合第 8 章 RAG）。</li>
+<li>订票/比价助手：查价格、给方案（先不自动下单，安全第一）。</li>
+</ul>
+<blockquote>
+<p>判断标准：<strong>这个任务不用工具就做不了</strong>，Agent 才有存在意义。</p>
+</blockquote>
+<h3 id="2">第 2 步：选框架（或裸写）</h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>适合谁</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>裸写（OpenAI/国产 API + requests）</td>
+<td>想彻底搞懂原理</td>
+<td>自己实现 ReAct 循环，二三百行代码</td>
+</tr>
+<tr>
+<td><strong>LangChain</strong></td>
+<td>快速原型</td>
+<td>工具注册、对话历史、RAG 组件齐全</td>
+</tr>
+<tr>
+<td><strong>LangGraph</strong></td>
+<td>生产级复杂流程</td>
+<td>图结构编排、状态管理、人机确认节点</td>
+</tr>
+<tr>
+<td><strong>Dify / Coze</strong></td>
+<td>不想写代码</td>
+<td>拖拽搭 Agent，适合产品验证</td>
+</tr>
+</tbody>
+</table>
+<p><strong>我的建议</strong>：想学原理就裸写一遍 ReAct（强烈推荐，一次就通透）；想快点出活用 LangChain 起步，复杂后迁 LangGraph。</p>
+<h3 id="3-4">第 3 步：写系统提示（第 4 章的知识）</h3>
+<p>把角色、工具守则、禁止编造、危险先确认、输出格式，一条条写清楚。这是零成本、高回报的一步，别偷懒。</p>
+<h3 id="4">第 4 步：注册工具 + 实现调用</h3>
+<pre class="codehilite"><code class="language-python"># 以 LangChain 风格为例（示意）
+from langchain_core.tools import tool
+
+@tool
+def get_weather(city: str) -&gt; str:
+    &quot;&quot;&quot;查询指定城市的实时天气。&quot;&quot;&quot;
+    # 这里调用真实天气 API，或先返回模拟数据
+    return weather_api(city)
+
+tools = [get_weather]
+agent = create_agent(model, tools, system_prompt)   # 框架会帮你跑 ReAct 循环
+</code></pre>
+
+<p>注意：<strong>先每个工具单独测通</strong>（参数校验、超时、异常返回），再挂进 Agent。工具没测好就上 Agent，问题会被模型「加工」得面目全非，极难排查。</p>
+<h3 id="5-rag">第 5 步：接记忆与 RAG（按需）</h3>
+<ul>
+<li>需要记住用户偏好？→ 加长期记忆（向量库，见第 5 章）。</li>
+<li>需要回答私有知识？→ 加 RAG（第 8 章）：文档切块 → 向量化 → 检索工具。</li>
+<li>别一次全加：<strong>先跑通，再加</strong>。</li>
+</ul>
+<h3 id="6-9">第 6 步：上安全闸门（第 9 章，必须做）</h3>
+<p>最小配置三件套：</p>
+<ol>
+<li>危险工具（删除/发送/花钱）默认<strong>人工确认</strong>。</li>
+<li>工具参数白名单校验（防越界路径、非法参数）。</li>
+<li>全量日志（Thought/Action/结果全记录）。</li>
+</ol>
+<h3 id="7_1">第 7 步：测试与迭代</h3>
+<p>用一组「测试用例」反复跑，看它怎么翻车：</p>
+<ul>
+<li>信息不足时，它会不会编？</li>
+<li>工具调用失败，它会不会重试？</li>
+<li>用户意图含糊，它会不会追问？</li>
+<li>遇到注入攻击文本，它会不会被带偏？</li>
+</ul>
+<p>每发现一个问题，先改系统提示（最便宜），不行再改工具/流程。<strong>评估（Evals）是 Agent 开发的日常</strong>，不是上线前的一次性动作。</p>
+<h2 id="_1">主流开源框架一句话定位</h2>
+<ul>
+<li><strong>LangChain</strong>：老牌全能框架，组件多、上手快。</li>
+<li><strong>LangGraph</strong>：图编排，状态与人机确认友好，生产首选。</li>
+<li><strong>AutoGPT</strong>：经典自主 Agent，适合研究「自主性」上限。</li>
+<li><strong>OpenClaw / OpenManus</strong>：个人助手型 Agent，开箱即用，2026 年现象级项目。</li>
+<li><strong>Dify / n8n / Coze</strong>：低代码平台，拖拽搭 Agent，验证想法最快。</li>
+<li><strong>CrewAI</strong>：多智能体团队模式，角色分工直观。</li>
+</ul>
+<h2 id="_2">一张图回顾全部九章</h2>
+<pre class="codehilite"><code>    ┌────────────────────────────────────────────────────┐
+    │              一个 AI Agent =                        │
+    │   大模型(大脑) × ��具(手脚) × 记忆(笔记本) × 规划(方法论) │
+    └────────────────────────────────────────────────────┘
+               │
+    ┌──────────┼──────────────────────────┐
+    ▼          ▼           ▼              ▼
+ 第1章 是什么  第2-3章 工具+ReAct  第5章 记忆   第6章 规划
+    │          │           │              │
+    └──── 第4章 提示词 + 第8章 RAG ────┘    │
+               │                          ▼
+               └──── 第7章 多智能体 ── 第9章 安全 ── 第10章 实战
+</code></pre>
+
+<h2 id="_3">最后的鼓励</h2>
+<p>Agent 开发最大的门槛不是技术，而是<strong>「想清楚任务边界 + 耐心迭代」</strong>。你的第一个 Agent 会很笨——很正常。跑通最小闭环，然后让它一点点变聪明，这条路每一小步都有反馈，也正是最迷人的地方。</p>
+<p>去动手吧。🛠️</p></body></html>

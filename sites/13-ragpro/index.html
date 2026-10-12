@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>企业级 RAG 知识库 L13 · 由简入深</title>
+<style>
+  :root{
+    --l1:#3b82f6; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#fff1f2; --ink:#4c0519; --sub:#9f5d6d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#fff1f2,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#be123c,#e11d48 55%,#fb7185);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(225,29,72,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#ffe4e6;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#e11d48)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#be123c;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #fecdd3;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(225,29,72,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(225,29,72,.16);border-color:#e11d48}
+  .card .day{font-size:12px;color:#be123c;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #fda4af;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#be123c;border-color:#be123c}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #fecdd3;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(225,29,72,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#be123c}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#fff1f2;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #fda4af}
+  .btn{background:#be123c;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#9f1239}
+  .btn.ghost{background:#fff;color:#be123c;border:1px solid #be123c}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#ffe4e6;color:#be123c;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#4c0519;color:#fecdd3;padding:2px 7px;border-radius:6px;font-size:12px}
+  .sel{display:inline-block;background:#fff;border:1px solid #fda4af;border-radius:10px;padding:8px 14px;margin:5px 6px 0 0;font-size:14px;cursor:pointer;transition:.15s}
+  .sel:hover{border-color:#e11d48}
+  .sel.on{background:#be123c;color:#fff;border-color:#be123c}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+  .node{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #fda4af;font-weight:600}
+  .node.on{background:#be123c;color:#fff;border-color:#be123c}
+  .arrow{color:#be123c;font-weight:700}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#ffe4e6;border:1px solid #fda4af;border-radius:12px;padding:12px 16px;font-size:13px;color:#881337;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L13 · 由简入深 AI 学习路线</div>
+  <h1>📚 企业级 RAG 知识库实战</h1>
+  <p>把公司的文档变成会说话的专家：文档解析、分块、混合检索、重排序，到用 RAGFlow 搭出真正能用的知识库。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · <a href="https://agent.zbjh.top/">agent</a> · <a href="https://local.zbjh.top/">local</a> · <a href="https://prompt.zbjh.top/">prompt</a> · <a href="https://comfy.zbjh.top/">comfy</a> · ragpro</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「RAG 进阶全景」到「搭一个公司内部问答机器人」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里看懂知识库的三大关键环节。</p>
+    <div class="demos">
+
+      <!-- 演示1 分块策略 -->
+      <div class="demo">
+        <h3>① 分块策略对比台</h3>
+        <p class="sub">同一段文档，不同切法（块大小/重叠）对检索效果的影响。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">换一种切法 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示2 混合检索 -->
+      <div class="demo">
+        <h3>② 混合检索可视化台</h3>
+        <p class="sub">关键词（BM25）与语义（向量）双路召回，看怎么合并成最终结果。</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn" id="next2">换一个查询 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示3 RAG 评测 -->
+      <div class="demo">
+        <h3>③ RAG 评测台</h3>
+        <p class="sub">给一个回答打分：忠实度（有没有照着资料说）与相关性（有没有答到点上）。</p>
+        <div class="stage" id="stage3"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示中的「检索结果/评分」为教学模拟，展示机制与典型效果。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · agent · local · prompt · comfy · <b>ragpro</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L13</b> · 企业级 RAG 知识库实战 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"从检索到知识库：RAG 进阶全景"},
+  {no:"第2天", t:"文档解析与清洗：把资料变成可检索的文本"},
+  {no:"第3天", t:"分块策略：怎么切文本最合适"},
+  {no:"第4天", t:"Embedding 与向量库选型"},
+  {no:"第5天", t:"混合检索：BM25 与向量的双路召回"},
+  {no:"第6天", t:"重排序 Rerank：把最相关的排前面"},
+  {no:"第7天", t:"RAG 问答链路：从检索到回答的完整流程"},
+  {no:"第8天", t:"用 RAGFlow 搭建企业知识库"},
+  {no:"第9天", t:"知识库评测与调优"},
+  {no:"第10天", t:"实战路线：搭一个公司内部问答机器人"},
+];
+const KEY = "ragpro_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：分块策略对比台 ============ */
+(function(){
+  const cases = [
+    {name:"大块 800 字（无重叠）", desc:"切得粗、块数少", good:"检索快、上下文完整", bad:"问题只涉及小块内容时，容易把不相关的大段拉进来，精确率低"},
+    {name:"小块 200 字（无重叠）", desc:"切得细、块数多", good:"定位精准", bad:"语义被切碎，一个问题可能要拼好几块，容易漏信息"},
+    {name:"小块 200 字 + 50 字重叠", desc:"细切 + 相邻重叠", good:"兼顾精准与上下文衔接，中文文档常用推荐", bad:"存储略增，几乎可忽略"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage1");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>切法：</b>'+c.name+'（'+c.desc+'）</div>'
+      +'<div class="ok" style="margin:4px 0">✓ 优点：'+c.good+'</div>'
+      +'<div class="bad">✗ 缺点：'+c.bad+'</div>'
+      +'<div class="muted" style="margin-top:8px">没有万能切法——先按标题层级切，再对「答案跨块」的典型问题调块大小与重叠。</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示2：混合检索可视化台 ============ */
+(function(){
+  const cases = [
+    {q:"2026 年报销截止日期？",
+     kw:["文档3 · 财务报销通知（含『截止日期』）","文档1 · 员工手册（含『报销』）"],
+     vec:["文档7 · 关于财务流程的常见问题","文档3 · 财务报销通知"],
+     merged:"BM25 命中编号/日期类关键词，向量命中语义相近段落，RRF 融合后 <b>文档3</b> 排第一"},
+    {q:"怎么申请年假？",
+     kw:["文档2 · 考勤制度（含『年假』）","文档5 · HR 常见问答"],
+     vec:["文档5 · HR 常见问答","文档9 · 员工福利指南"],
+     merged:"关键词与语义两路都指向 HR 相关文档，融合结果更稳"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage2");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:8px"><b>查询：</b>'+c.q+'</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:240px;background:#fff;border:1px solid #fda4af;border-radius:10px;padding:10px">'
+      +'<div class="muted" style="margin-bottom:6px">🔍 BM25 关键词召回</div>'+c.kw.map(x=>'<div style="font-size:13px;margin:3px 0">· '+x+'</div>').join('')+'</div>'
+      +'<div style="flex:1;min-width:240px;background:#fff;border:1px solid #fda4af;border-radius:10px;padding:10px">'
+      +'<div class="muted" style="margin-bottom:6px">🧠 向量语义召回</div>'+c.vec.map(x=>'<div style="font-size:13px;margin:3px 0">· '+x+'</div>').join('')+'</div>'
+      +'</div>'
+      +'<div class="muted" style="margin-top:10px">融合：'+c.merged+'</div>';
+  }
+  document.getElementById("next2").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示3：RAG 评测台 ============ */
+(function(){
+  const stage = document.getElementById("stage3");
+  function render(){
+    stage.innerHTML =
+      '<div class="muted" style="margin-bottom:8px"><b>问题：</b>「2026 年报销截止日期是哪天？」</div>'
+      +'<div class="muted" style="margin:6px 0"><b>参考资料（检索到）：</b>财务报销通知：「报销单据须于 2026 年 12 月 15 日前提交……」</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">'
+      +'<div style="flex:1;min-width:240px;background:#fff;border:1px solid #fda4af;border-radius:10px;padding:10px">'
+      +'<div class="muted" style="margin-bottom:4px">回答 A</div><div style="font-size:13px">「2026 年 12 月 15 日前提交。」</div>'
+      +'<div style="margin-top:6px"><span class="ok">忠实度 ★★★★★</span> · <span class="ok">相关度 ★★★★★</span></div>'
+      +'<div class="muted" style="font-size:12px;margin-top:4px">完全照资料回答，命中要点 ✅</div></div>'
+      +'<div style="flex:1;min-width:240px;background:#fff;border:1px solid #fda4af;border-radius:10px;padding:10px">'
+      +'<div class="muted" style="margin-bottom:4px">回答 B</div><div style="font-size:13px">「通常在年底之前，具体以通知为准。」</div>'
+      +'<div style="margin-top:6px"><span class="bad">忠实度 ★★☆☆☆</span> · <span class="bad">相关度 ★★★☆☆</span></div>'
+      +'<div class="muted" style="font-size:12px;margin-top:4px">含糊、没给出资料里的具体日期 ⚠️</div></div>'
+      +'</div>'
+      +'<div class="muted" style="margin-top:10px">用忠实度 + 相关度两个维度批量打分，就能定位「检索不到」还是「生成跑偏」。</div>';
+  }
+  render();
+})();
+</script>
+</body>
+</html>

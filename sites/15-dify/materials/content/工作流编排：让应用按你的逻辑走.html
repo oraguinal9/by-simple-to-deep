@@ -1,0 +1,231 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>工作流编排：让应用按你的逻辑走 | AI 应用开发平台 L15</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L15 学习路线图</a><span class='r'>AI 应用开发平台 · dify.zbjh.top</span></div><h1 id="_1">工作流编排：让应用按你的逻辑走</h1>
+<p>聊天助手适合「一问一答」，但真实业务往往需要<strong>固定流程</strong>：先判断用户意图，再决定走哪条路，可能还要查知识库、调外部 API。这一章讲 Dify 的<strong>工作流（Workflow）</strong>——把 AI 应用从「自由发挥」变成「按你的逻辑走」。</p>
+<h2 id="vs">工作流 vs 聊天助手</h2>
+<p>先搞清楚区别：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>聊天助手</th>
+<th>工作流</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>流程</td>
+<td>模型自由发挥</td>
+<td>你编排的固定流程</td>
+</tr>
+<tr>
+<td>控制力</td>
+<td>靠提示词约束</td>
+<td>每个节点精确控制</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>开放对话</td>
+<td>明确流程的任务</td>
+</tr>
+<tr>
+<td>例子</td>
+<td>陪聊、头脑风暴</td>
+<td>客服工单分类、内容审核流水线</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键认知</strong>：流程越明确，越该用工作流。工作流让「模型的自由发挥」被限制在你设计的轨道里，输出更可控、更稳定。</p>
+<h2 id="_2">工作流的核心概念：节点</h2>
+<p>工作流由<strong>节点（Node）</strong>组成。Dify 提供了一批内置节点：</p>
+<table>
+<thead>
+<tr>
+<th>节点</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开始</td>
+<td>流程入口，定义输入变量</td>
+</tr>
+<tr>
+<td>LLM</td>
+<td>调用大模型生成</td>
+</tr>
+<tr>
+<td>知识检索</td>
+<td>查知识库，RAG 能力</td>
+</tr>
+<tr>
+<td>条件分支（IF/ELSE）</td>
+<td>按条件走不同路径</td>
+</tr>
+<tr>
+<td>代码（Code）</td>
+<td>写 Python/JS 处理数据</td>
+</tr>
+<tr>
+<td>HTTP 请求</td>
+<td>调用外部 API</td>
+</tr>
+<tr>
+<td>变量聚合器</td>
+<td>把多个结果合并</td>
+</tr>
+<tr>
+<td>模板转换</td>
+<td>用模板拼字符串</td>
+</tr>
+<tr>
+<td>结束</td>
+<td>流程出口，定义输出</td>
+</tr>
+</tbody>
+</table>
+<p><strong>理解节点的关键</strong>：每个节点有「输入」和「输出」，节点之间用线连起来，前一个节点的输出可以传给后一个节点。这就像一个可视化的「函数管道」。</p>
+<h2 id="_3">搭建第一个工作流：客服工单分类</h2>
+<p>从一个经典例子开始，我们要做「客服工单分类器」：</p>
+<pre class="codehilite"><code>开始
+ ├─ 输入：用户留言
+ ↓
+LLM 节点：判断问题类型（售后/售前/其他）
+ ↓
+条件分支
+ ├─ 售后 → 结束（输出「转接售后」）
+ ├─ 售前 → 结束（输出「转接销售」）
+ └─ 其他 → LLM 节点：生成通用回答 → 结束
+</code></pre>
+
+<p><strong>搭建步骤</strong>：</p>
+<ol>
+<li>创建应用时选「工作流」类型；</li>
+<li>「开始」节点加一个输入变量 <code>user_message</code>（字符串）；</li>
+<li>加 LLM 节点，提示词里引用 <code>{{user_message}}</code>，让它输出分类结果；</li>
+<li>加条件分支节点，按 LLM 输出的分类走不同路径；</li>
+<li>每个分支加「结束」节点，输出不同内容；</li>
+<li>右上角「预览」输入一条留言试跑。</li>
+</ol>
+<p>跑通后你会发现：<strong>流程的每一步都是确定的</strong>——这就是工作流「可控」的意义。</p>
+<h2 id="_4">变量传递：工作流的血液</h2>
+<p>节点之间靠<strong>变量</strong>流动数据。变量在 Dify 里用 <code>{{变量名}}</code> 引用，来源可以是：</p>
+<ul>
+<li><strong>开始节点定义的输入</strong>；</li>
+<li><strong>前一个节点的输出</strong>（在节点配置里选择）。</li>
+</ul>
+<p>一个典型的传递链：</p>
+<pre class="codehilite"><code>开始.user_message
+  → LLM(参考 {{开始.user_message}} 生成分类)
+  → 条件分支(看 {{LLM.text}} 的值)
+  → 结束(输出 {{LLM.text}})
+</code></pre>
+
+<p><strong>调试技巧</strong>：预览时点开每个节点，能看到它的实际输入输出——这就是工作流的「断点调试」，找问题非常方便。</p>
+<h2 id="_5">条件分支：让流程「聪明」起来</h2>
+<p>条件分支是工作流最常用的逻辑节点。它按条件把流程分成多条路：</p>
+<pre class="codehilite"><code>如果 {{分类}} 包含「售后」 → 走售后路径
+否则如果 {{分类}} 包含「售前」 → 走售前路径
+否则 → 走通用路径
+</code></pre>
+
+<p><strong>条件支持</strong>：等于、包含、开头是、正则匹配、数值比较等。条件分支让同一个工作流面对不同情况做出不同反应——这是「智能感」的重要来源。</p>
+<h2 id="http">代码节点与 HTTP 节点：打通外部世界</h2>
+<p>两个「连接真实世界」的节点：</p>
+<p><strong>代码节点</strong>：写一小段 Python/JS，处理数据。比如把 LLM 输出的 JSON 字符串解析成对象、格式化日期、清洗文本。</p>
+<pre class="codehilite"><code class="language-python"># 代码节点示例：去掉多余空格
+def main(user_message: str) -&gt; dict:
+    cleaned = &quot; &quot;.join(user_message.split())
+    return {&quot;cleaned&quot;: cleaned}
+</code></pre>
+
+<p><strong>HTTP 请求节点</strong>：调用外部 API。比如查库存、发通知、调天气接口。这让 AI 应用能真正「干活」而不是只说话。</p>
+<h2 id="_6">工作流设计原则</h2>
+<p>几个实战经验：</p>
+<ol>
+<li><strong>能少则少</strong>：不是节点越多越好，能用 3 个节点解决就别用 5 个，复杂 = 难维护；</li>
+<li><strong>提示词要精确</strong>：LLM 节点是「不稳定点」，提示词写清楚输入输出格式，后续节点才能依赖它；</li>
+<li><strong>关键路径设兜底</strong>：条件分支记得加「否则」兜底，防止模型输出意外分类时无路可走；</li>
+<li><strong>善用代码节点做格式保证</strong>：别让模型「保证输出 JSON」，让代码节点解析并兜底。</li>
+</ol>
+<h2 id="_7">工作流的常见翻车现场</h2>
+<p>新手搭工作流最容易踩这几个坑：</p>
+<p><strong>坑 1：LLM 节点输出格式不稳定</strong>
+模型说好的输出 JSON，偶尔多写一句话，下游节点直接解析失败。<strong>解法</strong>：把「输出格式」写进提示词 + 用代码节点兜底解析。</p>
+<p><strong>坑 2：条件分支条件写错变量</strong>
+分支比较的变量引用错了节点输出，流程永远只走一条路。<strong>解法</strong>：预览时点开节点看实际值，确认变量名对得上。</p>
+<p><strong>坑 3：节点之间没有「线」连上</strong>
+搭了节点忘了连线，数据根本不流动。<strong>解法</strong>：流程跑通后，观察是否有节点「没被调用」（日志里能看到）。</p>
+<p><strong>坑 4：结束节点只放在一条分支</strong>
+有的分支走到头没有结束节点，流程卡住或返回空。<strong>解法</strong>：<strong>每个分支都必须有结束节点</strong>。</p>
+<p><strong>坑 5：循环依赖</strong>
+节点 A 的输出要 B，B 的输出又要 A——直接报错。<strong>解法</strong>：设计时避免回环，需要循环用「迭代节点」等专门能力。</p>
+<h2 id="vs_1">工作流 vs 代码：怎么选</h2>
+<p>你可能会想：工作流这么好用，是不是所有流程都该用它？做个对比：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>工作流（Dify）</th>
+<th>代码实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>上手门槛</td>
+<td>低（拖拽）</td>
+<td>高（写码）</td>
+</tr>
+<tr>
+<td>可控性</td>
+<td>可视化、直观</td>
+<td>完全可控</td>
+</tr>
+<tr>
+<td>复杂逻辑</td>
+<td>节点多了难维护</td>
+<td>代码更擅长</td>
+</tr>
+<tr>
+<td>调试</td>
+<td>可视化看中间值</td>
+<td>断点调试</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>常规业务流</td>
+<td>算法级复杂逻辑</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议</strong>：80% 的业务流程用工作流，遇到「工作流表达不了」的（复杂算法、深层循环）再考虑代码节点或外部服务。</p>
+<h2 id="_8">小练习</h2>
+<ol>
+<li>搭一个「客服工单分类」工作流，跑通 3 种不同类型的输入。</li>
+<li>给工作流加一个 HTTP 请求节点（可以调用一个公开 API，如天气接口），把结果拼进回答。</li>
+<li>故意让 LLM 节点输出一个意外的分类值，验证你的「否则」兜底分支是否生效。</li>
+<li>进阶：用代码节点把 LLM 输出的 JSON 解析后，再传给结束节点，体会「模型输出不可靠 → 代码兜底」的思路。</li>
+<li>进阶：故意搭一个「漏了结束节点的分支」的工作流，观察报错，加深对「分支必须收口」的理解。</li>
+</ol>
+<p>工作流让应用「可控」了。下一章，把知识库接进来——<strong>RAG 应用的可视化实现</strong>。</p></body></html>

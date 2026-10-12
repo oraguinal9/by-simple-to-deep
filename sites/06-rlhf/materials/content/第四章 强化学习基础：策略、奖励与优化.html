@@ -1,0 +1,78 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第四章 强化学习基础：策略、奖励与优化 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="_1">第四章 强化学习基础：策略、奖励与优化</h1>
+<p>到了 RLHF 的第三步——<strong>用强化学习（RL）去优化策略模型</strong>。这一步对很多同学是门槛：强化学习有一套自己的黑话。这一章我们用最直白的语言，把后面要用到的几个核心概念讲清楚，不堆公式、重直觉。</p>
+<p>如果你已经熟悉 RL，可以跳到第五章。</p>
+<h2 id="_2">一、三个主角：智能体、环境、奖励</h2>
+<p>强化学习讲的是一个「<strong>试错—反馈</strong>」的故事：</p>
+<ul>
+<li><strong>智能体（Agent）</strong>：做决策的角色。在 RLHF 里，它就是我们的语言模型（也叫<strong>策略 / policy</strong>，记作 π）。</li>
+<li><strong>环境（Environment）</strong>：智能体面对的世界。在 RLHF 里，环境就是「用户的问题 + 奖励模型」。</li>
+<li><strong>奖励（Reward）</strong>：环境给智能体的打分。在 RLHF 里，就是奖励模型对生成回答打出的分数 r。</li>
+</ul>
+<p>智能体的目标只有一个：<strong>在长期互动中，拿到尽可能高的总奖励</strong>。</p>
+<h2 id="policy">二、策略（Policy）：模型的「行为方式」</h2>
+<p>在语言模型语境下，<strong>策略 π_θ(y|x)</strong> 就是「给定问题 x，模型生成回答 y 的概率分布」。所谓「优化策略」，就是调整模型参数 θ，让它更倾向于生成<strong>高奖励</strong>的回答。</p>
+<blockquote>
+<p>注意一个微妙点：RLHF 优化的不是「某个固定回答」，而是「生成回答的<strong>分布</strong>」。模型学会了「在类似问题上，更可能这样答」。</p>
+</blockquote>
+<h2 id="episodetrajectory">三、回合（Episode）与轨迹（Trajectory）</h2>
+<p>一次完整的互动叫一个<strong>回合</strong>：从用户提问，到模型逐词生成回答，到拿到奖励，结束。</p>
+<p>模型生成回答是一<strong>个词一个词（token）吐出来的</strong>，所以一条轨迹可以看成一串决策：</p>
+<blockquote>
+<p>x → y₁ → y₂ → … → y_T → 奖励 r</p>
+</blockquote>
+<p>每一步模型都在根据已生成的内容，决定下一个词是什么。RL 要回答的问题是：<strong>哪些词的选择，最终导致了高奖励？</strong> 然后把「功劳」分配到这些词上——这就是下一章「优势函数」要解决的。</p>
+<h2 id="valueadvantage">四、两个关键量：价值（Value）与优势（Advantage）</h2>
+<p>这是 RL 里最容易劝退、也最核心的一对概念，我们用生活例子讲：</p>
+<ul>
+<li><strong>价值 V(s)</strong>：站在当前状态 s（已生成了部分回答），「<strong>往后预期</strong>能拿到的总奖励是多少」。它是对未来的平均预期。</li>
+<li><strong>优势 A(s, a)</strong>：在状态 s 下，我选了动作 a（生成了某个词），<strong>比「平均水平」好多少</strong>。A = 实际拿到的 − 预期平均水平（即 V）。</li>
+</ul>
+<p>为什么需要「优势」而不是「奖励」本身？因为奖励通常在回答<strong>结束</strong>时才给一次（整段回答一个总分）。但我们要优化的是<strong>每一个词的选择</strong>。优势函数的作用，就是把结尾那一个总分，<strong>合理地分摊</strong>到中间每一步，告诉模型：「你这个地方选得好（优势为正），那个地方选得差（优势为负）」。</p>
+<h2 id="on-policyoff-policy">五、在线（On-policy）与离线（Off-policy）</h2>
+<ul>
+<li><strong>On-policy（同策略）</strong>：用「当前策略」生成的样本来训练当前策略。样本新鲜，但每次更新后要重新采样，效率低。PPO 是 on-policy 算法。</li>
+<li><strong>Off-policy（异策略）</strong>：可以用「别的策略（包括过去、甚至随机）生成的样本」来训练当前策略。样本可复用，效率高，但不易稳定。</li>
+</ul>
+<p>RLHF 用 PPO，因此基本是 <strong>on-policy</strong>：每更新几步，就要让模型重新生成一批回答，再打分、再学。这也是 RLHF 比 SFT 贵得多的原因之一。</p>
+<blockquote>
+<p>一个常见误解：RLHF 的「强化学习」指的不是环境会动态变化，而是「模型在奖励信号指导下，通过不断生成—打分—更新来改进自己」这个循环本身。</p>
+</blockquote>
+<h2 id="_3">六、为什么不能直接「梯度上升最大化奖励」</h2>
+<p>直觉上，既然想要高奖励，那直接「朝奖励增大的方向调参数」不就行了？问题在于：奖励只在整个回答结束后才有，而我们要调的是每一步的用词。直接硬上会<strong>过冲、不稳定、甚至为了拿高分说出乱码</strong>（奖励黑客，第七章）。所以才需要 PPO 这种「温和、带约束」的优化算法来稳稳地推进。</p>
+<h2 id="_4">本章小结</h2>
+<ul>
+<li>RL 三主角：<strong>策略（模型本身）、环境（问题+奖励模型）、奖励（RM 分数）</strong>。</li>
+<li><strong>策略 π_θ(y|x)</strong> = 给定问题生成回答的概率分布；RLHF 优化的是这个分布。</li>
+<li><strong>价值 V</strong>：从某状态往后的预期总奖励；<strong>优势 A</strong> = 实际 − 预期，用来把结尾总分分摊到每一步。</li>
+<li><strong>On-policy（PPO 用）</strong> 用当前策略实时采样，样本新鲜但贵；<strong>Off-policy</strong> 可复用旧样本，高效但不易稳。</li>
+<li>不能简单「最大化奖励」，否则会过冲、不稳定、引发奖励黑客。</li>
+</ul>
+<h2 id="_5">思考与延伸</h2>
+<ul>
+<li>回忆一下：第一章说的「练习—反馈—再练习」循环，对应到本章的哪几个概念？</li>
+<li>为什么「把结尾总分分摊到每一步」这件事很重要？如果不分摊会怎样？</li>
+<li>延伸：搜索「value function vs advantage function」获得更形式化的定义。</li>
+</ul></body></html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>合并与导出：把 LoRA 变成完整模型 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="lora">合并与导出：把 LoRA 变成完整模型</h1>
+<p>训练结束只完成了一半。你手里的 <code>lora_model/</code> 只是一堆 LoRA 适配器权重，<strong>不能直接拿去部署</strong>。这一章讲清最后一步：怎么把 LoRA 合并回基座，导出成能真正对外服务的完整模型，甚至压缩成更省资源的格式。</p>
+<h2 id="lora_1">为什么 LoRA 权重不能直接部署</h2>
+<p>回顾 LoRA 原理：微调后的等效权重 = <strong>W + A×B</strong>，其中 W 是基座权重（冻结的），A、B 是训练出来的 LoRA 小矩阵。</p>
+<p>你训练保存的 <code>lora_model/</code> 只包含了 A、B（可能还有 adapter 配置文件）。要得到最终模型，必须把 A×B 加回 W。没有基座 W，只有 A、B 的模型是「残缺」的，无法独立生成。</p>
+<h2 id="w-ab">合并：W + A×B</h2>
+<p>合并就是把两个东西相加，得到完整的微调后权重。绝大多数框架（PEFT、Unsloth、LLaMA-Factory）都提供一行命令：</p>
+<p><strong>用 Unsloth / HF PEFT 合并：</strong></p>
+<pre class="codehilite"><code class="language-python">from unsloth import FastLanguageModel
+
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name=&quot;Qwen/Qwen2.5-7B-Instruct&quot;,
+    load_in_4bit=True,
+)
+model = FastLanguageModel.get_peft_model(model, r=16, ...)  # 要和训练时一致
+model.load_adapter(&quot;lora_model&quot;)          # 加载训练好的 LoRA
+
+model = model.merge_and_unload()          # 合并 LoRA 回基座
+model.save_pretrained(&quot;merged_model&quot;)     # 保存完整模型
+tokenizer.save_pretrained(&quot;merged_model&quot;)
+</code></pre>
+
+<p>关键点：</p>
+<ul>
+<li><strong>加载时的模型名、r、target_modules 必须和训练时一致</strong>，否则 adapter 形状对不上会报错；</li>
+<li><code>merge_and_unload()</code> 会把 LoRA 权重并回基座，得到一个<strong>不再需要额外 adapter 的完整模型</strong>；</li>
+<li>合并后的模型大小 ≈ 基座模型 + 一点点，是完整可推理的。</li>
+</ul>
+<h2 id="_1">导出成什么格式</h2>
+<p>合并后，你有几种导出选择：</p>
+<h3 id="1-safetensorshf">1. 标准 Safetensors（HF 原生格式）</h3>
+<p><code>save_pretrained</code> 默认导出的格式，一堆 <code>.safetensors</code> 权重文件 + <code>config.json</code> + <code>tokenizer</code>。<strong>可直接用 transformers 加载推理</strong>，也可用 vLLM / llama.cpp 等推理框架直接跑。</p>
+<h3 id="2-gguf-llamacpp-ollama">2. GGUF（给 llama.cpp / Ollama 用）</h3>
+<p>如果你要部署到 CPU、Mac、或轻量环境（如 Ollama 本地跑），GGUF 是首选。它自带量化，资源占用极低。</p>
+<p>常用转换工具：<strong>llama.cpp 的 convert</strong>、或 <strong>Unsloth 自带的转换</strong>（<code>model.save_pretrained_gguf(...)</code>），转 GGUF 时可同时指定量化级别（如 Q4_K_M、Q5_K_M）。</p>
+<h3 id="3-ollama">3. 更进一步：导出为 Ollama 能直接用的模型</h3>
+<p>如果你本地装了 Ollama，可以把 GGUF 再封装成 Ollama 模型，一条 <code>ollama create</code> 命令就能让微调后的模型「像原生模型一样被 <code>ollama run</code>」调用。</p>
+<h2 id="_2">导出前先做一轮小验证</h2>
+<p>别急着部署，先验证合并正确：</p>
+<pre class="codehilite"><code class="language-python"># 加载合并后的模型
+from transformers import AutoModelForCausalLM, AutoTokenizer
+model = AutoModelForCausalLM.from_pretrained(&quot;merged_model&quot;)
+tok = AutoTokenizer.from_pretrained(&quot;merged_model&quot;)
+
+prompt = &quot;请用一句话解释什么是微调。&quot;
+inputs = tok(prompt, return_tensors=&quot;pt&quot;)
+out = model.generate(**inputs, max_new_tokens=100)
+print(tok.decode(out[0], skip_special_tokens=True))
+</code></pre>
+
+<p>如果回答符合你微调数据里的风格/内容，说明合并成功。</p>
+<h2 id="_3">什么时候不需要合并</h2>
+<p>如果你只是<strong>在自己本地用训练框架加载 LoRA 做实验</strong>，不需要合并——直接 <code>load_adapter</code> 就能用。合并的意义在于：</p>
+<ul>
+<li><strong>脱离训练框架部署</strong>（生产环境）；</li>
+<li><strong>多份 LoRA 对比</strong>时并出完整模型来统一评测；</li>
+<li><strong>转格式</strong>（GGUF 等）需要完整模型。</li>
+</ul>
+<h2 id="_4">部署到哪</h2>
+<p>合并导出后，部署方式取决于你的环境：</p>
+<ul>
+<li><strong>本地单机</strong>：直接用 transformers / llama.cpp / Ollama 跑；</li>
+<li><strong>服务化高并发</strong>：用 vLLM、TGI 等推理框架起 HTTP 服务；</li>
+<li><strong>云端</strong>：推到 HuggingFace 或你的模型平台，走 API。</li>
+</ul>
+<p>具体部署细节在 L10（本地部署大模型）里讲过，这里不再重复——你只需要记住「微调产物要先合并，才能交给部署链路」。</p>
+<h2 id="_5">合并的常见坑：手把手排雷</h2>
+<p>合并这步看着简单，坑其实不少：</p>
+<p><strong>坑 1：加载参数和训练时不一致。</strong>
+训练时 <code>r=16</code>、挂了 7 个 target_modules，合并时用 <code>r=8</code> 或漏挂层——adapter 形状对不上，直接报错。<strong>铁律：合并时的模型名、r、alpha、target_modules 必须和训练时一字不差。</strong></p>
+<p><strong>坑 2：用错基座版本。</strong>
+训练用的基座是 <code>Qwen2.5-7B-Instruct</code>，合并时加载成 <code>Qwen2.5-7B</code>（少了个 Instruct）——虽然形状可能一样能合并，但行为会错乱。<strong>基座必须精确到同一个 checkpoint。</strong></p>
+<p><strong>坑 3：合并后忘记验证就上线。</strong>
+合并成功 ≠ 合并正确。<strong>永远先跑一轮推理验证，再部署</strong>（前面已给出验证代码）。</p>
+<p><strong>坑 4：多个 LoRA 叠加的顺序。</strong>
+如果你想把多个 LoRA 一起合并（比如「领域 + 风格」两个 adapter），顺序会影响结果。通常逐个 <code>load_adapter</code> 再一次性 merge，顺序按「先基座影响大的，后微调的」。</p>
+<h2 id="_6">模型格式全景：什么时候用哪种</h2>
+<p>合并后选择导出格式，其实是在「兼容性、体积、速度」之间取舍：</p>
+<table>
+<thead>
+<tr>
+<th>格式</th>
+<th>体积</th>
+<th>部署场景</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Safetensors</td>
+<td>最大</td>
+<td>HF 生态 / vLLM / TGI</td>
+<td>标准格式，兼容性最好</td>
+</tr>
+<tr>
+<td>GGUF</td>
+<td>最小（可量化）</td>
+<td>llama.cpp / Ollama / CPU / Mac</td>
+<td>自带量化，资源占用低</td>
+</tr>
+<tr>
+<td>ONNX</td>
+<td>中等</td>
+<td>跨平台、边缘设备</td>
+<td>适合特定硬件优化</td>
+</tr>
+<tr>
+<td>MLX</td>
+<td>中等</td>
+<td>Apple Silicon</td>
+<td>Mac 专属优化</td>
+</tr>
+</tbody>
+</table>
+<p><strong>决策建议</strong>：
+- 服务器 GPU 部署 → Safetensors（或 GGUF 量化省显存）；
+- 本地 CPU / Mac / Ollama → GGUF；
+- 移动端 / 边缘设备 → ONNX 或量化 GGUF。</p>
+<h2 id="gguf">GGUF 量化级别怎么选</h2>
+<p>转 GGUF 时你会看到 Q4_K_M、Q5_K_M、Q8_0 等选项，什么意思？</p>
+<table>
+<thead>
+<tr>
+<th>量化级别</th>
+<th>体积（约）</th>
+<th>质量</th>
+<th>场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q4_K_M</td>
+<td>最小</td>
+<td>尚可</td>
+<td>极省资源，能跑就行</td>
+</tr>
+<tr>
+<td>Q5_K_M</td>
+<td>中</td>
+<td>较好</td>
+<td>体积质量均衡（推荐起步）</td>
+</tr>
+<tr>
+<td>Q6_K</td>
+<td>中上</td>
+<td>很好</td>
+<td>追求质量，显存充足</td>
+</tr>
+<tr>
+<td>Q8_0</td>
+<td>接近无损</td>
+<td>最好</td>
+<td>几乎无损，体积接近原模型</td>
+</tr>
+</tbody>
+</table>
+<p>经验：<strong>本地体验选 Q5_K_M</strong>，质量体积都友好；真要上线高质量服务，用 Q8_0 或直接上 Safetensors。</p>
+<h2 id="_7">一个「合并 → 导出 → 验证」完整流程示例</h2>
+<p>把这一章的操作串成一段可复制的流程（以 Unsloth + 转 GGUF 为例）：</p>
+<pre class="codehilite"><code class="language-bash"># 1. 合并回基座（Python）
+python merge_lora.py        # merge_and_unload + save_pretrained(&quot;merged_model&quot;)
+
+# 2. 转 GGUF（Unsloth 一行）
+python - &lt;&lt;'EOF'
+from unsloth import FastLanguageModel
+model, tokenizer = FastLanguageModel.from_pretrained(&quot;merged_model&quot;)
+model.save_pretrained_gguf(&quot;gguf_out&quot;, quantization_method=&quot;q5_k_m&quot;)
+EOF
+
+# 3. 用 llama.cpp 快速验证
+./llama-cli -m gguf_out/xxx-q5_k_m.gguf -p &quot;你好&quot; -n 64
+
+# 4. 封装成 Ollama 模型（可选）
+ollama create my-model -f Modelfile
+ollama run my-model
+</code></pre>
+
+<p>跑通这四步，你的微调模型就从「训练产物」变成了「可用的服务」。</p>
+<h2 id="_8">小练习</h2>
+<ol>
+<li>把你第 3 章训练出的 LoRA 合并回基座，导出一个完整模型。</li>
+<li>再把它转成 GGUF（Q4_K_M 量化），对比合并前和量化后的大小。</li>
+<li>用合并后的模型回答你训练数据里的一个问题，验证是否学到了你要的行为。</li>
+<li>进阶：分别转 Q4_K_M 和 Q8_0，用同一批问题对比回答质量，观察量化带来的实际差异。</li>
+</ol>
+<p>合并导出后，你的微调已经「闭环」了。最后一环是——<strong>怎么科学地评测你的模型到底变好了没有</strong>。</p></body></html>

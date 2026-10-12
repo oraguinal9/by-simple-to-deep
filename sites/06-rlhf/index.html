@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RLHF 人类反馈强化学习 · L6 | 让大模型「说得对、不胡来」</title>
+<style>
+  :root{
+    --bg:#f6f5fb; --card:#fff; --ink:#221c33; --muted:#6f6786; --line:#e7e3f3;
+    --accent:#6366f1; --accent2:#8b5cf6; --accent-soft:#eef2ff;
+    --green:#16a34a; --green-soft:#dcfce7;
+    --demo-bg:#1a1430; --demo-ink:#e9e3ff;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.65;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+  nav{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;}
+  nav .brand{font-weight:800;color:var(--accent);margin-right:auto;}
+  nav a{color:var(--muted);font-size:14px;}
+  nav a:hover{color:var(--accent);}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 60px;}
+  .hero{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:18px;padding:30px 32px;margin-bottom:26px;}
+  .hero h1{margin:0 0 8px;font-size:26px;}
+  .hero p{margin:6px 0;opacity:.95;}
+  .hero .tip{background:rgba(255,255,255,.16);padding:10px 14px;border-radius:10px;margin-top:14px;font-size:14px;}
+  .badge-l6{display:inline-block;background:rgba(255,255,255,.22);padding:3px 10px;border-radius:999px;font-size:12px;margin-bottom:8px;}
+  section{margin-bottom:40px;}
+  h2{font-size:21px;border-left:5px solid var(--accent);padding-left:12px;margin:0 0 16px;}
+  .progress-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .bar{height:14px;background:#eef0f4;border-radius:999px;overflow:hidden;margin:10px 0;}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--green),#4ade80);transition:width .4s;}
+  .progress-meta{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted);}
+  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:9px;font-size:13px;}
+  .btn:hover{background:var(--accent-soft);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:.2s;}
+  .day.done{border-color:var(--green);box-shadow:0 0 0 2px var(--green-soft) inset;}
+  .day summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
+  .day summary::-webkit-details-marker{display:none;}
+  .badge{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:800;display:grid;place-items:center;}
+  .day.done .badge{background:var(--green);color:#fff;}
+  .day h3{margin:0;font-size:16px;} .day .dur{font-size:12px;color:var(--muted);margin-top:2px;}
+  .day .body{padding:0 16px 16px;border-top:1px dashed var(--line);margin-top:4px;}
+  .day .body h4{font-size:13px;margin:14px 0 6px;color:var(--accent);}
+  .day ul{margin:4px 0;padding-left:18px;font-size:14px;} .day li{margin:3px 0;}
+  .chk{margin-top:14px;display:flex;align-items:center;gap:8px;font-size:14px;}
+  .chk input{width:17px;height:17px;accent-color:var(--green);}
+  .mat a{display:inline-block;margin:2px 6px 2px 0;font-size:13px;background:var(--accent-soft);color:var(--accent);padding:2px 9px;border-radius:999px;}
+  .demo{background:var(--demo-bg);color:var(--demo-ink);border-radius:14px;padding:20px;margin-bottom:18px;}
+  .demo h3{margin:0 0 4px;color:#fff;font-size:17px;}
+  .demo .sub{font-size:13px;color:#b9a8e6;margin-bottom:14px;}
+  .demo label{font-size:13px;color:#c9bce8;}
+  .demo select,.demo input[type=range],.demo textarea{vertical-align:middle;}
+  .demo select{background:#2c2150;color:#e9e3ff;border:1px solid #4a3a7a;border-radius:7px;padding:5px 8px;font-size:13px;}
+  .demo textarea{background:#241a45;color:#e9e3ff;border:1px solid #4a3a7a;border-radius:7px;padding:8px;font-size:13px;font-family:inherit;width:100%;resize:vertical;min-height:54px;}
+  .demo input[type=range]{accent-color:#a78bfa;width:150px;}
+  .ctrl{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0;}
+  .ctrl .item{display:flex;gap:7px;align-items:center;background:#2c2150;border:1px solid #4a3a7a;padding:6px 10px;border-radius:9px;}
+  .val{color:#c4b5fd;font-weight:700;font-variant-numeric:tabular-nums;min-width:48px;display:inline-block;}
+  .btn2{cursor:pointer;border:none;background:var(--accent);color:#fff;padding:8px 16px;border-radius:8px;font-size:14px;}
+  .btn2.ghost{background:#4a3a7a;} .btn2.am{background:#a78bfa;color:#231445;}
+  .btn2:hover{filter:brightness(1.15);}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+  .stat{background:#2c2150;border:1px solid #4a3a7a;border-radius:9px;padding:7px 12px;font-size:13px;}
+  .stat b{color:#fff;font-size:15px;font-variant-numeric:tabular-nums;}
+  .hint{background:#2c2150;border:1px solid #4a3a7a;border-radius:9px;padding:10px 13px;margin-top:12px;font-size:13px;color:#c9bce8;}
+  .hint b{color:#c4b5fd;}
+  .note{background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:20px;}
+  .ladder{font-size:14px;color:var(--muted);margin:6px 0;line-height:2;}
+  .ladder .cur{background:var(--accent);color:#fff;padding:2px 9px;border-radius:999px;font-weight:700;}
+  .toc a{display:inline-block;margin:3px 7px 3px 0;background:var(--accent-soft);color:var(--accent);padding:3px 11px;border-radius:999px;font-size:13px;}
+  canvas{background:#140e2b;border-radius:9px;display:block;max-width:100%;}
+  footer{color:var(--muted);font-size:13px;text-align:center;padding:20px;}
+  .preset{background:#241a45;border:1px solid #4a3a7a;border-radius:9px;padding:10px 12px;margin:10px 0;font-size:13px;}
+  .preset .qa{color:#d6cdf5;}
+  .preset .q{color:#a78bfa;font-weight:700;}
+  .preset .pick{display:flex;gap:10px;margin-top:8px;}
+  .preset .pick button{flex:1;cursor:pointer;border:1px solid #4a3a7a;background:#2c2150;color:#e9e3ff;padding:8px;border-radius:8px;font-size:13px;}
+  .preset .pick button:hover{background:#3a2d63;}
+</style>
+</head>
+<body>
+<header>
+  <nav>
+    <span class="brand">🧠 RLHF 人类反馈强化学习 · L6</span>
+    <a href="#plan">学习计划</a>
+    <a href="#demo">互动演示</a>
+    <a href="#res">教程目录</a>
+    <a href="https://finetune.zbjh.top/" target="_blank" rel="noopener">← L5 微调</a>
+    <a href="https://ai101.zbjh.top/" target="_blank" rel="noopener">L1 入门 →</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <span class="badge-l6">L6 · 由简入深系列 · 对齐核心</span>
+    <h1>10 章，搞懂 RLHF：怎么让大模型「说得对、不胡来」</h1>
+    <p>全程中文 · 从「为什么要人类反馈」讲到「DPO 无强化学习对齐」· 三个交互实验台</p>
+    <div class="tip">📌 这是 L6（对齐核心层）。学完你能讲清 ChatGPT 式对齐的底层逻辑：奖励模型、PPO、KL 约束、奖励黑客，以及当下最火的 DPO。建议先学完 <b>L1~L5</b>——本阶会用到 L4 的偏好概念、L5 的微调与训练曲线。</div>
+  </div>
+
+  <div class="note">
+    💡 <b>怎么用：</b>每天点开一张卡片，先读教程再玩下面的演示；学完勾选「我已掌握」，进度条会自动增长（保存在你本机浏览器）。<b>三个演示台建议在浏览器里亲手试</b>——奖励模型怎么打分、PPO 循环怎么跑、DPO 为什么不用奖励模型，亲手拖一遍比读十遍都清楚。
+  </div>
+
+  <section id="progress">
+    <h2>📊 我的学习进度</h2>
+    <div class="progress-card">
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="progress-meta">
+        <span id="progText">已完成 0 / 10 章</span>
+        <button class="btn" onclick="resetProgress()">重置进度</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>🗺️ 10 章学习路线</h2>
+    <div class="grid" id="dayGrid"></div>
+  </section>
+
+  <section id="demo">
+    <h2>🎮 互动演示（真实计算，浏览器内运行）</h2>
+    <p style="color:var(--muted);font-size:14px;margin-top:-6px;">三个演示台都基于真实公式在浏览器里实时计算，不依赖外部模型——点一点、拖一拖，直观感受 RLHF 的精髓。</p>
+
+    <!-- 演示1：奖励模型打分台 -->
+    <div class="demo">
+      <h3>① 奖励模型打分台：偏好数据怎么变成分数</h3>
+      <div class="sub">给同一个问题两个回答，你来评判谁更好。奖励模型正是从这种「比较」里学会打分——用 Bradley-Terry 公式把偏好变成概率。</div>
+      <div class="preset">
+        <div class="q">问题：用一句话向小学生解释「为什么天是蓝的」。</div>
+        <div class="qa"><b>A：</b>太阳光里有各种颜色，蓝光波长比较短、容易被空气里的小颗粒散射到四面八方，所以抬头看天空时，眼睛接收到最多的就是蓝光。</div>
+        <div class="qa"><b>B：</b>因为天空本来就是蓝的啊，这是大自然的颜色，你看云是白的、天是蓝的。</div>
+        <div class="pick">
+          <button onclick="rmPick('A')">👍 A 更好（准确）</button>
+          <button onclick="rmPick('B')">👍 B 更好（天真）</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat">奖励模型给 A <b id="rmA">—</b></div>
+        <div class="stat">奖励模型给 B <b id="rmB">—</b></div>
+        <div class="stat">P(A 优于 B) <b id="rmP">—</b></div>
+        <div class="stat">训练后 RM 对齐 <b id="rmState">未选择</b></div>
+      </div>
+      <div class="hint" id="rmHint">点击上面任一按钮，模拟「人类标注」：奖励模型会根据你的选择，把偏好的回答分数调高、另一份调低（这正是偏好数据的训练目标）。</div>
+    </div>
+
+    <!-- 演示2：PPO 训练循环可视化台 -->
+    <div class="demo">
+      <h3>② PPO 训练循环台：奖励与 KL 的拉锯战</h3>
+      <div class="sub">四步一轮：①生成回答 → ②奖励模型打分 → ③算 KL 散度(防跑偏) → ④PPO 更新。拖动「KL 系数 β」看两种极端：β 太小→奖励黑客(KL 爆炸)，β 太大→奖励涨不动。</div>
+      <div class="ctrl">
+        <div class="item"><label>KL 系数 β</label>
+          <input type="range" id="ppoBeta" min="1" max="100" step="1" value="30">
+          <span class="val" id="ppoBetav">0.03</span></div>
+        <div class="item"><label>学习率</label>
+          <input type="range" id="ppoLr" min="1" max="100" step="1" value="40">
+          <span class="val" id="ppoLrv">—</span></div>
+        <div class="item"><label>已训练步数</label>
+          <input type="range" id="ppoS" min="1" max="60" step="1" value="30">
+          <span class="val" id="ppoSv">30</span></div>
+        <button class="btn2 am" onclick="simPPO()">模拟这一轮</button>
+      </div>
+      <canvas id="ppoCanvas" width="640" height="300"></canvas>
+      <div class="stats">
+        <div class="stat">RM 奖励 <b id="ppoR">—</b></div>
+        <div class="stat">与初始策略的 KL <b id="ppoKL">—</b></div>
+        <div class="stat">状态 <b id="ppoState">—</b></div>
+      </div>
+      <div class="hint" id="ppoHint"></div>
+    </div>
+
+    <!-- 演示3：DPO 损失对比台 -->
+    <div class="demo">
+      <h3>③ DPO 损失对比台：没有奖励模型也能对齐</h3>
+      <div class="sub">DPO 把「奖励模型 + 强化学习」压缩进一个监督损失：直接让「被选中的回答」比「被拒绝的回答」概率更高。拖动训练进度，看损失如何降到 0。</div>
+      <div class="ctrl">
+        <div class="item"><label>训练进度（差距 Δ）</label>
+          <input type="range" id="dpoGap" min="0" max="100" step="1" value="40">
+          <span class="val" id="dpoGapv">—</span></div>
+        <div class="item"><label>DPO 温度 β</label>
+          <input type="range" id="dpoBeta" min="5" max="100" step="5" value="50">
+          <span class="val" id="dpoBetav">5.0</span></div>
+        <button class="btn2 am" onclick="simDPO()">计算损失</button>
+      </div>
+      <canvas id="dpoCanvas" width="640" height="300"></canvas>
+      <div class="stats">
+        <div class="stat">选定−拒绝 对数概率差 <b id="dpoDelta">—</b></div>
+        <div class="stat">DPO 损失 <b id="dpoLoss">—</b></div>
+        <div class="stat">P(偏好选定) <b id="dpoP">—</b></div>
+      </div>
+      <div class="hint" id="dpoHint"></div>
+    </div>
+  </section>
+
+  <section id="res">
+    <h2>📚 教程目录（10 章原创中文）</h2>
+    <div class="toc" id="tocBox"></div>
+  </section>
+
+  <section>
+    <h2>🔗 系列阶梯</h2>
+    <div class="ladder">
+      <a href="https://ai101.zbjh.top/" target="_blank" rel="noopener">L1 AI 入门</a> →
+      <a href="https://llm.zbjh.top/" target="_blank" rel="noopener">L2 大模型原理</a> →
+      <a href="https://dl.zbjh.top/" target="_blank" rel="noopener">L3 深度学习</a> →
+      <a href="https://rag.zbjh.top/" target="_blank" rel="noopener">L4 RAG 与 Agent</a> →
+      <a href="https://finetune.zbjh.top/" target="_blank" rel="noopener">L5 微调与部署</a> →
+      <span class="cur">L6 RLHF（本阶）</span> →
+      <span style="color:var(--muted)">L7 AIGC → L8 多模态/MCP</span>
+    </div>
+  </section>
+
+  <footer>由简入深 · AI 学习站系列 · L6 RLHF 人类反馈强化学习 · 全程中文原创教程</footer>
+</div>
+
+<script>
+/* ==================== 数据 ==================== */
+const chapters=[
+  ["第一章 为什么需要人类反馈：从「会说话」到「说得对」","content/第一章 为什么需要人类反馈：从「会说话」到「说得对」.md"],
+  ["第二章 人类偏好数据：比较、排序与标注","content/第二章 人类偏好数据：比较、排序与标注.md"],
+  ["第三章 奖励模型：让模型学会什么是好回答","content/第三章 奖励模型：让模型学会什么是好回答.md"],
+  ["第四章 强化学习基础：策略、奖励与优化","content/第四章 强化学习基础：策略、奖励与优化.md"],
+  ["第五章 PPO 算法原理：从策略梯度到近端优化","content/第五章 PPO 算法原理：从策略梯度到近端优化.md"],
+  ["第六章 PPO 训练循环：RLHF 是怎么一步步炼成的","content/第六章 PPO 训练循环：RLHF 是怎么一步步炼成的.md"],
+  ["第七章 奖励黑客与 KL 约束：模型为何钻空子","content/第七章 奖励黑客与 KL 约束：模型为何钻空子.md"],
+  ["第八章 DPO：不用强化学习也能对齐","content/第八章 DPO：不用强化学习也能对齐.md"],
+  ["第九章 实践陷阱与工程细节","content/第九章 实践陷阱与工程细节.md"],
+  ["第十章 动手实践与进阶路线","content/第十章 动手实践与进阶路线.md"],
+];
+const days=[
+  {t:"为什么需要人类反馈",d:"约 25 分钟",goal:"理解「会说话」≠「说得对」，知道 RLHF 解决的是「对齐」而非「能力」。",
+   points:["预训练只学了「像不像人话」","但人话里也混着有毒、谄媚、胡说","对齐：把模型行为拉到人类价值观上","RLHF 是 InstructGPT/ChatGPT 的关键一跃"],quiz:["会写通顺句子，为什么还要 RLHF？","RLHF 提升的是「能力」还是「对齐」？"]},
+  {t:"人类偏好数据",d:"约 25 分钟",goal:"搞懂偏好数据的形态：成对比较、排序、标注规范。",
+   points:["最基础：同一问题两个回答，比哪个好","进阶：多回答排序(listwise)","标注指南要防『长度偏见』等陷阱","数据量 vs 质量：几千条高质量就能起效"],quiz:["为什么偏好数据通常比 SFT 数据更贵？","标注时模型偏爱长回答，怎么治？"]},
+  {t:"奖励模型",d:"约 30 分钟",goal:"理解奖励模型(RM)怎么从偏好对里学会打分。",
+   points:["RM = 在 SFT 模型上加一个标量打分头","Bradley-Terry：P(A≻B)=σ(r_A−r_B)","损失让偏好回答分更高","RM 是后续强化学习的『裁判』"],demo:"演示① 奖励模型打分台",quiz:["RM 输出是词还是一个数？","Bradley-Terry 把『比较』转成了什么？"]},
+  {t:"强化学习基础",d:"约 25 分钟",goal:"补齐 RL 词汇：策略、轨迹、奖励、价值、优化目标。",
+   points:["策略 π：给定上文生成下一个词","奖励 R：RM 给整段回答的标量","优化目标：最大化期望奖励","与监督学习的目标差异"],demo:"演示② PPO 训练循环台",quiz:["RLHF 里的『环境』和『奖励』分别是什么？","为什么不能直接用 SGD 最大化奖励？"]},
+  {t:"PPO 算法原理",d:"约 30 分钟",goal:"理解 PPO 的核心：裁剪(clipping)让更新稳健。",
+   points:["策略梯度：往高奖励方向改参数","老策略 vs 新策略的比值 ρ","裁剪：ρ 跑太远就截断，防崩","为什么 PPO 比原始 PG 稳"],demo:"演示② PPO 训练循环台",quiz:["裁剪(cipping)在防什么？","ρ>1 且带来正优势时为什么反而要限制？"]},
+  {t:"PPO 训练循环",d:"约 30 分钟",goal:"把零件串成完整循环：生成→打分→KL→更新。",
+   points:["①用当前策略采样一批回答","②RM 给每个回答打分","③算与参考策略的 KL 做约束","④PPO 更新，回到①，如此迭代"],demo:"演示② PPO 训练循环台",quiz:["为什么每一步都要重新采样，而不复用旧回答？","KL 约束在保护什么？"]},
+  {t:"奖励黑客与 KL 约束",d:"约 25 分钟",goal:"认识 RLHF 最经典的坑：模型钻奖励模型的空子。",
+   points:["奖励黑客：RM 给高分≠真更好","例：啰嗦、重复、谄媚能刷分","KL 惩罚把策略拉回初始分布","β 太小→黑客，β 太大→没效果"],demo:"演示② PPO 训练循环台",quiz:["为什么 RM 越训练越容易被骗？","KL 系数 β 过小会怎样？"]},
+  {t:"DPO：不用强化学习也能对齐",d:"约 30 分钟",goal:"掌握当下最火的 DPO：把 RM+RL 压成一个监督损失。",
+   points:["DPO 直接优化偏好，无需显式 RM","损失让选定回答概率 > 拒绝回答","隐式奖励 = β·log(π/π_ref)","训练简单、稳定、省显存"],demo:"演示③ DPO 损失对比台",quiz:["DPO 相比 PPO 少了哪两个部件？","β 在 DPO 里控制什么？"]},
+  {t:"实践陷阱与工程细节",d:"约 25 分钟",goal:"避开真实项目里的高频坑。",
+   points:["RM 过拟合偏好集→奖励失真","奖励漂移：训练和线上分布不一致","需要『安全奖励』兜底","DPO 对学习率/数据更敏感"],quiz:["线上用户反馈和训练偏好集不一致会怎样？","为什么不能只靠 RM 分数上线？"]},
+  {t:"动手实践与进阶路线",d:"约 30 分钟",goal:"拿到最小可跑实践路径，看清全系列阶梯。",
+   points:["最小实践：SFT 模型 + RM 训练 + PPO/DPO","TRL / OpenRLHF / DeepSpeed-Chat 三件套","PPO 与 DPO 怎么选","进阶：L7 AIGC、L8 多模态/MCP"],quiz:["小团队、数据少、求稳，选 PPO 还是 DPO？","画出 RLHF 四步循环并标出 RM 出现的环节。"]},
+];
+
+/* ==================== 渲染 ==================== */
+function toMat(p){
+  if(!p || p.startsWith('http') || p.startsWith('#')) return p;
+  if(p.startsWith('content/')){
+    let r='materials/'+p;
+    if(r.endsWith('.md')) r=r.slice(0,-3)+'.html';
+    return encodeURI(r);
+  }
+  return p;
+}
+const grid=document.getElementById('dayGrid');
+days.forEach((d,i)=>{
+  const n=i+1;
+  const det=document.createElement('details');
+  det.className='day'; det.dataset.day=n;
+  det.innerHTML=`
+    <summary>
+      <span class="badge">${n}</span>
+      <span><h3>第 ${n} 章 · ${d.t}</h3><div class="dur">⏱ ${d.d}</div></span>
+    </summary>
+    <div class="body">
+      <h4>🎯 本章目标</h4>
+      <div style="font-size:14px">${d.goal}</div>
+      <h4>📖 核心知识点</h4>
+      <ul>${d.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+      <h4>🔗 教程正文</h4>
+      <p class="mat"><a href="${toMat(chapters[i][1])}">${chapters[i][0]}</a></p>
+      ${d.demo?`<h4>🎮 配套演示</h4><div style="font-size:14px"><a href="#demo">${d.demo}</a></div>`:''}
+      <h4>✅ 自测题</h4>
+      <ul>${d.quiz.map(q=>`<li>${q}</li>`).join('')}</ul>
+      <label class="chk"><input type="checkbox" onchange="toggleDay(${n},this)"> 我已掌握这一章</label>
+    </div>`;
+  grid.appendChild(det);
+});
+document.getElementById('tocBox').innerHTML=
+  chapters.map(c=>`<a href="${toMat(c[1])}">${c[0]}</a>`).join('');
+
+/* ==================== 进度 ==================== */
+const KEY='rlhf_progress_v1';
+function loadProg(){ try{ return JSON.parse(localStorage.getItem(KEY))||{} }catch(e){ return {} } }
+function saveProg(p){ localStorage.setItem(KEY, JSON.stringify(p)); }
+function toggleDay(n,el){ const p=loadProg(); if(el.checked)p[n]=true; else delete p[n]; saveProg(p); refreshBar(); }
+function refreshBar(){
+  const p=loadProg(), done=Object.keys(p).length;
+  document.getElementById('barFill').style.width=(done/10*100)+'%';
+  document.getElementById('progText').textContent=`已完成 ${done} / 10 章`;
+  document.querySelectorAll('.day').forEach(d=>{
+    const ok=!!p[d.dataset.day];
+    d.classList.toggle('done',ok);
+    const cb=d.querySelector('input[type=checkbox]'); if(cb) cb.checked=ok;
+  });
+}
+function resetProgress(){ localStorage.removeItem(KEY); refreshBar(); }
+refreshBar();
+
+/* ==================== 演示1：奖励模型打分台 ==================== */
+// 奖励模型的"初始预判"：基于语义质量启发（越准确、越具体，分数越高）
+const RM_BASE={A:1.6, B:0.3};  // A 准确、B 天真
+function sigmoid(x){ return 1/(1+Math.exp(-x)); }
+function rmPick(choice){
+  const rA=RM_BASE.A, rB=RM_BASE.B;
+  const pA=sigmoid(rA-rB);
+  // 训练后：把被选中者分数拉高、另一份压低（模拟用这条偏好对做的梯度更新）
+  const alpha=0.9;
+  let nA=rA, nB=rB;
+  if(choice==='A'){ nA=rA+alpha; nB=rB-alpha*0.5; }
+  else { nB=rB+alpha; nA=rA-alpha*0.5; }
+  const npA=sigmoid(nA-nB);
+  document.getElementById('rmA').textContent=rA.toFixed(2)+' → '+nA.toFixed(2);
+  document.getElementById('rmB').textContent=rB.toFixed(2)+' → '+nB.toFixed(2);
+  document.getElementById('rmP').textContent=pA.toFixed(3)+' → '+npA.toFixed(3);
+  const st=document.getElementById('rmState');
+  st.textContent='已对齐到「'+choice+' 更好」';
+  st.style.color='#4ade80';
+  document.getElementById('rmHint').innerHTML=
+    `💡 你的选择被当成一条<b>偏好数据</b>：(问题, ${choice}, 另一份)。奖励模型用 Bradley-Terry 损失 <b>−log σ(r_${choice}−r_其他)</b> 做梯度更新：`+
+    `把 ${choice} 的分数调高、另一份压低，使 <b>P(${choice} 优于另一份)</b> 从 ${(pA*100|0)}% 升到 <b>${(npA*100|0)}%</b>。`+
+    `这就是 RLHF 第一步——把人类判断蒸馏进一个可微分的标量打分器。`;
+}
+
+/* ==================== 演示2：PPO 训练循环台 ==================== */
+const ppoBeta=document.getElementById('ppoBeta'), ppoLr=document.getElementById('ppoLr'), ppoS=document.getElementById('ppoS');
+function betaFromSlider(v){ return +(0.001 + (v/100)*0.15).toFixed(3); } // 0.001..0.151
+function lrPpo(v){ const lo=Math.log10(1e-7), hi=Math.log10(1e-4); return Math.pow(10, lo+(hi-lo)*v/100); }
+function simPPO(){
+  const beta=betaFromSlider(+ppoBeta.value);
+  const lr=lrPpo(+ppoLr.value);
+  const S=+ppoS.value;
+  document.getElementById('ppoBetav').textContent=beta.toFixed(3);
+  document.getElementById('ppoLrv').textContent=lr.toExponential(1);
+  document.getElementById('ppoSv').textContent=S;
+  // 真实质量随步数上升（策略确实在变好），但幅度受学习率影响
+  const improve = Math.min(0.9, lr/1e-5*0.04);
+  const quality = 1.0 + 2.2*Math.tanh(S/22)*improve;
+  // 奖励黑客：β 越小，RM 给的奖励越虚高（模型钻空子）
+  const hack = (1-beta/0.15) * 2.6 * Math.tanh(S/14);
+  const reward = quality + hack;
+  // KL：β 越小，偏离参考策略越远
+  const kl = (1-beta/0.15) * 1.8 * Math.tanh(S/12) + 0.05;
+  // 画图：奖励(绿) vs KL(橙)
+  const cv=document.getElementById('ppoCanvas'), ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,pad=40, Smax=60;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#4a3a7a'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad,12); ctx.lineTo(pad,H-pad); ctx.lineTo(W-12,H-pad); ctx.stroke();
+  ctx.fillStyle='#b9a8e6'; ctx.font='12px sans-serif';
+  ctx.fillText('值',8,22); ctx.fillText('训练步数 →',W-72,H-12);
+  const Vmax=7;
+  function plot(val,color){
+    ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.beginPath();
+    for(let s=1;s<=Smax;s++){
+      const improve2=Math.min(0.9, lr/1e-5*0.04);
+      const q2=1.0+2.2*Math.tanh(s/22)*improve2;
+      const h2=(1-beta/0.15)*2.6*Math.tanh(s/14);
+      const v=(color==='#4ade80')? (q2+h2) : ((1-beta/0.15)*1.8*Math.tanh(s/12)+0.05);
+      const x=pad+(W-pad-12)*((s-1)/(Smax-1));
+      const y=(H-pad)-(H-pad-12)*Math.min(v,Vmax)/Vmax;
+      s===1?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  plot(0,'#4ade80'); plot(0,'#fb923c');
+  // 当前步标记
+  const cx=pad+(W-pad-12)*((S-1)/(Smax-1));
+  ctx.strokeStyle='#c4b5fd'; ctx.setLineDash([4,4]); ctx.beginPath();
+  ctx.moveTo(cx,12); ctx.lineTo(cx,H-pad); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#c4b5fd'; ctx.fillText('当前步 '+S,cx-20,24);
+
+  document.getElementById('ppoR').textContent=reward.toFixed(2);
+  document.getElementById('ppoKL').textContent=kl.toFixed(2);
+  let state,color,hint;
+  if(beta<0.02){ state='💥 奖励黑客'; color='#ef4444';
+    hint='β 太小：KL 爆炸，RM 奖励虚高（绿线冲顶），但真实质量没跟上——模型在"骗"奖励模型（重复、谄媚、废话刷分）。对策：调大 β。'; }
+  else if(beta>0.11){ state='🐢 太保守'; color='#fb923c';
+    hint='β 太大：KL 把策略死死按住，奖励几乎涨不动——对齐效果微弱。对策：调小 β。'; }
+  else { state='✅ 健康对齐'; color='#4ade80';
+    hint='β 适中：奖励稳步上升（绿线），KL 被约束在低位（橙线）——模型在"变好"而非"骗分"。这正是 RLHF 想要的拉锯平衡。'; }
+  const st=document.getElementById('ppoState'); st.textContent=state; st.style.color=color;
+  document.getElementById('ppoHint').innerHTML='💡 '+hint+'  （真实质量≈'+quality.toFixed(2)+'，其中黑客虚高≈'+hack.toFixed(2)+'）';
+}
+[ppoBeta,ppoLr,ppoS].forEach(s=>s.addEventListener('input',simPPO));
+simPPO();
+
+/* ==================== 演示3：DPO 损失对比台 ==================== */
+const dpoGap=document.getElementById('dpoGap'), dpoBeta=document.getElementById('dpoBeta');
+function simDPO(){
+  const beta=+dpoBeta.value/10;               // 0.5..10
+  const gapMax=4;
+  const delta=gapMax*(+dpoGap.value/100);      // 选定−拒绝 对数概率差，随训练从0升到4
+  document.getElementById('dpoBetav').textContent=beta.toFixed(1);
+  document.getElementById('dpoGapv').textContent=delta.toFixed(2);
+  // DPO 损失：−log σ(β·Δ)
+  const loss=-Math.log(sigmoid(beta*delta));
+  const pPref=sigmoid(beta*delta);
+  document.getElementById('dpoDelta').textContent=delta.toFixed(2);
+  document.getElementById('dpoLoss').textContent=loss.toFixed(3);
+  document.getElementById('dpoP').textContent=(pPref*100).toFixed(1)+'%';
+  // 画损失曲线 vs Δ（0..4），标出当前点
+  const cv=document.getElementById('dpoCanvas'), ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,pad=40;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='#4a3a7a'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad,12); ctx.lineTo(pad,H-pad); ctx.lineTo(W-12,H-pad); ctx.stroke();
+  ctx.fillStyle='#b9a8e6'; ctx.font='12px sans-serif';
+  ctx.fillText('损失',8,22); ctx.fillText('Δ(选定−拒绝对数概率差) →',W-150,H-12);
+  const Lmax=5;
+  ctx.strokeStyle='#a78bfa'; ctx.lineWidth=2.5; ctx.beginPath();
+  for(let i=0;i<=100;i++){
+    const d=gapMax*i/100;
+    const l=-Math.log(sigmoid(beta*d));
+    const x=pad+(W-pad-12)*(i/100);
+    const y=(H-pad)-(H-pad-12)*Math.min(l,Lmax)/Lmax;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  // 当前点
+  const cxp=pad+(W-pad-12)*(delta/gapMax);
+  const cyp=(H-pad)-(H-pad-12)*Math.min(loss,Lmax)/Lmax;
+  ctx.fillStyle='#4ade80'; ctx.beginPath(); ctx.arc(cxp,cyp,5,0,7); ctx.fill();
+  ctx.fillStyle='#c4b5fd'; ctx.fillText('当前',cxp-14,cyp-8);
+  document.getElementById('dpoHint').innerHTML=
+    `💡 DPO 损失 <b>−log σ(β·Δ)</b>，其中 Δ = log π(y_选中) − log π(y_拒绝)。`+
+    `训练让选定回答概率越来越高于被拒绝的（Δ 增大，绿点右移），损失平滑降到 0——<b>全程不需要单独的奖励模型，也不需要在线采样</b>。`+
+    (beta>7?' β 偏大：曲线更陡，差距稍大就几乎清零，可能过拟合偏好集；':' β 适中：温和地把偏好拉开。');
+}
+[dpoGap,dpoBeta].forEach(s=>s.addEventListener('input',simDPO));
+simDPO();
+</script>
+</body>
+</html>

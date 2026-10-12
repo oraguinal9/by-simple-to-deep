@@ -1,0 +1,276 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>性能调优：并发、批处理与显存优化 | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="_1">性能调优：并发、批处理与显存优化</h1>
+<p>跑通是一回事，跑得爽是另一回事。当你从「好奇」进入「日常使用」，总会遇到这些场景：</p>
+<ul>
+<li>聊天到一半，模型突然「卡住不吐字」；</li>
+<li>打开长文档让它总结，直接报<strong>显存不足</strong>；</li>
+<li>多个请求同时进来，前面的把后面的堵死了。</li>
+</ul>
+<p>这一篇，把影响本地模型性能的几个核心变量讲透：<strong>显存、上下文、并发、批处理、关键参数</strong>，并给你两张「排查清单」，让问题对号入座。</p>
+<h2 id="1">1. 先建立一个直觉：推理像「厨师同时炒几道菜」</h2>
+<p>把大模型推理想象成厨师炒菜：</p>
+<ul>
+<li><strong>显存（操作台）</strong>：台面越大，能摊开的菜和配料越多；</li>
+<li><strong>上下文（一桌的菜）</strong>：聊得越长，需要摆在台面上的「所有菜」越多；</li>
+<li><strong>并发（同时来的客人）</strong>：几桌客人同时点单，厨师要么一桌一桌来（排队），要么一次炒好几桌的份（批处理）；</li>
+<li><strong>批处理（一次炒多份）</strong>：同一时间把类似需求合并起来一起做，效率反而更高。</li>
+</ul>
+<p>性能调优，本质上就是：<strong>在台面（显存）有限的前提下，让厨师（GPU）忙而不乱。</strong></p>
+<h2 id="2">2. 第一课：显存都去哪了？</h2>
+<p>你可能会以为「显存 = 模型体积」。其实推理时的显存由三块组成：</p>
+<pre class="codehilite"><code>推理占用的显存 ≈ 模型权重 + 上下文（KV cache）+ 计算中间缓冲
+</code></pre>
+
+<ul>
+<li><strong>模型权重</strong>：模型本身，体积 = 参数 × 精度（第 2 篇 <code>content/硬件怎么选：显存、内存与 CPU 的账.md</code> 讲过）；</li>
+<li><strong>KV cache（上下文缓存）</strong>：为了记住对话历史，模型要把每轮「见过」的词都缓存一份。<strong>上下文越长，这个缓存越大</strong>；</li>
+<li><strong>中间缓冲</strong>：计算过程中的临时数据。</li>
+</ul>
+<p>新手最容易忽略的就是 KV cache——<strong>这也是「模型明明很小，却还是爆显存」的头号原因</strong>。上下文从 4K 加到 32K，KV cache 可能吃掉好几个 GB。</p>
+<blockquote>
+<p>术语解释：K 和 V 是 Transformer 注意力机制里的两个关键向量，KV cache 就是给它们做的「草稿纸」。普通人只需要记住：<strong>上下文越长，显存越紧张</strong>。</p>
+</blockquote>
+<h2 id="3">3. 第二课：控制上下文长度的两个参数</h2>
+<p>在 Ollama 里，和你日常最相关的是这两个参数（可通过 <code>ollama run</code> 时的环境变量或 API 请求参数设置）：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>作用</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>num_ctx</code></td>
+<td>模型能「记住」的最大 Token 数（上下文窗口）</td>
+<td>日常聊天 4096～8192 就够；长文档才需要 16384+</td>
+</tr>
+<tr>
+<td><code>num_predict</code></td>
+<td>一次最多生成多少个 Token（回答最长长度）</td>
+<td>默认 -1（不限制）；短问答可以设 512</td>
+</tr>
+</tbody>
+</table>
+<p>设置方式（API 请求时）：</p>
+<pre class="codehilite"><code class="language-python">from openai import OpenAI
+
+client = OpenAI(base_url=&quot;http://localhost:11434/v1&quot;, api_key=&quot;ollama&quot;)
+resp = client.chat.completions.create(
+    model=&quot;qwen2.5:7b&quot;,
+    messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;写一篇 800 字的小作文&quot;}],
+    max_tokens=1200,       # 对应 num_predict：限制输出长度
+    # 其他选项见下方第 5 节
+)
+</code></pre>
+
+<blockquote>
+<p><strong>为什么默认值往往很大？</strong> 厂商为了「看起来能力强」，默认上下文给得很长。但你如果只是聊天，8K 就绰绰有余——<strong>把上下文改小，立竿见影地省显存、提速度。</strong></p>
+</blockquote>
+<h2 id="4">4. 第三课：并发与批处理——人多不一定慢</h2>
+<h3 id="41-vs">4.1 排队（串行）vs 并行</h3>
+<p>Ollama 默认是一个模型实例服务所有请求。当多个请求同时到达，有两种处理方式：</p>
+<ul>
+<li><strong>串行排队</strong>：一个一个来，每个请求独占全部 GPU——<strong>每个人等待时间变长，但单次回答不降速</strong>；</li>
+<li><strong>并行/批处理</strong>：把多个请求打包成一批同时算——<strong>单位时间完成的请求总数（吞吐量）大幅上升</strong>，但每个请求的速度略有下降。</li>
+</ul>
+<p>对「一个人用」来说，串行就行；对「团队用/批量任务」来说，批处理才是正道。</p>
+<h3 id="42-ollama">4.2 Ollama 的并发设置</h3>
+<p>Ollama 用环境变量控制同时加载的模型数量：</p>
+<pre class="codehilite"><code class="language-bash"># 最多同时加载 2 个模型（默认即可）
+set OLLAMA_MAX_LOADED_MODELS=2
+
+# 每个模型最多并行处理 4 个并发请求（默认 4）
+set OLLAMA_NUM_PARALLEL=4
+</code></pre>
+
+<p>Windows 用 <code>set</code>，macOS/Linux 用 <code>export</code>，设置后<strong>重启 Ollama 生效</strong>。</p>
+<blockquote>
+<p>补充一个实用细节：这些环境变量设置后<strong>重启 Ollama 才生效</strong>。如果你不想每次开终端都敲一遍 <code>set</code>/<code>export</code>，可以把它「永久化」：</p>
+<ul>
+<li><strong>Windows</strong>：右键「此电脑」→ 属性 → 高级系统设置 → 环境变量 → 新建，把 <code>OLLAMA_NUM_PARALLEL</code> 等变量永久写进去；</li>
+<li><strong>macOS / Linux</strong>：把 <code>export</code> 那几行写进 shell 配置文件（<code>~/.zshrc</code> 或 <code>~/.bashrc</code>），下次开终端自动生效。</li>
+</ul>
+<p>注意权衡：并行数调高 → 吞吐上升，但显存占用也上升（每个并发都要一份 KV cache）。显存不够时并行反而导致反复换出模型，拖垮整体速度。</p>
+</blockquote>
+<h3 id="43-vllm">4.3 vLLM 与批处理的关系</h3>
+<p>如果你对「高并发、大批处理」有真实需求（比如要同时服务 30 个人），第 6 篇 <code>content/推理引擎对比：llama.cpp、vLLM 与 Ollama.md</code> 提过的 <strong>vLLM</strong> 才是专业选手——它的核心优化就是把批处理做到了极致（分页注意力、连续批处理）。<strong>个人电脑上用 Ollama 调好并行数就够了，不必上 vLLM。</strong></p>
+<h2 id="5">5. 第四课：三个「说话风格」参数</h2>
+<p>除了性能，还有几个控制「输出行为」的参数，顺手讲清楚（它们影响质量，间接影响重试次数和耗时）：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>作用</th>
+<th>取值建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>temperature</code></td>
+<td>随机性：越高越天马行空，越低越稳定保守</td>
+<td>写文案 0.7～1.0；总结/代码 0.1～0.3</td>
+</tr>
+<tr>
+<td><code>top_p</code></td>
+<td>采样的候选范围（配合 temperature 用）</td>
+<td>默认 0.9 左右即可</td>
+</tr>
+<tr>
+<td><code>num_predict</code></td>
+<td>回答最大长度</td>
+<td>见第 3 节</td>
+</tr>
+</tbody>
+</table>
+<p>典型用法：<strong>让模型做「事实类」任务（总结、翻译、代码）就把 temperature 调低</strong>——减少胡说八道（幻觉），也减少「答完再重试」的浪费。</p>
+<blockquote>
+<p>一句话理解三个参数的关系：<code>temperature</code> 决定「敢不敢冒险」，<code>top_p</code> 决定「在多大范围内冒险」，<code>num_predict</code> 决定「最多走多远」。日常使用中，<strong>只调 <code>temperature</code> 和 <code>num_predict</code> 就够覆盖九成场景</strong>，别被参数数量吓到。</p>
+</blockquote>
+<h2 id="6-gpu-cpu">6. 第五课：让 GPU 多干活，CPU 少干活</h2>
+<p>前面讲过（第 2 篇、第 6 篇），模型会被拆成「层」，一部分放 GPU、一部分放 CPU：</p>
+<ul>
+<li>放 GPU 的层越多 → 速度越快；</li>
+<li>放不下的部分落到 CPU → 明显变慢，但能「跑起来」。</li>
+</ul>
+<p>Ollama 的参数是 <code>num_gpu</code>：</p>
+<ul>
+<li>默认：Ollama 自动判断，能放多少放多少（新手就用默认）；</li>
+<li>手动指定：比如显存和模型僵持时，强制只放 40 层到 GPU：</li>
+</ul>
+<pre class="codehilite"><code class="language-bash">OLLAMA_NUM_GPU=40 ollama run qwen2.5:7b
+</code></pre>
+
+<p><strong>显存不足时怎么办？</strong> 两个思路：</p>
+<ol>
+<li><strong>降低量化</strong>：Q8 → Q6 → Q4（第 4 篇 <code>content/模型格式与量化：GGUF 与 Q4/Q8.md</code>），权重小了，占用直降；</li>
+<li><strong>减少 GPU 层数</strong>：让一部分层跑 CPU，虽然慢，但至少能跑完不崩。</li>
+</ol>
+<h2 id="7">7. 场景排查清单（直接抄作业）</h2>
+<h3 id="71-oom">7.1 场景一：「显存不够 / 报错 OOM」</h3>
+<p>按顺序排查，命中即解决：</p>
+<ul>
+<li>[ ] 换了更小的量化版本（Q4）？</li>
+<li>[ ] 缩小了上下文长度（<code>num_ctx</code> 调到 4096）？</li>
+<li>[ ] 降低了并行数（<code>OLLAMA_NUM_PARALLEL=1</code>）？</li>
+<li>[ ] 关了占显存的其他程序（浏览器几十个标签页会吃共享显存）？</li>
+<li>[ ] 降低了 <code>OLLAMA_MAX_LOADED_MODELS</code>，避免同时装多个模型？</li>
+<li>[ ] 最后手段：降模型规模（7B → 3B），或启用 CPU 混合推理。</li>
+</ul>
+<h3 id="72">7.2 场景二：「回答一个字一个字蹦，太慢了」</h3>
+<ul>
+<li>[ ] 模型是否大部分层在跑 CPU？用 <code>ollama ps</code> 看 GPU/CPU 占比；</li>
+<li>[ ] 上下文是否太长？长对话用 <code>/clear</code> 或新开会话；</li>
+<li>[ ] <code>temperature</code> 是否过高导致模型「想太多」？事实类任务调低；</li>
+<li>[ ] 是否开着多个大模型？<code>ollama ps</code> 看内存占用；</li>
+<li>[ ] 电脑是否同时开着大量软件？给模型让路。</li>
+</ul>
+<h3 id="73">7.3 场景三：「多个人一起用就卡死」</h3>
+<ul>
+<li>[ ] 显存够不够并行？不够就 <code>OLLAMA_NUM_PARALLEL</code> 调低到 2 或 1；</li>
+<li>[ ] 大家是不是都用同一个大模型？分流到不同模型（如小号 3B 处理轻量请求）；</li>
+<li>[ ] 长期多用户场景，认真考虑 vLLM（见第 6 篇）。</li>
+</ul>
+<h2 id="8">8. 性能体检：怎么量化「快不快」？</h2>
+<p>调优前后要有数据对比，两个指标够用：</p>
+<ul>
+<li><strong>首 Token 延迟</strong>：发出请求到输出第一个字的等待时间，越短越「跟手」；</li>
+<li><strong>吞吐量</strong>：每秒生成的 Token 数（tokens/s），越高越「流畅」。</li>
+</ul>
+<p>在 Ollama 对话里看右下角的 <code>eval rate</code> 就能看到实时速度（约等于每秒生成 Token 数）。调优后对比一下，成就感拉满。</p>
+<h3 id="81">8.1 怎么判断瓶颈在「显存」还是「算力」？</h3>
+<p>一个简单的观察法：</p>
+<ul>
+<li><strong>显存满了，但 GPU 利用率不高</strong> → 瓶颈在「装不下」或「搬运数据」，解法是降量化、缩上下文；</li>
+<li><strong>显存没满，GPU 利用率 90% 以上</strong> → 瓶颈在「算力」，调参基本无用，换更好的硬件才有效。</li>
+</ul>
+<p>Windows 用户用「任务管理器 → 性能 → GPU」看利用率；Linux 用户执行 <code>nvidia-smi</code> 即可实时观察。</p>
+<h3 id="82">8.2 最简单的压测脚本</h3>
+<p>想客观衡量调优效果？写个循环，连续发 10 次请求，记录每次耗时：</p>
+<pre class="codehilite"><code class="language-python">import time
+from openai import OpenAI
+
+client = OpenAI(base_url=&quot;http://localhost:11434/v1&quot;, api_key=&quot;ollama&quot;)
+for i in range(10):
+    t0 = time.time()
+    client.chat.completions.create(
+        model=&quot;qwen2.5:7b&quot;,
+        messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;说一句话&quot;}],
+        max_tokens=50,
+    )
+    print(f&quot;第 {i+1} 次耗时：{time.time() - t0:.1f} 秒&quot;)
+</code></pre>
+
+<p>如果每次耗时稳定，说明性能稳定；如果越来越慢，多半是上下文被撑大或缓存累积——新开会话即可缓解。</p>
+<h2 id="9">9. 常见问题</h2>
+<h3 id="91">9.1 「调了半天还是慢，是不是模型有问题？」</h3>
+<p>大多数情况不是模型问题，而是<strong>硬件天花板</strong>。7B 模型在纯 CPU 上大约每秒 1～4 个词、在中端显卡上大约每秒 20～40 个词——这是物理规律，调参改变不了量级。先接受「这台电脑的极限在哪」，再决定要不要升级硬件，别在参数上无限死磕。</p>
+<h3 id="92">9.2 「为什么换了更大的模型，反而明显变慢？」</h3>
+<p>意料之中。大模型权重更多，每一步计算的规模是指数级上升的。从 7B 换到 32B，速度掉一半甚至更多都很正常。<strong>如果你「既要质量又要速度」</strong>，正确姿势是保持模型规模不变、把量化等级提高（Q4 → Q6/Q8），而不是盲目上更大的模型。</p>
+<h3 id="93">9.3 「多个并发请求会不会把系统搞崩？」</h3>
+<p>不会。Ollama 自带排队机制，请求多了只是排队等待，不会「搞崩」。真正的风险是另一种：显存不够时，Ollama 会反复把模型换进换出，表现为「突然变得极慢」。遇到这种抖动，<strong>调低并行数（<code>OLLAMA_NUM_PARALLEL</code>）往往比调高更有效</strong>。</p>
+<h2 id="10">10. 本章小结</h2>
+<p>一张「性能调优地图」收尾：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>核心变量</th>
+<th>手段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>爆显存</td>
+<td>权重 + KV cache</td>
+<td>降量化、缩上下文、降并行</td>
+</tr>
+<tr>
+<td>太慢</td>
+<td>GPU/CPU 比例</td>
+<td>提高 <code>num_gpu</code>、缩小模型、缩短上下文</td>
+</tr>
+<tr>
+<td>多请求排队</td>
+<td>并行数</td>
+<td>调 <code>OLLAMA_NUM_PARALLEL</code>；长期上 vLLM</td>
+</tr>
+<tr>
+<td>输出不稳定</td>
+<td>temperature</td>
+<td>事实类任务调低至 0.1～0.3</td>
+</tr>
+</tbody>
+</table>
+<ol>
+<li>显存 = 权重 + KV cache + 缓冲，<strong>上下文是隐形杀手</strong>；</li>
+<li>并发与批处理：单人串行、团队并行，吞吐与延迟要取舍；</li>
+<li><code>num_ctx</code>/<code>num_predict</code>/<code>temperature</code> 是最常用的三个旋钮；</li>
+<li>两个典型场景（OOM、卡顿）各有 6 步排查清单，按序执行。</li>
+</ol>
+<p>性能调优是个「体力活」，但回报是实打实的：<strong>同样的电脑，能跑更大的模型、答得更快。</strong></p>
+<p>最后一篇，我们把这些技能串成一个完整项目。</p>
+<p><strong>下一站：<code>content/实战路线：从零搭一个本地 AI 助手.md</code></strong>。</p></body></html>

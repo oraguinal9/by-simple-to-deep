@@ -1,0 +1,144 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第七章 什么是 Agent：会自己用工具的 AI | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="agent-ai">第七章 什么是 Agent：会自己用工具的 AI</h1>
+<p>前面六章，我们讲完了一条主线：<strong>RAG——让模型"有知识"</strong>。模型能查资料、答得准。</p>
+<p>但"有知识"还不够。现实里很多任务，光靠"回答"解决不了：</p>
+<ul>
+<li>"帮我查下今天北京的天气，再订一件和气温匹配的薄外套"——这得<strong>查天气、再下单</strong>，不是一句话能答完的；</li>
+<li>"把上个月销售数据拉出来，算同比，做成图表发我邮箱"——要<strong>连数据库、计算、生成文件、发邮件</strong>一连串动作。</li>
+</ul>
+<p>这种"要动手做事"的任务，主角就变成了 <strong>Agent（智能体）</strong>。本章我们先建立 Agent 的整体概念，后面两章再拆它的核心机制。</p>
+<h2 id="chat-agent-vs">一、从 Chat 到 Agent：被动回答 vs 主动行动</h2>
+<p>普通对话模型像<strong>顾问</strong>：你问，它答，答完就停。它不碰任何外部系统，不产生任何真实世界的动作。</p>
+<p>Agent 像<strong>助理/秘书</strong>：你给一个目标，它自己<strong>想步骤、调工具、看结果、再想下一步</strong>，直到把事办成。区别在于——</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>普通 Chat</th>
+<th>Agent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>角色</td>
+<td>顾问（只说）</td>
+<td>助理（说+做）</td>
+</tr>
+<tr>
+<td>是否调用外部工具</td>
+<td>否</td>
+<td>是（搜索/API/代码/DB…）</td>
+</tr>
+<tr>
+<td>是否多步</td>
+<td>单轮</td>
+<td>多轮循环</td>
+</tr>
+<tr>
+<td>能否影响现实</td>
+<td>不能</td>
+<td>能（发邮件、下单、改数据）</td>
+</tr>
+</tbody>
+</table>
+<p>一句话：<strong>Chat 是"动嘴"，Agent 是"动嘴+动手"。</strong></p>
+<h2 id="agent">二、什么是 Agent：四个能力的闭环</h2>
+<p>一个 Agent 通常包含四个能力，形成一个循环：</p>
+<pre class="codehilite"><code>   感知（拿到任务/环境信息）
+        ↓
+   思考（该用哪个工具、下一步做什么）
+        ↓
+   行动（调用工具，产生结果）
+        ↓
+   观察（读取工具返回的结果）
+        ↓
+      （回到思考，直到任务完成）
+</code></pre>
+
+<p>打比方：你让助理"订明天去上海的高铁"。助理会：
+1. <strong>思考</strong>：先查车次 → 需要"购票网站/API"这个工具；
+2. <strong>行动</strong>：调用工具查明天车次；
+3. <strong>观察</strong>：拿到一串车次和时间；
+4. <strong>思考</strong>：挑一班 → 再调用"下单"工具；
+5. <strong>行动+观察</strong>：下单成功，拿到订单号；
+6. 回报你"已订 G1234，订单号 xxx"。</p>
+<p>整个过程模型自己"想一步、做一步、看一步"，而不是你把所有步骤都写死。</p>
+<h2 id="toolagent">三、工具（Tool）：Agent 的"手和脚"</h2>
+<p>Agent 之所以能"做事"，是因为它有一组<strong>工具</strong>。工具就是模型可以调用的一个具体能力，本质是一个<strong>函数</strong>：输入参数，输出结果。常见工具：</p>
+<ul>
+<li><strong>搜索</strong>：联网搜最新信息（弥补模型知识截止）；</li>
+<li><strong>计算</strong>：跑一段代码做精确运算（模型心算易错，让它调计算器/Python 更稳）；</li>
+<li><strong>查数据库 / 知识库</strong>：本质是上一章的 RAG，可以作为 Agent 的一个工具；</li>
+<li><strong>调用 API</strong>：查天气、查股价、发短信、下单；</li>
+<li><strong>操作文件/系统</strong>：读文档、写表格、发邮件。</li>
+</ul>
+<p>关键认知：<strong>模型自己不会"上网"也不会"算账"，它只是决定"现在该调哪个工具、传什么参数"，真正的动作由工具完成。</strong> 模型是"大脑"，工具是"手脚"。</p>
+<blockquote>
+<p>一个常见且强大的组合：<strong>Agent 把 RAG 当作其中一个工具</strong>。当 Agent 遇到"需要查私有知识"时，就调用 RAG 工具去检索，再把结果用于后续决策。RAG 和 Agent 不是二选一，而是经常搭档。</p>
+</blockquote>
+<h2 id="agent_1">四、Agent 为什么有用：三类它擅长的任务</h2>
+<ol>
+<li><strong>需要实时/私有信息</strong>：模型训练数据有截止，但"今天天气""你们的库存"它不知道，必须靠工具现查。</li>
+<li><strong>需要多步拆解</strong>：任务天然是一连串动作（查→算→生成→发送），单轮回答搞不定。</li>
+<li><strong>需要操作现实系统</strong>：发邮件、改数据库、触发工作流——这些必须调用工具。</li>
+</ol>
+<p>反过来，纯知识问答、创意写作，用普通 Chat 或 RAG 就够了，<strong>不一定需要 Agent</strong>。别为了用 Agent 而用 Agent——能简单解决的，就别上复杂系统。</p>
+<h2 id="agent_2">五、Agent 的"自主"带来的新风险</h2>
+<p>Agent 能动手，也就有了"闯祸"的可能。这是它和普通 Chat 最大的不同，也最需要警惕：</p>
+<ul>
+<li><strong>误操作</strong>：让 Agent 发邮件，它可能发错人、发错内容；</li>
+<li><strong>无限循环</strong>：思考-行动卡在某个步骤反复横跳，耗资源不结束；</li>
+<li><strong>被诱导</strong>：外部网页/资料里的一句话，可能诱使 Agent 执行危险操作（类似 RAG 里的提示注入，但后果更严重，因为它真能"动手"）。</li>
+</ul>
+<p>所以实际系统里，Agent 通常要配：
+- <strong>权限边界</strong>（能调哪些工具、能不能真发送）；
+- <strong>人类确认</strong>（高风险动作先问人）；
+- <strong>步数/预算上限</strong>（防止死循环烧钱）。</p>
+<h2 id="_1">六、一个最小心智模型</h2>
+<p>把 Agent 记成这句话就够了：</p>
+<blockquote>
+<p><strong>Agent = 大模型（大脑） + 一批工具（手脚） + 一个"思考→行动→观察"的循环（做事的方法）。</strong></p>
+</blockquote>
+<p>它拿到目标后，自己决定调哪些工具、按什么顺序，直到把事办成。RAG 是让它"有知识"的利器，也常作为它的一个工具。</p>
+<h2 id="_2">七、本章小结</h2>
+<ul>
+<li>普通 Chat 是"顾问"（只答），Agent 是"助理"（答+做）。</li>
+<li>Agent = <strong>感知→思考→行动→观察</strong> 的闭环循环，直到任务完成。</li>
+<li><strong>工具（Tool）</strong> 是 Agent 的手脚：搜索、计算、查库、调 API、操作文件。模型只决定"调哪个、传什么参"，动作由工具执行。</li>
+<li>Agent 擅长：<strong>实时/私有信息、多步任务、操作现实系统</strong>；简单问答未必需要它。</li>
+<li><strong>RAG 常作为 Agent 的一个工具</strong>，二者搭档而非对立。</li>
+<li>Agent 能"动手"也带来误操作/循环/被诱导风险，需配权限、确认、预算上限。</li>
+</ul>
+<h2 id="_3">八、小练习</h2>
+<ol>
+<li>下面哪些更适合用 Agent，哪些用普通 Chat/RAG 就够了？</li>
+<li>A. "用一句话解释什么是区块链"</li>
+<li>B. "查今天上海天气，若下雨就提醒我带伞"</li>
+<li>C. "把我们库里所有'已发货'订单导出成 Excel 发我"</li>
+<li>为什么说"模型自己不会上网，只是决定调哪个工具"？这个区分重要在哪？</li>
+<li>设想让 Agent"自动回复客户邮件"。它可能闯什么祸？你会加哪三道保险？</li>
+</ol>
+<hr />
+<p><em>我们已经知道 Agent 有"工具"这个手脚，也能循环做事。下一章钻进工具机制本身：</em><em>Function Calling（函数调用）</em><em>——模型到底是怎么"决定调哪个函数、填什么参数"的。</em></p></body></html>

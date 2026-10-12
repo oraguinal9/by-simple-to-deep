@@ -1,0 +1,283 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>批量生成与自动化：让工作流自己跑 | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="_1">批量生成与自动化：让工作流自己跑</h1>
+<p>人工点一下生成一张图，是「手工时代」；让电脑自己一口气出 100 张，是「工业时代」。这一篇就把你带入工业时代。</p>
+<p>本地创作最被低估的价值，就是<strong>批量与自动化</strong>：做自媒体封面的一次要出 20 张备选；做头像生意的一次要出 100 个不同形象；做素材库的一次要出几百张分类图。手动一张张来，人得废掉。学会本篇文章，你就能让 ComfyUI「自己跑」。</p>
+<p>四个递进的层次：<strong>批量跑多张 → 工作流参数化 → API 调用 → 定时/命令行全自动</strong>。最后给一个「100 张头像批量生成」完整小项目。</p>
+<h2 id="_2">一、第一层：批量跑多张图（不用写代码）</h2>
+<p>最简单、零代码的批量，ComfyUI 原生支持两种：</p>
+<h3 id="11">1.1 批量种子：同一提示词，撒网出图</h3>
+<p>你想围绕一个主题出 20 张不同样式的图，最笨但有效的办法：把 KSampler 的 <strong>seed 设为 random</strong>，然后<strong>连续按 Queue 按钮 20 次</strong>——每次都会出一个不同但同主题的图。这已经算「批量」了。</p>
+<p>更正式的做法是给 KSampler 接一个<strong>批量种子列表</strong>：</p>
+<pre class="codehilite"><code class="language-text">批量种子节点（Batch Seed）→ KSampler 的 seed 输入端
+</code></pre>
+
+<p>在这个节点的文本框中，每行写一个种子编号：</p>
+<pre class="codehilite"><code class="language-text">1001
+1002
+1003
+1004
+1005
+</code></pre>
+
+<p>运行一次，ComfyUI 会<strong>按顺序、每一颗种子各出一张图</strong>——5 个种子 = 5 张图，自动完成。</p>
+<blockquote>
+<p>为什么要「控制种子」而不是「纯随机」？因为<strong>种子是可复现的</strong>。你发现第 3 号种子出的图特别好看，就只保留它，还能复现微调。随机模式下你连「刚才那张好看的是哪张」都说不清。</p>
+</blockquote>
+<h3 id="12">1.2 批量提示词：同一种子，多种方案</h3>
+<p>反过来，你固定一颗种子（保证构图稳定），但想试试 10 组不同提示词的对比效果。这时候用<strong>批量提示词节点</strong>：</p>
+<pre class="codehilite"><code class="language-text">批量提示词节点（Batch Prompt）→ 正向提示词输入端
+</code></pre>
+
+<p>文本框里每行一组提示词：</p>
+<pre class="codehilite"><code class="language-text">a red apple on wooden table
+a green apple on marble table
+a golden apple on velvet cloth
+</code></pre>
+
+<p>一次运行，每组提示词各出一张图。<strong>固定种子 + 批量提示词 = 严格控制变量做「A/B 测试」</strong>，对研究画风、调参数非常有用。</p>
+<h2 id="_3">二、第二层：工作流参数化（把「旋钮」变成「输入框」）</h2>
+<p>上面的批量是「改一处跑一次」。但如果我要批量改的是好几个参数呢？比如「分辨率 + 提示词 + 风格 LoRA 三件套一起变」？</p>
+<p>答案是<strong>参数化</strong>：把工作流里需要变化的量，全部接到「输入节点」上，你只需要编辑输入节点的内容，整个工作流就跟着变。</p>
+<p>在 ComfyUI 里，这依赖一个叫 <strong><code>Primitive Node</code>（原始值节点）</strong> 的东西，或者整合包里常见的「参数输入面板」。做法：</p>
+<ol>
+<li>把 KSampler 的 steps、cfg、seed、width、height 等参数，从「节点内部固定值」改成「从输入节点连线进来」；</li>
+<li>这些输入节点集中摆在一起，像一张「控制面板」；</li>
+<li>批量生成时，只需要改控制面板，工作流整体逻辑不动。</li>
+</ol>
+<blockquote>
+<p>类比：<strong>参数化 = 把「一次性刻死的模具」改成「可调节的机床」。</strong> 工作流本身不变，变的只是「这台机器这次加工的参数」。这为下一步自动化铺平了道路。</p>
+</blockquote>
+<h2 id="api-comfyui">三、第三层：API 模式（让别的程序来驱动 ComfyUI）</h2>
+<p>批量种子和参数化还在「人手动点按钮」的范畴。真正的自动化是：<strong>不打开浏览器，让程序直接调用 ComfyUI。</strong></p>
+<p>ComfyUI 从设计上就支持这种玩法：它启动时，除了图形界面，还自带一个 <strong>HTTP API（应用程序接口）</strong>。你可以理解成：ComfyUI 开了一个「后门窗口」，任何程序都可以往这个窗口里丢指令、取结果。</p>
+<h3 id="31-api">3.1 先把工作流导出成 API 格式</h3>
+<ol>
+<li>在 ComfyUI 界面里打开你做好的工作流；</li>
+<li>点击 <strong>Workflow → Export (API Format)</strong>（导出为 API 格式）；</li>
+<li>保存成一个 <code>.json</code> 文件。</li>
+</ol>
+<blockquote>
+<p>这个 API 格式的 json 和普通工作流 json 的区别：它是「纯指令版」，只包含节点类型、参数和连线关系，专门给程序调用用的。你不需要看懂它，程序看得懂就行。</p>
+</blockquote>
+<h3 id="32-python-100">3.2 用 Python 调用（一次跑 100 张）</h3>
+<p>下面的脚本是「用 Python 让 ComfyUI 自己生成 100 张头像」的骨架。保存为 <code>.py</code> 文件运行即可（需要电脑有 Python 环境）：</p>
+<pre class="codehilite"><code class="language-python"># ��量调用 ComfyUI API 的示例脚本
+import json, random, urllib.request, uuid
+
+# 把这里替换成你导出的 API json 文件路径
+WORKFLOW_JSON = &quot;avatar_workflow_api.json&quot;
+SERVER = &quot;http://127.0.0.1:8188&quot;   # ComfyUI 服务地址
+
+def generate_one(prompt_text, seed):
+    # 1. 读取工作流定义
+    with open(WORKFLOW_JSON, encoding=&quot;utf-8&quot;) as f:
+        wf = json.load(f)
+
+    # 2. 找到提示词节点和采样器节点，替换其中的内容
+    for nid, node in wf.items():
+        if node[&quot;class_type&quot;] == &quot;CLIPTextEncode&quot; and &quot;正向&quot; in node.get(&quot;_meta&quot;, {}).get(&quot;title&quot;, &quot;&quot;):
+            node[&quot;inputs&quot;][&quot;text&quot;] = prompt_text
+        if node[&quot;class_type&quot;] == &quot;KSampler&quot;:
+            node[&quot;inputs&quot;][&quot;seed&quot;] = seed
+
+    # 3. 提交任务给 ComfyUI
+    data = json.dumps({&quot;prompt&quot;: wf, &quot;client_id&quot;: str(uuid.uuid4())}).encode()
+    req = urllib.request.Request(f&quot;{SERVER}/prompt&quot;, data=data,
+                                 headers={&quot;Content-Type&quot;: &quot;application/json&quot;})
+    with urllib.request.urlopen(req) as resp:
+        print(&quot;已提交，返回：&quot;, resp.read().decode()[:100])
+
+# 4. 循环 100 次，每次换一颗随机种子
+for i in range(100):
+    generate_one(&quot;一个可爱的卡通头像，圆脸，大眼，微笑&quot;, random.randint(1, 999999))
+    print(f&quot;已提交第 {i+1} / 100 个任务&quot;)
+</code></pre>
+
+<p>运行前提：</p>
+<pre class="codehilite"><code class="language-bash"># 先启动 ComfyUI 服务（不要关这个窗口）
+python main.py
+
+# 再开一个终端运行你的批量脚本
+python batch_avatar.py
+</code></pre>
+
+<blockquote>
+<p>脚本原理只需理解三点：<strong>① 读取工作流定义；② 修改其中参数；③ 提交给 ComfyUI 排队。</strong> 提交后 ComfyUI 会在后台排队生成，生成结果自动存进 output 目录。看不懂代码没关系——你只需要知道「ComfyUI 可以被程序指挥」，需要时把这段骨架改改参数就能用。</p>
+</blockquote>
+<h2 id="_4">四、第四层：定时任务与命令行全自动</h2>
+<p>API 之后，还能再进一步：<strong>完全无人值守。</strong> 三个常见场景：</p>
+<h3 id="41">4.1 定时批量跑</h3>
+<p>想在睡觉时自动跑，可以用系统的「任务计划」：</p>
+<ul>
+<li><strong>Windows</strong>：<code>控制面板 → 系统和安全 → 管理工具 → 任务计划程序</code>，新建任务：触发器选「每天凌晨 2 点」，操作选「运行 bat 脚本」；</li>
+<li>脚本内容：先启动 ComfyUI（如果没开），再运行你的批量 Python 脚本。</li>
+</ul>
+<h3 id="42">4.2 命令行一键出图</h3>
+<p>把常用操作封装成「一条命令」，比如写一个 <code>go.bat</code>：</p>
+<pre class="codehilite"><code class="language-bat">@echo off
+:: 启动 ComfyUI 服务
+start &quot;comfy&quot; python main.py --lowvram
+:: 等待几秒让服务起来
+timeout /t 10
+:: 运行批量脚本
+python batch_avatar.py
+pause
+</code></pre>
+
+<p>以后双击这个文件，全流程自动执行。</p>
+<h3 id="43">4.3 接入工作流程</h3>
+<p>更进一步，你可以在自己的业务脚本里（比如一个自动发图的小程序）调用 ComfyUI 的 API，让「生成图片」成为你程序流水线的一环。这属于进阶玩法，本篇点到为止。</p>
+<blockquote>
+<p>自动化边界提醒：<strong>先保证「手动跑一次是稳定的」，再上自动化。</strong> 自动化只是把「你手动点的动作」重复执行，手动时会报错的地方，自动化时会以 100 倍的速度制造错误。所以：<strong>小步验证 → 再放量。</strong></p>
+</blockquote>
+<h2 id="100">五、实战小项目：100 张头像批量生成</h2>
+<p>把本篇文章的知识串成一个完整小项目。目标：批量生成 100 张不同风格的卡通头像。</p>
+<h3 id="1">第 1 步：搭好单张工作流</h3>
+<p>按第 4 篇搭一条文生图工作流，尺寸设 1024×1024（SDXL）或 512×512（SD 1.5），写正向提示词：</p>
+<pre class="codehilite"><code class="language-text">一个可爱的卡通头像，圆脸，大眼，微笑，简洁背景，明亮色彩，高清
+</code></pre>
+
+<p>负向提示词：</p>
+<pre class="codehilite"><code class="language-text">模糊, 低质量, 畸形, 多余肢体, 水印
+</code></pre>
+
+<p><strong>先手动跑几张，确认效果满意，并且记录下你的参数组合</strong>（模型、采样器、步数、CFG）。</p>
+<h3 id="2-api">第 2 步：参数化 + 导出 API</h3>
+<ol>
+<li>用「批量种子」思路：种子交给脚本随机生成；</li>
+<li>也可以把「发型、表情、颜色」做成变量，让每张图更有差异；</li>
+<li>导出 API 格式 json。</li>
+</ol>
+<h3 id="3">第 3 步：写批量脚本</h3>
+<p>用上面 3.2 的脚本骨架，把提示词改成你想变化的内容，循环 100 次。每次提交后，ComfyUI 自动把图存到 <code>output</code> 目录。</p>
+<h3 id="4">第 4 步：跑完验收</h3>
+<p>100 张图生成后：</p>
+<ul>
+<li>按「好看 / 一般 / 废图」三档人工筛选；</li>
+<li>发现某类图特别好看，记录它的种子，用「局部重绘」微调量产（第 6 篇）；</li>
+<li>满意批次<strong>整理归档到独立文件夹</strong>，命名清晰（比如 <code>头像_第1批_2024</code>）。</li>
+</ul>
+<blockquote>
+<p>一个小技巧：生成时让脚本在输出文件名里带上种子号，方便筛选后追溯「这张是谁生成的、还能不能复现」。ComfyUI 默认输出会带时间和批次信息，结合种子记录就够用了。</p>
+</blockquote>
+<h2 id="_5">六、常见问题速查</h2>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因</th>
+<th>解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>批量提交后没出图</td>
+<td>ComfyUI 服务没启动/端口不对</td>
+<td>确认 <code>http://127.0.0.1:8188</code> 能打开</td>
+</tr>
+<tr>
+<td>100 个任务跑到一半报错</td>
+<td>显存不够，服务崩了</td>
+<td>加 --lowvram；每次少提交几个；任务失败重试</td>
+</tr>
+<tr>
+<td>API json 里改参数没生效</td>
+<td>节点 id 找错了</td>
+<td>用浏览器 F12 或工作流自带的节点 title 定位</td>
+</tr>
+<tr>
+<td>批量图长得一模一样</td>
+<td>seed 没随机</td>
+<td>确认每轮提交时 seed 都不同</td>
+</tr>
+<tr>
+<td>批量太慢</td>
+<td>单张生成时间 × 数量</td>
+<td>换小模型/低分辨率/更好的采样器组合</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_6">七、批量工程的「生产规范」</h2>
+<p>批量一旦跑起来，产出和错误都会成倍增加，提前立好规范能省无数心。</p>
+<h3 id="71">7.1 输出管理：让结果可追溯</h3>
+<p>100 张图全堆在 output 目录，分不清谁是谁。推荐做法：</p>
+<ul>
+<li><strong>按批建目录</strong>：每批任务生成到独立子目录（脚本里用时间戳或批号命名）；</li>
+<li><strong>文件名带种子</strong>：保存时把种子写进文件名（如 <code>avatar_00042_seed1001.png</code>），发现好看的就能直接复现；</li>
+<li><strong>记一笔账</strong>：每批生成后写一个简单的文本清单，记录「这批用了什么模型、什么提示词、挑中了哪几张」。<strong>你的知识库就是这样一点点长出来的。</strong></li>
+</ul>
+<h3 id="72">7.2 出错重试与断点续跑</h3>
+<p>批量中途崩了怎么办？三个思路：</p>
+<ul>
+<li><strong>小批量提交</strong>：一次只提交 5~10 个任务，跑完一批再提下一批，避免「全盘皆输」；</li>
+<li><strong>记录已跑进度</strong>：脚本里把已完成的种子追加写入一个进度文件，重跑时跳过已完成的；</li>
+<li><strong>失败自动跳过</strong>：在脚本里捕获错误，单张失败不影响整体（示例见下）。</li>
+</ul>
+<pre class="codehilite"><code class="language-python"># 批量脚本中的容错骨架
+for seed in seeds:
+    try:
+        generate_one(prompt, seed)
+        done.append(seed)          # 成功后记录
+    except Exception as e:
+        print(f&quot;种子 {seed} 失败：{e}，跳过继续&quot;)
+with open(&quot;progress.txt&quot;, &quot;w&quot;) as f:   # 写进度文件
+    f.write(&quot;\n&quot;.join(map(str, done)))
+</code></pre>
+
+<h3 id="73">7.3 从「批量出图」到「批量出作品」</h3>
+<p>把前面学的内容组合，批量就不只是「数量多」，而是「成品化」：</p>
+<pre class="codehilite"><code class="language-text">批量生成草图（第 4 篇 + 批量种子）
+   ↓ 人工筛出好苗子
+批量统一精修（局部重绘 + 放大，第 6 篇）
+   ↓
+批量加标题/加边框（交给修图软件批量处理）
+   ↓
+统一导出成集
+</code></pre>
+
+<p>一套下来，你做的就不是「一百张图」，而是一个可以交付的「作品集」。<strong>自动化不是代替思考，而是把你从重复劳动里解放出来，把时间花在审美和决策上。</strong></p>
+<h2 id="_7">八、批量生成的边界与规范</h2>
+<p>工具越顺手，越要记得用它的人该守的规矩。批量生成内容时，三条提醒：</p>
+<ol>
+<li><strong>内容边界</strong>：AI 能生成不等于该生成。涉及他人肖像、受版权保护的画风与角色、违法违规内容，都要谨慎——本地部署只解决「能不能」，不解决「该不该」；</li>
+<li><strong>商用合规</strong>：批量做出来的东西如果用于售卖，先核对所用模型与 LoRA 的许可协议（第 8 篇讲过），不要心存侥幸；</li>
+<li><strong>给机器留余地</strong>：让电脑长时间满负荷跑批量任务前，注意散热和功耗，别让机器「带病加班」。</li>
+</ol>
+<blockquote>
+<p>一句话：<strong>能力越大，越要清楚边界在哪。</strong> 自动化让你「一天干完一个月的话」，前提是知道哪些话不该干。</p>
+</blockquote>
+<h2 id="_8">九、本篇小结</h2>
+<ul>
+<li>批量四层递进：<strong>批量种子 → 批量提示词 → 参数化 → API 自动化</strong>；</li>
+<li>种子是可复现的<strong>「身份编号」</strong>：固定种子+换提示词=控制变量的实验，固定提示词+换种子=撒网；</li>
+<li>参数化 = 把参数外接到输入节点，形成「控制面板」，这是自动化的前提；</li>
+<li>API 模式 = ComfyUI 自带「后门窗口」，任何程序都能通过 HTTP 指令让它生成图，导出的 API json 就是指令集；</li>
+<li>全自动：<strong>Windows 任务计划定时跑 + bat 一键脚本</strong>；</li>
+<li>铁律：<strong>先手动稳定，再自动化放量</strong>；批量结束要筛选、归档、记录种子。</li>
+</ul>
+<p>到这一步，你手里的工具已经「全副武装」：生成、控制、精修、管理、自动化，样样俱全。最后一篇，我们把 9 篇文章的精华串成一张「实战地图」，带你搭起自己完整的本地多模态创作台。</p>
+<blockquote>
+<p>相关篇章：单张工作流是基础，回看 <a href="content/文生图工作流：从提示词到一张图.html">文生图工作流：从提示词到一张图</a>；显存不够先看 <a href="content/模型管理：下载、换装与显存优化.html">模型管理：下载、换装与显存优化</a>。</p>
+</blockquote></body></html>

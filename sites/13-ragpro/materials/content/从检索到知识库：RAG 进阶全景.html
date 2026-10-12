@@ -1,0 +1,249 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>从检索到知识库：RAG 进阶全景 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="rag">从检索到知识库：RAG 进阶全景</h1>
+<p>欢迎来到「由简入深」AI 学习站的第十三阶（L13）。这一阶，我们要完成一次真正的"成年礼"：把你在 L4 里玩过的那个 demo 级 RAG（检索增强生成），升级成一个<strong>企业级知识库</strong>。别被"企业级"三个字吓到——它不是一个神秘的黑盒，而是一套有章可循的工程方法。本篇文章是这个系列的"全景地图"，我们先回答三件事：RAG 到底在解决什么问题？企业级知识库和 demo 差在哪？这 10 篇课怎么一步步带你走完全程？</p>
+<h2 id="11-rag">1.1 先回忆：RAG 是什么？</h2>
+<p>如果你已经学过 L4，可以把这一节当复习；如果是第一次接触，也没关系，我用一个生活化的比喻讲清楚。</p>
+<p>想象你是一家高档餐厅的老板。你店里有一本很厚的"私房菜谱"，是老师傅几十年的心血。新来的厨师（大语言模型，LLM）手艺很好、动作很快，但他有个毛病：<strong>他只记得自己在大酒楼学过的菜，不知道你们家这本私房菜谱里有什么</strong>。你让他炒一道"祖传糖醋鱼"，他很可能端出一盘"通用糖醋鱼"——味道不错，但绝对不是你们家的秘方，甚至可能是他瞎编的。</p>
+<p>RAG（Retrieval-Augmented Generation，检索增强生成）解决的就是这个问题。做法特别朴素：<strong>在让厨师做菜之前，先去菜谱里把"祖传糖醋鱼"那几页翻出来，摊在他面前，告诉他"就照着这几页做"</strong>。于是回答不再依赖厨师的记忆力，而依赖一本可以被随时翻阅的、属于你自己的菜谱。</p>
+<p>用术语说就是：RAG 先从你的私有资料库中<strong>检索</strong>出与问题相关的片段，再把片段拼进提示词里，交给大模型<strong>生成</strong>答案。就这么简单。它没有发明新的推理能力，而是给大模型配了一个"外接大脑"。</p>
+<h2 id="12-demo">1.2 从 demo 到企业级：差距到底在哪？</h2>
+<p>L4 里你大概做过这样的事：拿几十个文本文件，喂给一个开源的 RAG 脚本，跑通一个能回答问题的聊天框。那一刻很兴奋，但很快你会发现——<strong>它只能"跑通"，经不起用</strong>。</p>
+<p>企业级知识库和 demo 级 RAG 的差距，我总结成四个字：<strong>多、杂、准、证</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>demo 级 RAG</th>
+<th>企业级知识库</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据量（多）</td>
+<td>几十个干净 txt 文件</td>
+<td>几十万份 PDF、Word、PPT、扫描件、表格、网页</td>
+</tr>
+<tr>
+<td>数据形态（杂）</td>
+<td>全是整齐的纯文本</td>
+<td>带页眉页脚、图表混排、扫描不清、格式千奇百怪</td>
+</tr>
+<tr>
+<td>准确性（准）</td>
+<td>答错能忍</td>
+<td>答错要担责，法务、客服、研发出错代价很大</td>
+</tr>
+<tr>
+<td>可追溯（证）</td>
+<td>答案没有来源</td>
+<td>每个结论都要能点出"出自哪份文档哪一页"</td>
+</tr>
+</tbody>
+</table>
+<p>这四点分别对应了后面十篇课的核心内容：</p>
+<ul>
+<li><strong>多</strong>：数据量大了，就不能把文档整篇塞进提示词——大模型的上下文窗口是有限的，而且塞太多反而"找不到重点"。你需要先把文档<strong>拆成合适的小块</strong>，建一个能秒级搜索的<strong>向量库</strong>。</li>
+<li><strong>杂</strong>：PDF 不能直接喂给模型，要先<strong>解析、清洗</strong>成干净的文本；扫描件还要先<strong>识别（OCR）</strong>。这一步不做好，后面全是垃圾进、垃圾出。</li>
+<li><strong>准</strong>：单靠一种检索方式总会有盲区，于是要<strong>混合检索</strong>（关键词 + 向量双路召回），再用<strong>重排序</strong>把最相关的几条顶到最前面，最后让大模型基于"优质上下文"作答。</li>
+<li><strong>证</strong>：企业级系统必须让答案<strong>自带引用</strong>——"这个结论来自《产品说明书》第 12 页"，用户能点回去核对。这正是 RAG 相比"直接问大模型"最大的价值：<strong>错了也能找到错在哪</strong>。</li>
+</ul>
+<h2 id="13">1.3 企业知识库的典型架构</h2>
+<p>把上面的话拼起来，就是一张标准的企业级 RAG 架构图。它分两大半：<strong>离线建库</strong>（把资料变成可检索的索引）和<strong>在线问答</strong>（问题来了，检索 + 生成）。</p>
+<pre class="codehilite"><code>【离线建库】                   【在线问答】
+
+原始文档                用户提问
+   │                      │
+   ▼                      ▼
+文档接入 ──► 解析 ──► 清洗 ──► 分块 ──► 向量化 ──► 向量库     问题改写（可选）
+   │                      │                          │           │
+   └── 元数据（来源/作者/页号）                    ◄───────────── 检索（混合：BM25+向量）
+                                                        │           │
+                                                        ▼           ▼
+                                                    重排序（Rerank）
+                                                        │
+                                                        ▼
+                                                  拼上下文 + Prompt
+                                                        │
+                                                        ▼
+                                                    LLM 生成
+                                                        │
+                                                        ▼
+                                                  答案 + 引用来源
+</code></pre>
+
+<p>如果你觉得这张图太复杂，记住一条主线就够了：<strong>资料先进去变成"可搜索的块"，问题来了按相关度把块捞出来，再让大模型看着这些块来回答，最后把"证据"亮给用户看</strong>。后面每一篇课，都只是把这条主线的某一个环节拆开讲透。</p>
+<h2 id="14">1.4 一些必须现在建立的心理预期</h2>
+<p>在往下走之前，我想先帮你把"预期"摆正，这能让你少走很多弯路。</p>
+<p><strong>第一，企业级 RAG 是 80% 的工程 + 20% 的模型。</strong> 很多人以为难在"调模型"，其实难在"把数据收拾干净"和"把系统调顺"。文档解析、分块、检索质量这些"脏活累活"，决定了一个知识库 80% 的效果。模型反而往往是最后才需要考虑的。</p>
+<p><strong>第二，没有"一个万能配方"。</strong> 不同行业、不同文档、不同问题类型，最优参数都不一样。所以本阶课程会反复教你"<strong>怎么判断问题、怎么选方案、怎么调</strong>"，而不是只给你一份"标准答案"。</p>
+<p><strong>第三，可解释性 &gt; 花哨效果。</strong> 在企业里，一个"答得很好但没有来源"的系统和"答得一般但每条都能溯源"的系统，后者更受信任。因为前者出错时你根本没法排查，后者出错时你能立刻定位是哪一份文档、哪一个环节出了问题。</p>
+<h2 id="15">1.5 本阶课程地图</h2>
+<p>最后，把 10 篇课的路标给你摆出来。它们严格按"建库 → 检索 → 生成 → 落地"的顺序组织，你可以顺着读，也可以按需跳读。</p>
+<ol>
+<li><strong><a href="content/从检索到知识库：RAG 进阶全景.html">从检索到知识库：RAG 进阶全景</a></strong> —— 本篇，搭好认知框架。</li>
+<li><strong><a href="content/文档解析与清洗：把资料变成可检索的文本.html">文档解析与清洗</a></strong> —— 把 PDF/Word/PPT/扫描件变成干净文本。</li>
+<li><strong><a href="content/分块策略：怎么切文本最合适.html">分块策略</a></strong> —— 把长文档切成适合检索的小块。</li>
+<li><strong><a href="content/Embedding 与向量库选型.html">Embedding 与向量库选型</a></strong> —— 怎么选向量模型、怎么选向量数据库。</li>
+<li><strong><a href="content/混合检索：BM25 与向量的双路召回.html">混合检索</a></strong> —— 关键词 + 向量双路召回，补齐各自的盲区。</li>
+<li><strong><a href="content/重排序 Rerank：把最相关的排前面.html">重排序 Rerank</a></strong> —— 把 Top-50 精挑细选成 Top-5。</li>
+<li><strong><a href="content/RAG 问答链路：从检索到回答的完整流程.html">RAG 问答链路</a></strong> —— 把前面全部串起来，形成完整回答流程。</li>
+<li><strong><a href="content/用 RAGFlow 搭建企业知识库.html">用 RAGFlow 搭建企业知识库</a></strong> —— 用开源项目把整套系统跑起来。</li>
+<li><strong><a href="content/知识库评测与调优.html">知识库评测与调优</a></strong> —— 怎么客观评价一个知识库好坏、怎么调优。</li>
+<li><strong><a href="content/实战路线：搭一个公司内部问答机器人.html">实战路线</a></strong> —— 汇总成一份可照做的落地清单。</li>
+</ol>
+<h2 id="16">1.6 企业里常见的知识库形态</h2>
+<p>在动手之前，值得先看看企业里知识库通常长成什么样。不同的形态，对"企业级"的要求完全不同。</p>
+<table>
+<thead>
+<tr>
+<th>形态</th>
+<th>典型场景</th>
+<th>核心要求</th>
+<th>技术难度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内部制度问答</td>
+<td>员工问休假、报销、差旅规定</td>
+<td>准确、带引用、覆盖全</td>
+<td>低–中</td>
+</tr>
+<tr>
+<td>产品客服知识库</td>
+<td>客服答客户关于产品的问题</td>
+<td>口径统一、更新及时</td>
+<td>中</td>
+</tr>
+<tr>
+<td>合同与法务库</td>
+<td>查合同条款、编号、归档状态</td>
+<td>权限严格、可追溯、支持编号检索</td>
+<td>高</td>
+</tr>
+<tr>
+<td>研发文档问答</td>
+<td>工程师查接口文档、设计文档</td>
+<td>检索精度高、支持代码片段</td>
+<td>高</td>
+</tr>
+<tr>
+<td>数据与报表问答</td>
+<td>问经营数据（接数据库）</td>
+<td>事实要准、实时性强</td>
+<td>很高（常需接数据库）</td>
+</tr>
+</tbody>
+</table>
+<p>你可以对号入座，判断自己要做的是哪一种。<strong>绝大多数团队的起点是"内部制度问答"</strong>——成本低、见效快、风险小，也是本阶课程最贴合的主线。</p>
+<h2 id="17-rag-rag">1.7 RAG 的边界：什么时候不该用 RAG？</h2>
+<p>诚实地说，RAG 不是万能的。知道它的边界，比知道它的强项更重要。</p>
+<p><strong>该用 RAG 的场景</strong>：答案"已经存在于你们的文档里"，只是散落在几十上百份资料中，需要被找出来并组织成回答——比如"报销流程是什么""这款设备支持哪些接口"。这类问题，知识库里一定有依据，RAG 的价值就是把依据捞出来。</p>
+<p><strong>不该用 RAG（或要搭配其他方案）的场景</strong>：</p>
+<ul>
+<li><strong>要算数、要汇总统计</strong>："今年各季度销售总额是多少？" 这类问题靠检索文档算不准，应该接数据库（Text-to-SQL）而不是 RAG。</li>
+<li><strong>要创造、要写作</strong>：写宣传文案、做头脑风暴，不需要检索私有资料，直接用大模型即可。</li>
+<li><strong>文档本身是错的</strong>：如果库里的资料互相矛盾、过期严重，RAG 只会把错误重复出来，还可能因为"找到了依据"而让错误更可信。此时应该先治理数据。</li>
+<li><strong>时效性极强</strong>：股价、天气、新闻，需要实时数据源，静态知识库跟不上。</li>
+</ul>
+<blockquote>
+<p>一句话判断标准：<strong>如果你的问题答案是"明摆着存在某份文档里"的，用 RAG；如果是"需要推理、计算或实时获取"的，想别的办法。</strong> 混合使用 RAG + 数据库 + 大模型原生能力，才是成熟企业级系统的常态。</p>
+</blockquote>
+<h2 id="18">1.8 学完这一阶，你能得到什么？</h2>
+<p>为了让完全不熟悉技术的读者心里有底，这里把"学完 L13 之后你能做到什么"提前说清楚：</p>
+<ul>
+<li><strong>能独立把一堆乱糟糟的公司资料</strong>（PDF、Word、扫描件）变成一套可检索的知识库。</li>
+<li><strong>能讲清楚"为什么这样检索、为什么这样分块"</strong>，而不是只会复制别人的配置。</li>
+<li><strong>能部署一个开箱即用的开源系统</strong>（RAGFlow），并且知道它内部每一步在干什么。</li>
+<li><strong>能量化地评价系统好坏</strong>（用评测分数），并知道该往哪个方向调。</li>
+<li><strong>能让回答带上引用</strong>，让每个结论都能追溯回原文——这是企业信任的基础。</li>
+</ul>
+<p>学完之后，你回头看本篇文章开头的架构图，会发现每一个方块都不再是名词，而是你亲手处理过的环节。这就是"由简入深"的最终效果。</p>
+<h2 id="19">1.9 一个小词典：本阶会反复出现的术语</h2>
+<p>怕你被术语劝退，先把最常见的几个词翻译成大白话，遇到不认识的可以回来看：</p>
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>大白话解释</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>向量</td>
+<td>文本的一种"数学指纹"，含义相近的文本指纹相近</td>
+</tr>
+<tr>
+<td>嵌入（Embedding）</td>
+<td>把文本变成"指纹"（向量）的这个过程</td>
+</tr>
+<tr>
+<td>向量库</td>
+<td>存"指纹"并支持快速查找的数据库</td>
+</tr>
+<tr>
+<td>召回（Retrieve）</td>
+<td>从库里找出与问题相关的文本片段</td>
+</tr>
+<tr>
+<td>分块</td>
+<td>把长文档切成适合检索的小段</td>
+</tr>
+<tr>
+<td>混合检索</td>
+<td>同时用"关键词"和"语义"两种方式查找，再合并结果</td>
+</tr>
+<tr>
+<td>重排序（Rerank）</td>
+<td>对召回的候选做精细比较，把最相关的排到最前</td>
+</tr>
+<tr>
+<td>提示词（Prompt）</td>
+<td>你写给大模型的"使用说明书"</td>
+</tr>
+<tr>
+<td>幻觉</td>
+<td>大模型一本正经地编造不存在的答案</td>
+</tr>
+<tr>
+<td>忠实度</td>
+<td>回答能在多大程度上忠于参考资料</td>
+</tr>
+<tr>
+<td>评测集</td>
+<td>一批"问题 + 标准答案"，用来给系统打分</td>
+</tr>
+</tbody>
+</table>
+<p>遇到不确定的词，回来查这一节就够用了。</p>
+<h2 id="110">1.10 这一篇的小结</h2>
+<p>本篇没有代码，因为它的任务是"搭架子"。请你记住四句话：</p>
+<ul>
+<li>RAG 就是<strong>给大模型配一个属于你自己的、可以翻阅的资料库</strong>。</li>
+<li>企业级和 demo 的差距是四个字：<strong>多、杂、准、证</strong>。</li>
+<li>一条主线：<strong>资料进库变"块"，问题来捞"块"，模型看"块"作答，答案带"证"</strong>。</li>
+<li>一个心态：<strong>工程决定下限，模型决定上限；先把数据收拾干净</strong>。</li>
+</ul>
+<p>接下来从第 2 篇开始，我们就动手了——第一件事，就是面对那些"看起来读得懂、机器却读不动"的 PDF 和扫描件。准备好了吗？</p></body></html>

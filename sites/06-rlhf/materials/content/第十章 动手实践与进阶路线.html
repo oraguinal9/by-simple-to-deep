@@ -1,0 +1,120 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第十章 动手实践与进阶路线 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="_1">第十章 动手实践与进阶路线</h1>
+<p>恭喜走到 L6 最后一章！前九章把 RLHF 从「为什么」讲到「怎么炼」再讲到「怎么不翻车」。这一章给你一份<strong>能立刻上手</strong>的实践路线，以及继续深入的地图。</p>
+<h2 id="_2">一、最快上手：用现成工具跑通</h2>
+<p>别一上来就手搓 PPO 四个模型。先用成熟库把流程跑顺，建立直觉：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>特点</th>
+<th>适合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>TRL</strong>（Hugging Face）</td>
+<td>封装了 SFT / RM / PPO / DPO 训练器，API 友好</td>
+<td>入门首选，几行代码训 DPO</td>
+</tr>
+<tr>
+<td><strong>DeepSpeed-Chat</strong></td>
+<td>微软出品，强调大规模分布式 RLHF</td>
+<td>多卡、大模型</td>
+</tr>
+<tr>
+<td><strong>OpenRLHF</strong></td>
+<td>专门为高吞吐 RLHF 设计，Ray + vLLM 加速</td>
+<td>工程化、性能优先</td>
+</tr>
+<tr>
+<td><strong>Axolotl</strong></td>
+<td>配置驱动，SFT/DPO 一条龙</td>
+<td>不想写代码的快速实验</td>
+</tr>
+</tbody>
+</table>
+<p>一个最小 DPO 实验的骨架（伪代码，TRL 风格）：</p>
+<pre class="codehilite"><code>1. 准备偏好数据: 每条 = {prompt, chosen, rejected}
+2. 加载基座 + 它的 SFT 版本作为 reference
+3. DPOtrainer(model, ref_model, beta=0.1, data)
+4. 训练, 监控 验证集胜率 + 人工抽样
+</code></pre>
+
+<blockquote>
+<p>真实代码以各库最新文档为准。先跑通一个 toy 例子（小模型 + 几百条偏好），比直接上 70B 重要得多。</p>
+</blockquote>
+<h2 id="ppo-rlhf">二、PPO 实践路线（想体验完整 RLHF）</h2>
+<ol>
+<li><strong>SFT 一个基座</strong>（参考 L5），得到 π_ref；</li>
+<li><strong>造偏好数据</strong>（第二章）：对同一 prompt 生成多个回答，人工/AI 标注偏好；</li>
+<li><strong>训 RM</strong>（第三章）：在 SFT 模型上加标量头，Bradley–Terry 损失；</li>
+<li><strong>PPO 对齐</strong>（第五、六章）：Actor/Critic/Ref/RM 四模型，小学习率、加 KL、奖励归一化；</li>
+<li><strong>评估</strong>（第九章）：独立人工/裁判评估 + benchmark，不只看 RM 分；</li>
+<li><strong>迭代</strong>：发现空子（第七章）→ 补数据 → 重训 RM → 再 PPO。</li>
+</ol>
+<h2 id="rlhf-vs-dpo">三、RLHF vs DPO：怎么选</h2>
+<ul>
+<li><strong>资源紧、要快、偏好数据干净</strong> → 直接 <strong>DPO</strong>，省去 RM 和 RL 流水线。</li>
+<li><strong>超大模型、要精细多维控制（安全加权、过程奖励）</strong> → <strong>PPO</strong> 更灵活。</li>
+<li><strong>不确定</strong> → 先用 DPO 出基线，再做 A/B，看是否值得上 PPO 的成本。</li>
+</ul>
+<h2 id="_3">四、进阶方向地图</h2>
+<ol>
+<li><strong>过程奖励（Process Reward）</strong>：不只评结尾，评推理每一步，显著缓解奖励黑客，代表工作如 Math-Shepherd、OpenAI 的过程奖励模型。</li>
+<li><strong>RLAIF / Constitutional AI</strong>：用 AI 反馈（而非人类）生成偏好，降低成本，Anthropic 的宪法式方法值得读。</li>
+<li><strong>多模态 RLHF</strong>：把对齐扩展到图像、音频、视频生成（如扩散模型的对齐），是活跃前沿。</li>
+<li><strong>可扩展监督（Scalable Oversight）</strong>：当任务复杂到人类也无法判断对错了，怎么监督更强模型？这是对齐研究的深水区。</li>
+<li><strong>安全与红队</strong>：系统化发现模型危险行为并修复，是 RLHF 落地的守门员。</li>
+</ol>
+<h2 id="l1l6">五、回到全局：L1–L6 串起来</h2>
+<ul>
+<li><strong>L1–L2</strong>：理解 AI / 大模型是什么、怎么工作（地基）；</li>
+<li><strong>L3</strong>：深度学习基础（怎么训一个网络）；</li>
+<li><strong>L4</strong>：RAG 与 Agent（让模型外接知识、会调用工具）；</li>
+<li><strong>L5</strong>：微调与部署（把通用模型改成你的专用模型）；</li>
+<li><strong>L6（本阶）</strong>：RLHF 与偏好对齐（让模型「说得对、有用、安全」）。</li>
+</ul>
+<p>你会发现一个清晰的主线：<strong>能力（L3/L5）→ 知识接入（L4）→ 行为对齐（L6）</strong>。三者合起来，才是一个真正可用的 AI 产品。</p>
+<h2 id="_4">六、给你的行动建议</h2>
+<ul>
+<li>今天：用 TRL 跑一个 1B 小模型的 DPO toy demo，亲眼看到「偏好数据如何让回答变好」。</li>
+<li>这周：读一遍 InstructGPT 论文的图 2（训练流程），对照第六章。</li>
+<li>这月：尝试自己标注 200 条偏好，训一个 RM，理解奖励黑客长什么样。</li>
+<li>长期：关注过程奖励、RLAIF 等前沿，它们是「对齐」下一步的答案。</li>
+</ul>
+<h2 id="_5">本章小结（全阶收尾）</h2>
+<ul>
+<li>上手优先用 <strong>TRL / DeepSpeed-Chat / OpenRLHF</strong>，先跑通 toy 例子再谈规模。</li>
+<li>PPO 路线：SFT→偏好数据→RM→PPO→评估→迭代；DPO 路线：偏好数据→DPO 训练→评估。</li>
+<li>选型：紧/快/净数据用 DPO，大/可控/多维用 PPO。</li>
+<li>进阶：过程奖励、RLAIF、多模态 RLHF、可扩展监督、安全红队。</li>
+<li>全局主线：<strong>能力(L3/L5) → 知识(L4) → 对齐(L6)</strong>，三者构成可用 AI 产品。</li>
+</ul>
+<h2 id="_6">写在最后</h2>
+<p>从 L1 到 L6，你已经走完了一条「从零理解大模型、到让它既聪明又可靠」的路。后面 L7（AIGC）、L8（MCP）会继续扩展你的工具箱。保持动手、保持怀疑、保持对人类价值的关注——这正是对齐这件事最珍贵的姿态。</p>
+<blockquote>
+<p>如果这一章的某句话让你想立刻去试，那就去试。理解 RLHF 最好的方式，是亲眼看着一个模型因为你的偏好数据而变好。</p>
+</blockquote></body></html>

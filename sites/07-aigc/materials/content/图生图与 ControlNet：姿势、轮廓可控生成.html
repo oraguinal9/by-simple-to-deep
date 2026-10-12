@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>图生图与 ControlNet：姿势、轮廓可控生成 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="controlnet">第八章 图生图与 ControlNet：姿势、轮廓可控生成</h1>
+<p>纯文字生图很神奇，但有个痛点：<strong>你很难精确控制构图</strong>——比如「让人物保持这个姿势」「按这张草图的轮廓上色」。这一章讲两类解决「精确控制」的技术：图生图（img2img）与 ControlNet。它们把生成从「纯随机」推向「可控创作」。</p>
+<h2 id="81-img2img">8.1 图生图（img2img）：在一张图上继续画</h2>
+<p>图生图的思想很简单：不是从纯噪声开始，而是<strong>从一张已有的图（你的参考图）加噪开始</strong>，再去做噪。</p>
+<p>流程：</p>
+<ol>
+<li>你给一张参考图 + 文字提示；</li>
+<li>系统把参考图按「重绘强度（denoising strength）」加噪到某个中间状态；</li>
+<li>从那个状态开始去噪，文字提示引导修改方向。</li>
+</ol>
+<p><strong>重绘强度</strong>是关键旋钮：</p>
+<ul>
+<li>接近 0：几乎不动原图，只做细微调整（如改色）；</li>
+<li>接近 1：几乎完全重画，原图只提供大致布局/构图；</li>
+<li>常用 0.4–0.7：保留原图结构，又允许明显变化。</li>
+</ul>
+<p>应用场景：把草图变精图、把白天变夜晚、给线稿上色、风格迁移。</p>
+<h2 id="82">8.2 图生图的局限：结构仍不可控</h2>
+<p>图生图能「参考一张图」，但如果你只想控制<strong>姿势或轮廓</strong>，而不想被原图的颜色、内容绑住，它就不够用了。比如：你有一张人物骨骼姿势图，想生成「这个姿势、但换成机器人角色」的图——图生图容易把原图的衣服、背景也带进来。</p>
+<p>这就需要更结构化的控制——ControlNet。</p>
+<h2 id="83-controlnet">8.3 ControlNet：给模型加「辅助约束」</h2>
+<p>ControlNet（2023）是一个巧妙的插件架构：它在原 UNet 之外，<strong>并联一个可训练的小网络</strong>，这个网络接收一张「条件图」（如姿势骨架、边缘线、深度图），并把结构信息「注入」去噪过程。</p>
+<p>常见的控制条件：</p>
+<ul>
+<li><strong>OpenPose</strong>：输入人物骨骼关键点，锁定姿势；</li>
+<li><strong>Canny / Lineart</strong>：输入边缘线，锁定轮廓；</li>
+<li><strong>Depth</strong>：输入深度图，锁定前后景关系；</li>
+<li><strong>Scribble</strong>：输入涂鸦，按涂鸦构图上色。</li>
+</ul>
+<p>ControlNet 让文字负责「内容/风格」，条件图负责「结构/布局」，两者解耦，控制力大增。</p>
+<h2 id="84-controlnet">8.4 ControlNet 为什么好用且不破坏原模型</h2>
+<p>它的工程妙处在于<strong>零破坏式训练</strong>：</p>
+<ul>
+<li>把 UNet 拷贝一份（锁定原权重不动），只训练拷贝出来的「控制分支」；</li>
+<li>推理时，控制分支把姿态/边缘信息反馈给主网络；</li>
+<li>原模型能力一点没丢，还能即插即拔地叠加多个 ControlNet（如同时控姿势 + 控边缘）。</li>
+</ul>
+<p>这就像给画家配了个「构图助手」：助手只管把骨架摆好，画家照样自由发挥细节。</p>
+<h2 id="85">8.5 一个典型工作流</h2>
+<p>想生成「指定姿势的机甲角色宣传图」：</p>
+<ol>
+<li>用 OpenPose 画/检测出一个姿势骨架图；</li>
+<li>提示词写「机甲战士，霓虹城市背景，电影光」；</li>
+<li>加载 ControlNet（Pose 模式），条件图 = 骨架；</li>
+<li>生成：人物姿势被锁死，但角色、背景、风格完全由提示词自由发挥。</li>
+</ol>
+<p>这种「结构可控 + 内容自由」的组合，是今天商业出图（角色设计、漫画分镜、产品预览）的主流打法。</p>
+<h2 id="86-inpainting">8.6 局部重绘（Inpainting）：只改一块</h2>
+<p>另一种常用控制是<strong>局部重绘</strong>：用遮罩圈出想改的区域（如把图里多出的第三只手涂掉、给人物换发型），模型只在遮罩内重绘，其余保持原样。它本质也是图生图 + 区域约束，适合精修。</p>
+<h2 id="87">8.7 本章小结</h2>
+<ul>
+<li><strong>图生图</strong>：从参考图加噪出发去噪，重绘强度控制「保留多少原图」；适合上色、改风格、改时段。</li>
+<li>图生图弱在「结构不可精确锁死」。</li>
+<li><strong>ControlNet</strong>：并联控制分支，用条件图（姿势/边缘/深度）约束结构，文字管内容、条件图管布局，解耦可控。</li>
+<li>它零破坏原模型、可即插即拔、可多控叠加。</li>
+<li><strong>局部重绘</strong>是区域级精修，适合修掉瑕疵、换局部。</li>
+</ul>
+<blockquote>
+<p>下一章我们把「图像」扩展到「时间」——文生视频，看怎么让静止的画面动起来。</p>
+</blockquote></body></html>

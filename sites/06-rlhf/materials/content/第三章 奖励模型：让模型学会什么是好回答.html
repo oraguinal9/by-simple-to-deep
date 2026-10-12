@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第三章 奖励模型：让模型学会什么是好回答 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="_1">第三章 奖励模型：让模型学会「什么是好回答」</h1>
+<p>有了偏好数据，下一步是训练一个<strong>奖励模型（Reward Model，RM）</strong>。它的任务很单纯：看到一个回答，就给出一个标量分数，表示「人类会觉得这回答有多好」。</p>
+<p>你可以把奖励模型理解为 RLHF 里的「<strong>代理裁判</strong>」——我们不可能每次都请真人来打分，所以用 RM 来代替人，给海量生成结果快速评分。</p>
+<h2 id="_2">一、奖励模型长什么样</h2>
+<p>奖励模型通常<strong>在 SFT 好的模型基础上改造</strong>：</p>
+<ul>
+<li>去掉原来的语言模型 head（预测下一个词的那一层）；</li>
+<li>换上一个<strong>标量输出头</strong>（scalar head），把整个回答压缩成一个实数分数 r。</li>
+</ul>
+<p>输入一个问题 x 和一个回答 y，RM 输出：</p>
+<blockquote>
+<p>r_θ(x, y) ∈ ℝ</p>
+</blockquote>
+<p>分数越高，表示 RM 认为「人类越喜欢这个回答」。</p>
+<blockquote>
+<p>为什么复用 SFT 模型？因为 RM 需要强大的语言理解能力才能判断回答好坏，从头训太贵也太难，站在 SFT 的肩膀上最省力。</p>
+</blockquote>
+<h2 id="bradleyterry">二、训练目标：Bradley–Terry 模型</h2>
+<p>偏好数据是一对 <code>(x, y_w, y_l)</code>：人对 x 给出的两个回答里，更偏好 y_w。我们希望 RM 给 y_w 的分数高于 y_l。一个经典、优雅的损失来自 <strong>Bradley–Terry 模型</strong>（它原本是用来给棋手排名的）：</p>
+<blockquote>
+<p>P(y_w ≻ y_l) = σ( r(x, y_w) − r(x, y_l) )</p>
+</blockquote>
+<p>其中 σ 是 sigmoid 函数。直观理解：<strong>两者分差越大，y_w 胜出的概率越接近 1</strong>。</p>
+<p>损失函数（负对数似然）写成：</p>
+<blockquote>
+<p>L = − log σ( r(x, y_w) − r(x, y_l) )</p>
+</blockquote>
+<p>梯度会推动 RM：<strong>抬高胜方分数、压低败方分数</strong>。当 y_w 分数已经明显高于 y_l 时，损失趋近 0，学习放缓——这很合理，说明 RM 已经「学会了」这对偏好。</p>
+<p>如果数据是 K 个回答的排序，损失可以扩展为「所有胜–负对」损失的加和（两两比较的排名损失）。</p>
+<h2 id="_3">三、训练中的几个关键细节</h2>
+<h3 id="1">1. 只训练奖励头，还是全量微调？</h3>
+<p>常见做法：冻结（或部分冻结）主干，只训练顶部的标量头，训练更稳、不易遗忘语言知识。也有全量微调的变体，视数据量和算力而定。</p>
+<h3 id="2-length-bias">2. 长度偏置（Length Bias）</h3>
+<p>经验发现：RM 容易偏爱<strong>更长的回答</strong>——因为长回答往往看起来「更认真」。这是个陷阱。缓解方法包括：在损失里对长度做惩罚、或在数据构造时刻意让长短回答均匀分布、或在最终 RLHF 时引入长度归一化。</p>
+<h3 id="3">3. 过拟合与分布偏移</h3>
+<p>RM 是在「SFT 模型生成 + 人类比较」的数据上训的。一旦策略模型在 RLHF 中进化得「太远」，它生成的回答可能超出 RM 见过的分布，RM 的打分就不可信了。这正是后面要引入 <strong>KL 约束</strong>（第七章）的原因。</p>
+<h2 id="_4">四、奖励模型的「价值观」从哪来</h2>
+<p>RM 的分数，本质上是对<strong>标注者偏好</strong>的压缩。所以：</p>
+<ul>
+<li>标注指南写「安全性优先」，RM 就给安全回答高分；</li>
+<li>标注者群体偏爱某种文风，RM 就会奖励那种文风。</li>
+</ul>
+<p>这意味着 <strong>RM 不是客观真理，而是偏好的镜像</strong>。如果你发现模型变得「太爱附和」「不敢说不确定」，很可能 RM 在训练时把「谄媚」当成了「好」。</p>
+<h2 id="_5">五、奖励模型不是万能的</h2>
+<p>一个常被忽视的事实：<strong>RM 只能评估它见过的那种「好」</strong>。对于需要真实世界验证的任务（代码能不能跑、数学对不对），RM 的分数并不可靠，它可能给一个「看起来很对但其实是错的」回答打高分。这也是为什么 RLHF 之外还需要<strong>过程奖励、工具验证、人类审核</strong>等补充手段。</p>
+<h2 id="_6">本章小结</h2>
+<ul>
+<li>奖励模型 = SFT 模型 + 标量头，输入 (问题, 回答)，输出一个实数分数。</li>
+<li>训练用 <strong>Bradley–Terry 损失</strong>：拉大「胜方 − 败方」的分差。</li>
+<li>实操要点：警惕<strong>长度偏置</strong>、防止 RM 过拟合、注意 SFT→RLHF 的分布偏移。</li>
+<li>RM 是<strong>人类偏好的镜像</strong>，会忠实学到标注者的价值观（包括偏见）。</li>
+<li>RM 对「看起来对但实际错」的回答无能为力，需配合其他验证手段。</li>
+</ul>
+<h2 id="_7">思考与延伸</h2>
+<ul>
+<li>如果 RM 给「错误但自信」的回答打高分，会对最终模型造成什么后果？（提示：想想「幻觉」会不会被奖励）</li>
+<li>长度偏置除了在 RM 损失里惩罚，还能从数据层面怎么缓解？</li>
+<li>延伸：搜索「Bradley-Terry model reward modelling」或阅读 InstructGPT 论文的 Reward Model 小节。</li>
+</ul></body></html>

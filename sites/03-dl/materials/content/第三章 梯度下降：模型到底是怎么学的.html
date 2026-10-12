@@ -1,0 +1,376 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第三章 梯度下降：模型到底是怎么学的 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="_1">第三章 梯度下降：模型到底是怎么"学"的</h1>
+<blockquote>
+<p>本章目标：搞懂深度学习最核心的算法——<strong>梯度下降（Gradient Descent）</strong>。看完这章，你会明白"训练模型"这四个字在计算机里到底发生了什么。</p>
+</blockquote>
+<hr />
+<h2 id="31">3.1 蒙眼下山：一个足够好的类比</h2>
+<p>想象你被蒙上眼睛，扔在一座山上，任务是<strong>走到山谷最低处</strong>。你看不见地形，只能感受脚下。</p>
+<p>你会怎么做？</p>
+<ol>
+<li>用脚试探周围，感受<strong>哪个方向是往下坡最陡的</strong></li>
+<li>朝那个方向<strong>迈一步</strong></li>
+<li>重复 1、2，直到脚下变平（四面八方都不再下降）</li>
+</ol>
+<p>这就是梯度下降的全部思想。对应关系：</p>
+<table>
+<thead>
+<tr>
+<th>下山</th>
+<th>深度学习</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>你所在的位置</td>
+<td>当前的参数 w、b</td>
+</tr>
+<tr>
+<td>海拔高度</td>
+<td>损失 Loss</td>
+</tr>
+<tr>
+<td>山谷最低点</td>
+<td>损失最小的那组参数</td>
+</tr>
+<tr>
+<td>最陡下坡方向</td>
+<td><strong>负梯度</strong></td>
+</tr>
+<tr>
+<td>每步迈多大</td>
+<td><strong>学习率 learning rate</strong></td>
+</tr>
+<tr>
+<td>走一步</td>
+<td>一次参数更新</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="32">3.2 梯度是什么？就是"坡度"</h2>
+<p>先看最简单的情况：只有一个参数 <code>w</code>。</p>
+<p>损失 <code>L</code> 随 <code>w</code> 变化，画出来是一条曲线（通常像个碗）：</p>
+<pre class="codehilite"><code>Loss
+ │      ╲                    ╱
+ │        ╲                ╱
+ │          ╲            ╱
+ │            ╲___    ╱
+ │                ╲__╱   ← 最低点，我们要找的
+ └──────────────────────────→ w
+</code></pre>
+
+<p>在某个位置 <code>w</code> 上，<strong>梯度就是这条曲线在该点的斜率</strong>，数学上写作 <code>dL/dw</code>（L 对 w 的导数）。</p>
+<p>梯度告诉你两件事：</p>
+<ul>
+<li><strong>符号</strong>：梯度为正 → 往右走损失会变大 → 应该往<strong>左</strong>走；梯度为负 → 应该往<strong>右</strong>走</li>
+<li><strong>大小</strong>：梯度绝对值越大，坡越陡，说明离最低点可能还远</li>
+</ul>
+<p>所以更新规则自然就是——<strong>往梯度的反方向走</strong>：</p>
+<pre class="codehilite"><code>w_new = w_old − 学习率 × 梯度
+</code></pre>
+
+<p>写成公式：</p>
+<pre class="codehilite"><code>w ← w − η · (∂L/∂w)
+</code></pre>
+
+<p><code>η</code>（读作 eta）就是<strong>学习率</strong>。这条公式，就是深度学习的"心脏"。</p>
+<hr />
+<h2 id="33">3.3 动手算一遍</h2>
+<p>用最简单的例子：模型 <code>ŷ = w · x</code>（先不管 b），数据只有一条：<code>x=2, y=6</code>（所以正确答案显然是 w=3）。</p>
+<p>损失用 MSE：</p>
+<pre class="codehilite"><code>L = (y − ŷ)² = (6 − 2w)²
+</code></pre>
+
+<p>求导（用链式法则，见第六章，这里先接受结果）：</p>
+<pre class="codehilite"><code>dL/dw = 2 · (6 − 2w) · (−2) = −4(6 − 2w)
+</code></pre>
+
+<p>设学习率 <code>η = 0.1</code>，从 <code>w = 0</code> 开始：</p>
+<table>
+<thead>
+<tr>
+<th>轮次</th>
+<th>当前 w</th>
+<th>预测 ŷ=2w</th>
+<th>损失 (6−ŷ)²</th>
+<th>梯度 −4(6−2w)</th>
+<th>新 w = w − 0.1×梯度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.00</td>
+<td>0.00</td>
+<td>36.00</td>
+<td>−24.0</td>
+<td>2.40</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2.40</td>
+<td>4.80</td>
+<td>1.44</td>
+<td>−4.8</td>
+<td>2.88</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2.88</td>
+<td>5.76</td>
+<td>0.058</td>
+<td>−0.96</td>
+<td>2.976</td>
+</tr>
+<tr>
+<td>4</td>
+<td>2.976</td>
+<td>5.952</td>
+<td>0.0023</td>
+<td>−0.192</td>
+<td>2.9952</td>
+</tr>
+<tr>
+<td>5</td>
+<td>2.9952</td>
+<td>5.9904</td>
+<td>0.0001</td>
+<td>−0.038</td>
+<td>2.99904</td>
+</tr>
+</tbody>
+</table>
+<p><strong>看，w 自动收敛到 3 了。</strong> 没有人告诉它答案是 3，它是靠"哪边下坡就往哪走"一步步蹭过去的。</p>
+<pre class="codehilite"><code class="language-python">w = 0.0
+lr = 0.1
+x, y = 2, 6
+
+for step in range(1, 6):
+    y_hat = w * x
+    loss = (y - y_hat) ** 2
+    grad = -2 * (y - y_hat) * x        # dL/dw
+    w = w - lr * grad
+    print(f&quot;第{step}轮  loss={loss:8.4f}  w={w:.5f}&quot;)
+</code></pre>
+
+<p><strong>这段 10 行代码，就是所有深度学习训练的内核。</strong> GPT 的训练循环和它结构完全一样，只是参数从 1 个变成 1750 亿个。</p>
+<hr />
+<h2 id="34">3.4 学习率：最重要的超参数</h2>
+<p>学习率 <code>η</code> 决定每步迈多大。它太重要了，调错了模型根本学不动。</p>
+<table>
+<thead>
+<tr>
+<th>学习率</th>
+<th>现象</th>
+<th>类比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>太小（如 0.0001）</td>
+<td>收敛极慢，训练几天没进展</td>
+<td>一步挪一厘米下山</td>
+</tr>
+<tr>
+<td><strong>合适</strong></td>
+<td>稳步下降，快速收敛</td>
+<td>正常步幅</td>
+</tr>
+<tr>
+<td>太大（如 1.0）</td>
+<td>在谷底两侧来回横跳</td>
+<td>一步跨过整个山谷</td>
+</tr>
+<tr>
+<td>极大（如 10）</td>
+<td>损失变成 NaN，训练崩溃</td>
+<td>一步跳到隔壁山头，越跳越高</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>💡 <strong>强烈建议</strong>：去本站首页玩一下「梯度下降下山台」演示，把学习率拖到 1.2 看看小球是怎么疯掉的。看一次比读十遍文字管用。</p>
+</blockquote>
+<p>实践中常用的做法：</p>
+<ul>
+<li>从 <code>0.001</code>（Adam 优化器的经典默认值）或 <code>0.01</code> 开始试</li>
+<li>用<strong>学习率调度（scheduler）</strong>：训练前期大步走，后期小步精调</li>
+<li><strong>Warmup</strong>：训练最开始的几百步，学习率从 0 慢慢升上去，防止一开始就炸（大模型训练必备）</li>
+</ul>
+<hr />
+<h2 id="35">3.5 三种"下山"方式：批量的选择</h2>
+<p>上面的例子只有 1 条数据。真实数据有几百万条，每次更新参数时要用多少条数据算梯度？</p>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>每次用多少数据</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>批量梯度下降 BGD</td>
+<td>全部数据</td>
+<td>方向最准，路径平滑</td>
+<td>慢到不能用，显存装不下</td>
+</tr>
+<tr>
+<td>随机梯度下降 SGD</td>
+<td>1 条</td>
+<td>快，能跳出小坑</td>
+<td>噪声大，路径抖</td>
+</tr>
+<tr>
+<td><strong>小批量 Mini-batch</strong> ⭐</td>
+<td>一批（如 32/64/256 条）</td>
+<td>兼顾速度与稳定</td>
+<td>需要调 batch size</td>
+</tr>
+</tbody>
+</table>
+<p><strong>实践中 99% 用 Mini-batch</strong>，但大家口头上仍习惯统称它为 "SGD"。</p>
+<p>几个必须知道的术语：</p>
+<ul>
+<li><strong>batch size</strong>：一批多少条数据，常见 32 / 64 / 128 / 256</li>
+<li><strong>step / iteration</strong>：处理完一批、更新一次参数，叫一步</li>
+<li><strong>epoch</strong>：全部训练数据完整过一遍，叫一轮</li>
+</ul>
+<p>举例：10000 条数据，batch size = 100 → 一个 epoch = 100 步。训练 20 个 epoch = 2000 步参数更新。</p>
+<hr />
+<h2 id="36">3.6 局部最优？其实没那么可怕</h2>
+<p>初学者常担心："万一走进一个小坑，不是全局最低点怎么办？"</p>
+<pre class="codehilite"><code>Loss
+ │  ╲          ╱╲
+ │    ╲__╱      ╲       ← 小坑（局部最优）
+ │   局部最优      ╲___╱  ← 全局最优
+ └─────────────────────→ w
+</code></pre>
+
+<p>这个担心在<strong>低维</strong>空间是合理的，但在深度学习里基本不是问题，原因很有意思：</p>
+<blockquote>
+<p>参数有几亿个维度。要成为"局部最低点"，必须<strong>在所有几亿个方向上都是往上走</strong>。这个概率低到可以忽略——随便哪个方向能往下，就还能继续走。</p>
+</blockquote>
+<p>真正常见的麻烦是<strong>鞍点（saddle point）</strong>：一部分方向往上、一部分往下的平坦区域，梯度接近 0，模型看起来"卡住了"。解决办法是加<strong>动量（Momentum）</strong>——让小球带着惯性冲过平地。</p>
+<hr />
+<h2 id="37">3.7 优化器：给梯度下降开挂</h2>
+<p>朴素的 <code>w ← w − η·grad</code> 有明显缺点：所有参数用同一个学习率，遇到平地走不动。于是有了各种改进版，统称<strong>优化器（Optimizer）</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>优化器</th>
+<th>核心思想</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SGD</td>
+<td>原始版</td>
+<td>简单可靠，收敛慢</td>
+</tr>
+<tr>
+<td>SGD + Momentum</td>
+<td>加惯性，累积历史方向</td>
+<td>像滚下山的球，能冲过小坑和平地</td>
+</tr>
+<tr>
+<td>AdaGrad</td>
+<td>更新频繁的参数用小学习率</td>
+<td>适合稀疏特征</td>
+</tr>
+<tr>
+<td>RMSProp</td>
+<td>AdaGrad 的改进，只看近期梯度</td>
+<td>适合非平稳目标</td>
+</tr>
+<tr>
+<td><strong>Adam</strong> ⭐</td>
+<td>动量 + 自适应学习率</td>
+<td><strong>默认首选</strong>，绝大多数场景直接用它</td>
+</tr>
+<tr>
+<td>AdamW</td>
+<td>Adam + 正确的权重衰减</td>
+<td><strong>大模型训练标配</strong></td>
+</tr>
+</tbody>
+</table>
+<pre class="codehilite"><code class="language-python">import torch
+
+# 你会在几乎所有训练代码里看到这一行
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+</code></pre>
+
+<p>你不需要背它们的公式，只需记住：<strong>先用 AdamW / Adam，学习率 1e-3 到 1e-4，跑不动了再折腾别的。</strong></p>
+<hr />
+<h2 id="38">3.8 完整的训练循环长什么样</h2>
+<p>把前三章的内容拼起来，就是一个真实的训练循环。<strong>任何深度学习代码都逃不出这五步</strong>：</p>
+<pre class="codehilite"><code class="language-python">for epoch in range(num_epochs):
+    for x_batch, y_batch in dataloader:        # 取一批数据
+
+        y_pred = model(x_batch)                # ① 前向：算预测（第1、5章）
+        loss   = loss_fn(y_pred, y_batch)      # ② 算损失（第2章）
+
+        optimizer.zero_grad()                  # ③ 清空上一轮的梯度
+        loss.backward()                        # ④ 反向：自动求所有梯度（第6章）
+        optimizer.step()                       # ⑤ 按梯度更新参数（本章）
+</code></pre>
+
+<p>对照记忆：</p>
+<ol>
+<li><strong>前向传播</strong> → 算出预测值</li>
+<li><strong>计算损失</strong> → 用尺子量错得多离谱</li>
+<li><strong>清空梯度</strong> → PyTorch 的梯度是累加的，必须先清零（新手最常忘）</li>
+<li><strong>反向传播</strong> → 自动算出每个参数该往哪调</li>
+<li><strong>更新参数</strong> → 真正地"学习"发生在这一步</li>
+</ol>
+<hr />
+<h2 id="39">3.9 本章小结</h2>
+<ul>
+<li>训练 = <strong>蒙眼下山</strong>：不断朝损失下降最快的方向调参数</li>
+<li><strong>梯度 = 坡度</strong>，指明损失上升最快的方向，所以要往它的<strong>反方向</strong>走</li>
+<li>核心公式：<code>w ← w − η · ∂L/∂w</code></li>
+<li><strong>学习率</strong>太小学得慢，太大会震荡甚至炸掉</li>
+<li>实践中用 <strong>Mini-batch</strong>，batch size 常取 32~256</li>
+<li>高维空间里局部最优不可怕，<strong>鞍点</strong>才是常见麻烦，靠动量解决</li>
+<li>优化器首选 <strong>AdamW</strong></li>
+<li>训练循环永远是那五步：前向 → 损失 → 清梯度 → 反向 → 更新</li>
+</ul>
+<hr />
+<h2 id="310">3.10 自测</h2>
+<ol>
+<li>梯度为 +5 时，参数应该增大还是减小？为什么？</li>
+<li>学习率设成 10 会发生什么？设成 0.000001 呢？</li>
+<li>10 万条数据、batch size = 250，一个 epoch 有多少步？</li>
+<li>为什么深度学习里不太担心局部最优？</li>
+<li>训练循环的五步分别是什么？（不看书默写一遍）</li>
+</ol>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：到这里我们的模型还只是一条直线。要让它能拟合复杂形状，必须引入"弯曲"的能力——<strong>激活函数</strong>登场。</p>
+</blockquote></body></html>

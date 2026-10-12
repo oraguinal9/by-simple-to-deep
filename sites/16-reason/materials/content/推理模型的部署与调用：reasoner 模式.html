@@ -1,0 +1,139 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>推理模型的部署与调用：reasoner 模式 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="reasoner">推理模型的部署与调用：reasoner 模式</h1>
+<p>会看、会选还不够，这一章讲<strong>怎么真正用上推理模型</strong>：API 怎么调、本地怎么部署、思考过程怎么处理、和普通模型怎么切换。结合 L10（本地部署）和 L15（Dify）的知识，一次讲透。</p>
+<h2 id="_1">用推理模型的三种方式</h2>
+<h3 id="api">方式一：云端 API（最省事）</h3>
+<p>各大厂商都提供了「推理模型」的 API：</p>
+<ul>
+<li><strong>DeepSeek</strong>：<code>deepseek-reasoner</code>（R1 系列）；</li>
+<li><strong>OpenAI</strong>：<code>o1</code> / <code>o3</code> / <code>gpt-5</code> 系列（reasoning effort 可调）；</li>
+<li><strong>国内厂商</strong>：通义 QwQ、Kimi K2、智谱 GLM 等都有对应模型。</li>
+</ul>
+<p><strong>特点</strong>：开箱即用、无需硬件、按 token 计费（推理模型通常比普通模型贵）。</p>
+<p><strong>调用示例</strong>（DeepSeek reasoner）：</p>
+<pre class="codehilite"><code class="language-python">from openai import OpenAI
+
+client = OpenAI(
+    api_key=&quot;your-key&quot;,
+    base_url=&quot;https://api.deepseek.com&quot;
+)
+
+resp = client.chat.completions.create(
+    model=&quot;deepseek-reasoner&quot;,
+    messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;17×23+45 等于多少？&quot;}]
+)
+print(resp.choices[0].message.content)  # 最终答案
+print(resp.choices[0].message.reasoning_content)  # 思考过程（reasoner 特有）
+</code></pre>
+
+<p><strong>注意</strong>：reasoner 类模型一般<strong>不支持</strong> <code>temperature</code> 等采样参数（思考过程需要确定性采样）——传了会报错。</p>
+<h3 id="ollama-vllm">方式二：本地部署（Ollama / vLLM）</h3>
+<p>想免费、离线、隐私，用 L10 的方法部署开源推理模型：</p>
+<pre class="codehilite"><code class="language-bash"># Ollama 一行拉取运行 R1 蒸馏小模型
+ollama run deepseek-r1:7b
+</code></pre>
+
+<p><strong>推荐模型</strong>（本地可跑）：
+- <code>deepseek-r1:1.5b / 7b / 8b</code>：蒸馏小模型，普通电脑能跑；
+- <code>qwen3:8b</code> 等带思考模式的模型。</p>
+<p><strong>特点</strong>：免费但吃硬件，7B 级推理模型无 GPU 会明显慢（思考过程长）。</p>
+<h3 id="dify">方式三：接入平台（Dify 等）</h3>
+<p>L15 讲过 Dify——直接在里面接入推理模型供应商（DeepSeek reasoner / Ollama 本地模型），应用即可按节点选择「推理模型」。<strong>适合把推理能力放进工作流/Agent</strong>（比如让 Agent 的复杂决策节点用推理模型）。</p>
+<h2 id="_2">思考过程：要不要展示给用户</h2>
+<p>推理模型的输出有两部分：<strong>思考过程</strong> + <strong>最终答案</strong>。怎么处理？</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数学/代码解题工具</td>
+<td>展示思考过程（可信、可检查）</td>
+</tr>
+<tr>
+<td>客服/问答</td>
+<td>不展示（用户要答案不是要草稿）</td>
+</tr>
+<tr>
+<td>教育场景</td>
+<td>展示（教解题思路）</td>
+</tr>
+<tr>
+<td>Agent 内部调用</td>
+<td>不展示给终端用户，仅日志记录</td>
+</tr>
+</tbody>
+</table>
+<p><strong>工程要点</strong>：reasoner API 的思考过程通常单独字段返回（如 <code>reasoning_content</code>），最终答案在 <code>content</code>——<strong>展示时两者要分离</strong>，别把思考过程当答案发出去。</p>
+<h2 id="vs">推理模型 vs 普通模型：怎么切换</h2>
+<p>一个成熟的系统往往两种都要，按任务路由（参考第 1 章的场景表）：</p>
+<pre class="codehilite"><code>简单任务（闲聊/翻译/常识） → 普通模型（快、便宜）
+复杂任务（数学/代码/规划） → 推理模型（慢、准）
+</code></pre>
+
+<p><strong>实现方式</strong>：
+- <strong>代码里</strong>：判断任务复杂度，动态选择 model；
+- <strong>Dify 里</strong>：工作流条件分支，按分类路由到不同模型节点（L15 讲过）；
+- <strong>成本上</strong>：推理模型只处理「值得」的问题，大部分流量走普通模型——<strong>这是控制成本的关键架构</strong>。</p>
+<h2 id="_3">推理模型的工程陷阱</h2>
+<p><strong>坑 1：把温度传给 reasoner 模型</strong>
+reasoner 不支持采样参数，传了直接 400 报错。用 SDK 时注意模型类型分支处理。</p>
+<p><strong>坑 2：max_tokens 设太短</strong>
+推理模型要输出思考过程 + 答案，默认 token 上限不够时会被截断——<strong>答案还没出来就断了</strong>。reasoner 通常要设较大的 max_tokens（几千）。</p>
+<p><strong>坑 3：把思考过程误当答案</strong>
+reasoner 的 <code>content</code> 是最终答案，思考过程在单独字段。解析时取错字段会把「草稿」发给用户。</p>
+<p><strong>坑 4：超时设置太短</strong>
+推理模型慢（可能 20~60 秒），前端/网关超时设太短会导致「明明在思考却报超时」。合理设超时 + 用流式输出提升体验。</p>
+<p><strong>坑 5：本地小模型「推理不动」</strong>
+1.5B 的蒸馏模型能力有限，复杂题可能「假思考」后还是错。本地体验建议至少 7B 级别。</p>
+<h2 id="_4">一个完整接入示例：智能解题助手</h2>
+<p>串联本章知识，做一个「智能解题助手」的 API 接入：</p>
+<pre class="codehilite"><code class="language-python">def solve(question):
+    &quot;&quot;&quot;简单题走普通模型，难题走推理模型&quot;&quot;&quot;
+    # 1. 先简单判断复杂度（关键词/长度）
+    if is_simple(question):
+        model = &quot;deepseek-chat&quot;          # 普通模型
+    else:
+        model = &quot;deepseek-reasoner&quot;      # 推理模型
+    # 2. 调用
+    resp = call_llm(model, question)
+    # 3. 返回（推理模型拆开思考与答案）
+    if model.endswith(&quot;reasoner&quot;):
+        return {&quot;answer&quot;: resp.content, &quot;thinking&quot;: resp.reasoning_content}
+    return {&quot;answer&quot;: resp.content}
+</code></pre>
+
+<p><strong>这个「简单/复杂分流」就是生产系统的标准姿势</strong>。</p>
+<h2 id="_5">小练习</h2>
+<ol>
+<li>用 DeepSeek reasoner API 跑一道数学题，分别打印 <code>content</code> 和 <code>reasoning_content</code>，对比差异。</li>
+<li>在本地 Ollama 部署 <code>deepseek-r1:7b</code>，问它一道逻辑题，感受速度和思考过程。</li>
+<li>在 Dify 里接入推理模型，做一个「难题走推理、简单题走普通」的双模型工作流。</li>
+<li>进阶：写一个「简单/复杂分流」的调用封装，用 10 道题测试路由准确率。</li>
+</ol>
+<p>部署调用会了。下一章回到「决策」层面——<strong>什么时候该用、什么时候不该用思维链</strong>。</p></body></html>

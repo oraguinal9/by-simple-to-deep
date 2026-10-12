@@ -1,0 +1,111 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>大模型如何调用工具：Function Calling 原理 | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="function-calling">大模型如何调用工具：Function Calling 原理</h1>
+<p>上一章说，Agent 的「手脚」是工具。但这里有个看似矛盾的问题：大模型本质上是一个<strong>预测下一个词</strong>的程序，它连 2 加 3 都算不对（不信你直接问它复杂一点的四则运算），怎么可能真的去查天气、发邮件、访问数据库？</p>
+<p>答案是：<strong>大模型并不真的执行工具，它只是「说出」自己想调用哪个工具、传什么参数，真正动手的是外部程序。</strong></p>
+<p>这个过程，业界叫 <strong>Function Calling（函数调用）</strong>，也叫 Tool Use（工具使用）。</p>
+<h2 id="_1">三步走：描述 → 选择 → 执行</h2>
+<h3 id="1">第 1 步：把工具「描述」给模型</h3>
+<p>模型怎么知道有哪些工具可用？因为我们在发给它的请求里，附上了每个工具的结构化说明书（JSON Schema）：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;name&quot;: &quot;get_weather&quot;,
+  &quot;description&quot;: &quot;查询指定城市的实时天气，返回温度、天气状况&quot;,
+  &quot;parameters&quot;: {
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;properties&quot;: {
+      &quot;city&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;城市名，如 北京&quot; }
+    },
+    &quot;required&quot;: [&quot;city&quot;]
+  }
+}
+</code></pre>
+
+<p>注意 <code>description</code> 要写得清清楚楚——模型就靠这句话判断「什么时候该用我」。写得好，选得准；写得含糊，模型就瞎选。</p>
+<h3 id="2">第 2 步：模型输出「调用意图」，而不是真去执行</h3>
+<p>你问「北京今天冷不冷？」，模型不会真的联网，它只是返回一段<strong>结构化指令</strong>：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;tool_calls&quot;: [
+    {
+      &quot;name&quot;: &quot;get_weather&quot;,
+      &quot;arguments&quot;: { &quot;city&quot;: &quot;北京&quot; }
+    }
+  ]
+}
+</code></pre>
+
+<p>关键理解：<strong>模型输出的是「意图」，不是「结果」。</strong> 它说「我想调用 get_weather(北京)」，然后停住，等你把结果喂给它。</p>
+<h3 id="3">第 3 步：外部程序执行，结果喂回模型</h3>
+<p>你的程序收到上面的 <code>tool_calls</code>，自己去调用天气 API，拿到真实结果：</p>
+<pre class="codehilite"><code class="language-json">{ &quot;city&quot;: &quot;北京&quot;, &quot;temperature&quot;: 12, &quot;condition&quot;: &quot;多云&quot; }
+</code></pre>
+
+<p>再把结果作为一条新消息发给模型：</p>
+<pre class="codehilite"><code>用户：北京今天冷不冷？
+助手：我想调用 get_weather 查一下。（tool_calls）
+工具结果：北京 12°C，多云。
+助手：北京今天 12°C，多云，体感偏凉，建议穿件外套出门。
+</code></pre>
+
+<p>模型看到工具返回的真实数据后，才给出最终回答。整个过程就像：<strong>顾问（模型）开药方，护士（你的程序）抓药，抓完把药拿回来给顾问确认。</strong></p>
+<h2 id="_2">一个完整的时序图</h2>
+<pre class="codehilite"><code>你 (用户)                    大模型                     你的程序               天气 API
+  │  提问「北京冷不冷」          │                          │                    │
+  │ ─────────────────────────&gt;  │                          │                    │
+  │                             │ 返回 tool_calls           │                    │
+  │                             │ ─────────────────────────&gt;│                    │
+  │                             │                          │ 请求天气            │
+  │                             │                          │ ──────────────────&gt;│
+  │                             │                          │ &lt;── 真实数据 ───────│
+  │                             │ &lt;── 工具结果（工具消息） ──│                    │
+  │                             │ 结合结果生成最终回答        │                    │
+  │ &lt;── 最终回答 ─────────────────│                          │                    │
+</code></pre>
+
+<h2 id="_3">为什么不能直接让模型联网</h2>
+<p>有人会问：那为什么不直接给模型联网权限？原因有三：</p>
+<ol>
+<li><strong>安全</strong>：如果模型能自己访问任意网站、执行任意代码，它就失控了——万一它执行了 <code>rm -rf</code>？把「决策权」和「执行权」分开，工具由你控制，风险就可控。</li>
+<li><strong>可控性</strong>：每个工具都是你精心封装的接口，模型只能按你定义的参数调，不能乱来。</li>
+<li><strong>可审计</strong>：模型调用了什么工具、传了什么参数、工具返回了什么，全部有记录，出了问题能追责。</li>
+</ol>
+<h2 id="_4">多工具 + 循环调用</h2>
+<p>真实 Agent 通常不止一个工具。比如一个「订票助手」可能有 5 个工具：查航班、查酒店、下单、查余额、发邮件。模型会根据问题<strong>选最合适的</strong>，而且常常要<strong>连续调多次</strong>：</p>
+<pre class="codehilite"><code>问：帮我把下周三北京到上海的高铁订了，再订个虹桥附近的酒店。
+→ 调用 search_train(北京→上海, 下周三)     // 第 1 次调用
+→ 拿到车次列表，选出 9:00 那班
+→ 调用 book_train(车次 G123)               // 第 2 次调用
+→ 调用 search_hotel(虹桥附近)               // 第 3 次调用
+→ 调用 book_hotel(酒店 A)                  // 第 4 次调用
+→ 汇总行程单发给用户
+</code></pre>
+
+<p>每一次「调用 → 拿到结果 → 再决定」，就是 Agent 工作循环的一拍。这个「想一步、做一步、看一步」的循环，正是下一章的主角——<strong>ReAct 框架</strong>。</p>
+<h2 id="_5">本章小结</h2>
+<ul>
+<li>大模型不真执行工具，它只输出「调用意图」（tool_calls）。</li>
+<li>工具要先用 JSON Schema 描述清楚，<code>description</code> 是模型选工具的依据。</li>
+<li>执行权在外部程序手里，结果作为「工具消息」喂回模型，模型再给最终回答。</li>
+<li>多工具 + 连续调用，构成了 Agent 干活的基本节拍。</li>
+</ul>
+<p>下一章，我们拆解 Agent 最经典的思考框架：<strong>ReAct（思考-行动-观察）循环</strong>。</p></body></html>

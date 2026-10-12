@@ -1,0 +1,271 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>推理引擎对比：llama.cpp、vLLM 与 Ollama | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="llamacppvllm-ollama">推理引擎对比：llama.cpp、vLLM 与 Ollama</h1>
+<p>你可能已经用 Ollama 跑起了模型，也听说过 llama.cpp、vLLM、LM Studio 这些名字。它们之间是什么关系？哪个适合我？</p>
+<p>这一篇，把本地部署的「引擎」世界讲清楚。先给一个核心结论：<strong>Ollama 只是方便的外壳，真正干重活的是底层的推理引擎。</strong> 理解了这层关系，你就明白了整个本地部署技术栈的地图。</p>
+<h2 id="1">1. 先建立一个直觉：引擎像「发动机」，工具像「整车」</h2>
+<ul>
+<li><strong>推理引擎</strong>是发动机：负责把模型「算」起来，是核心技术，但不友好——发动机没法直接开着上路；</li>
+<li><strong>工具/壳</strong>是整车：把发动机装进车架，配上方向盘、座椅、仪表盘，你只管开。</li>
+</ul>
+<p>所以：</p>
+<ul>
+<li>llama.cpp / vLLM 是「发动机厂」；</li>
+<li>Ollama、LM Studio 是「整车厂」——它们内部用的就是 llama.cpp 这类发动机。</li>
+</ul>
+<p>打开 Ollama 跑 <code>ollama run</code> 时，实际发生的是：</p>
+<pre class="codehilite"><code>你输入文字
+   ↓
+Ollama（整车：负责下载模型、管理会话、提供命令和 API）
+   ↓
+llama.cpp（发动机：负责把模型加载进显存/内存，逐字生成回答）
+   ↓
+回答输出给你
+</code></pre>
+
+<blockquote>
+<p>这就是第 3 篇里说的「Ollama 底层就是 llama.cpp」的完整含义。了解这一点，你就能理解：<strong>Ollama 能跑什么模型，基本取决于 llama.cpp 支持什么格式（GGUF，见第 4 篇 <code>content/模型格式与量化：GGUF 与 Q4/Q8.md</code>）。</strong></p>
+</blockquote>
+<h2 id="2">2. 逐个认识四位主角</h2>
+<h3 id="21-llamacpp">2.1 llama.cpp：最底层的「发动机」</h3>
+<ul>
+<li><strong>是什么</strong>：一个用 C/C++ 写的开源推理引擎，最初专为在 CPU 上跑模型而设计，后来也支持 GPU。它是整个本地开源推理生态的基石。</li>
+<li><strong>特点</strong>：</li>
+<li><strong>CPU 友好</strong>：没有好显卡也能跑（这一点决定了它的江湖地位）；</li>
+<li><strong>支持 GGUF</strong>：本地格式的「普通话」（见第 4 篇）；</li>
+<li><strong>轻量</strong>：可以打包成极小的程序，嵌入各种设备（路由器、手机、树莓派……）；</li>
+<li><strong>可移植</strong>：一个可执行文件 + 一个模型文件就能跑，无任何 Python 依赖。</li>
+<li><strong>适合谁</strong>：想完全掌控、研究原理、在特殊设备上部署的进阶玩家。</li>
+<li><strong>怎么用</strong>（命令行）：</li>
+</ul>
+<pre class="codehilite"><code class="language-bash"># 下载 llama.cpp 编译版后
+./llama-cli -m ./models/qwen2.5-7b-instruct-q4_k_m.gguf -p &quot;你好，请介绍一下自己&quot;
+</code></pre>
+
+<blockquote>
+<p><strong>顺带解答一个新手常问的问题：为什么 llama.cpp 用 C++ 写，而不是更流行的 Python？</strong></p>
+<p>因为 C++ 程序编译后直接运行，没有解释器那层开销——启动更快、内存占用更低、性能更稳，还能打包成单个可执行文件随处拷贝。相比之下，Python 方案（比如 vLLM 那套）要装一堆依赖，启动更重。<strong>在「老电脑跑得动」「嵌进小程序」这类场景，C++ 的优势无可替代。</strong></p>
+</blockquote>
+<h3 id="22-ollama">2.2 Ollama：给发动机装上车壳</h3>
+<ul>
+<li><strong>是什么</strong>：基于 llama.cpp 的「整车」。它在发动机外做了四件事：</li>
+<li><strong>模型管理</strong>：一行命令下载、删除、查看模型（第 3 篇讲过）；</li>
+<li><strong>会话封装</strong>：<code>ollama run</code> 直接进入聊天；</li>
+<li><strong>API 服务</strong>：内置 OpenAI 兼容接口（第 8 篇 <code>content/API 服务化：把本地模型变成接口.md</code>）；</li>
+<li><strong>硬件自动调度</strong>：自动把层分配到 GPU/CPU。</li>
+<li><strong>特点</strong>：简单到极致，新手十分钟上手；跨平台（Win/Mac/Linux）；社区活跃。</li>
+<li><strong>适合谁</strong>：<strong>绝大多数本地部署用户</strong>——先上 Ollama 绝对没错。</li>
+<li><strong>怎么用</strong>：</li>
+</ul>
+<pre class="codehilite"><code class="language-bash">ollama run qwen2.5:7b
+</code></pre>
+
+<h3 id="23-vllm">2.3 vLLM：为「并发服务」而生的高性能引擎</h3>
+<ul>
+<li><strong>是什么</strong>：一个用 Python 编写的高性能推理引擎，核心卖点是<strong>高吞吐、高并发</strong>。</li>
+<li><strong>特点</strong>：</li>
+<li>用了「分页注意力」（PagedAttention）等黑科技，<strong>同时服务几十上百个请求时，速度几乎不衰减</strong>；</li>
+<li>支持业界标准的 <strong>OpenAI 兼容 API</strong>，是很多公司做「模型即服务」的首选；</li>
+<li>依赖 <strong>GPU 和较完整的 Python 环境</strong>，对纯 CPU 用户不友好；</li>
+<li>主要面向<strong>服务端部署</strong>，不是个人桌面工具。</li>
+<li><strong>适合谁</strong>：要搭一个多人可用的 AI 服务、研究生产级部署的进阶玩家。</li>
+<li><strong>怎么用</strong>（示意，实际需先安装）：</li>
+</ul>
+<pre class="codehilite"><code class="language-bash"># 启动 vLLM 服务，暴露 OpenAI 兼容接口
+vllm serve Qwen/Qwen2.5-7B-Instruct --port 8000
+</code></pre>
+
+<blockquote>
+<p>一句话对比：llama.cpp 和 vLLM 都能跑模型，但 llama.cpp 主打「少资源、可移植」，vLLM 主打「多并发、高吞吐」。个人电脑用前者，多用户服务用后者。</p>
+</blockquote>
+<h3 id="24-lm-studio">2.4 LM Studio：图形界面版的「整车」</h3>
+<ul>
+<li><strong>是什么</strong>：一个带图形界面的本地模型运行工具，底层同样用 llama.cpp。</li>
+<li><strong>特点</strong>：<strong>全图形化</strong>——点鼠标就能下载模型、切换模型、调参数、聊天，完全不用碰命令行；自带模型浏览与搜索。</li>
+<li><strong>适合谁</strong>：完全不想看命令行、只想有个「本地 ChatGPT」的纯新手。</li>
+<li><strong>怎么用</strong>：安装 → 搜索模型 → 下载 → 点「聊天」，全程鼠标操作。</li>
+<li><strong>注意</strong>：它和 Ollama 是竞品，二选一即可（本系列以 Ollama 为主线）。</li>
+</ul>
+<h3 id="25">2.5 顺带一提：还有哪些「角色」？</h3>
+<p>为了让你以后在社区里看到这些名字不慌，再快速盘点几个相关角色：</p>
+<ul>
+<li><strong>llama-server</strong>：llama.cpp 自带的 HTTP 服务端，相当于「不带壳的 API」。进阶玩家会直接用它在本地起一个标准接口（和 Ollama 的 API 类似）；</li>
+<li><strong>GPT4All</strong>：另一个图形化工具，主打离线小模型、界面友好，与 LM Studio 同类；</li>
+<li><strong>SGLang</strong>：新兴的高性能推理引擎，面向服务端，性能和 vLLM 同级，是后起之秀；</li>
+<li><strong>Transformers + Hugging Face</strong>：Python 生态的「正统」推理/训练框架，适合做研究和实验，纯本地部署偏重。</li>
+</ul>
+<p>一句话记住：<strong>个人本地部署的主力就是 llama.cpp 及其外壳（Ollama / LM Studio），其余引擎多面向服务端或研究。</strong> 了解存在即可，不必都上手。</p>
+<h2 id="3">3. 一张表看清四者关系</h2>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>llama.cpp</th>
+<th>Ollama</th>
+<th>vLLM</th>
+<th>LM Studio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本质</td>
+<td>底层引擎（C++）</td>
+<td>引擎的封装壳</td>
+<td>独立高性能引擎</td>
+<td>引擎的图形化壳</td>
+</tr>
+<tr>
+<td>易用性</td>
+<td>低（要自己编译/下载）</td>
+<td>高（一行命令）</td>
+<td>中（Python 环境）</td>
+<td>极高（全鼠标）</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>强，CPU 也可</td>
+<td>中上（继承 llama.cpp）</td>
+<td><strong>极高（高并发吞吐）</strong></td>
+<td>中上</td>
+</tr>
+<tr>
+<td>并发能力</td>
+<td>单用户友好</td>
+<td>单用户为主，可配并发</td>
+<td>多用户服务级</td>
+<td>单用户</td>
+</tr>
+<tr>
+<td>CPU 支持</td>
+<td>✅ 极佳</td>
+<td>✅ 良好</td>
+<td>⚠️ 基本靠 GPU</td>
+<td>✅ 良好</td>
+</tr>
+<tr>
+<td>模型格式</td>
+<td>GGUF</td>
+<td>GGUF</td>
+<td>多数（Hugging Face 系）</td>
+<td>GGUF</td>
+</tr>
+<tr>
+<td>适合人群</td>
+<td>进阶玩家、嵌入设备</td>
+<td><strong>普通用户首选</strong></td>
+<td>服务端/团队部署</td>
+<td>纯新手</td>
+</tr>
+<tr>
+<td>安装难度</td>
+<td>中</td>
+<td>低</td>
+<td>中高</td>
+<td>极低</td>
+</tr>
+</tbody>
+</table>
+<p><strong>怎么读这张表</strong>：</p>
+<ul>
+<li>想要<strong>最简单</strong> → Ollama 或 LM Studio；</li>
+<li>想要<strong>性能上限/多用户服务</strong> → vLLM；</li>
+<li>想要<strong>在旧电脑/嵌入式设备跑</strong> → llama.cpp；</li>
+<li>普通个人用户请直接拥抱 <strong>Ollama</strong>，其他了解即可。</li>
+</ul>
+<h2 id="4-ollama-llamacpp">4. 深入一点：Ollama 是怎么「调用」llama.cpp 的？</h2>
+<p>作为一个「由简入深」的系列，这一节讲一点点原理，但会用大白话。</p>
+<p>llama.cpp 把「跑模型」这件事抽象成了几个步骤：</p>
+<ol>
+<li><strong>加载 GGUF 文件</strong>：把权重和分词器读进内存；</li>
+<li><strong>分配层</strong>：决定哪些层放 GPU、哪些层放 CPU（<code>-ngl</code> 参数控制，Ollama 里叫 <code>num_gpu</code>）；</li>
+<li><strong>Token 化</strong>：把你的输入文字拆成 Token；</li>
+<li><strong>前向计算</strong>：模型逐 Token 预测下一个 Token，直到生成完整回答。</li>
+</ol>
+<p>Ollama 做的事情，就是替你把第 1、2 步的配置都自动化了——<strong>根据你的显存自动决定放多少层到 GPU</strong>，然后把第 3、4 步的执行结果用友好的方式呈现给你。</p>
+<p>在第 9 篇 <code>content/性能调优：并发、批处理与显存优化.md</code>，我们会回到这些底层参数，教你手动优化。</p>
+<h2 id="5">5. 常见问题</h2>
+<h3 id="51-ollama-llamacpp">5.1 「我用 Ollama，还需要学 llama.cpp 吗？」</h3>
+<p><strong>不需要</strong>。把 Ollama 当成你的日常工具，llama.cpp 的存在是为了让你理解「Ollama 的边界在哪」。只有当你需要精细控制（比如只跑 CPU、嵌入某个小程序）时，才需要直接接触 llama.cpp。</p>
+<h3 id="52-vllm-ollama">5.2 「vLLM 一定比 Ollama 快吗？」</h3>
+<p>分场景。<strong>单用户交互（你自己聊天）</strong>，两者差别很小，Ollama 甚至更省心；<strong>几十个用户并发请求</strong>，vLLM 的吞吐优势才体现出来。别为了「听起来高级」就上 vLLM——先问自己有多少并发需求。</p>
+<h3 id="53-windows-vllm">5.3 「能在 Windows 上用 vLLM 吗？」</h3>
+<p>可以但比较折腾（vLLM 官方主力支持 Linux + NVIDIA GPU）。<strong>Windows 玩家想体验服务化，直接用 Ollama 的 API 即可</strong>，效果对个人用户完全够用。</p>
+<h3 id="54-ollama-llamacpp">5.4 「Ollama 会取代 llama.cpp 吗？」</h3>
+<p>不会。Ollama 是「壳」，llama.cpp 是「芯」，壳依赖芯。而且 llama.cpp 自身也在持续进化（支持更多新模型、新量化），两者是共生关系。</p>
+<h3 id="55-cpu-gpu">5.5 「CPU 推理和 GPU 推理，速度差多少？」</h3>
+<p>以 7B 的 Q4 量化模型为例，一个粗略的经验值：</p>
+<ul>
+<li>中端显卡（8GB 左右）：约每秒 20～40 个词，接近人正常阅读速度；</li>
+<li>纯 CPU（8 核主流笔记本）：约每秒 1～4 个词，能明显感到「一字一字往外蹦」。</li>
+</ul>
+<p>差距大约一个数量级，所以「加显卡带来质变」这句话是真的。但换个角度：<strong>如果只是偶尔用用、不赶时间，CPU 的慢速也并非不能忍</strong>——先跑通流程再升级硬件，是更稳妥的路线。</p>
+<h3 id="56-ollama-vllm">5.6 「Ollama 下载的模型，vLLM 能直接用吗？」</h3>
+<p>不能直接共用。Ollama 用的是 GGUF 格式，vLLM 主要用 Hugging Face 的 safetensors 格式，两者是「两套打包方式」。好在有官方转换脚本可以互转。对普通用户来说，<strong>你选了哪个引擎，就按哪个生态下载模型</strong>，不必纠结转换问题。</p>
+<h3 id="57-ollama-vllm">5.7 决策清单：我该留在 Ollama 还是上 vLLM？</h3>
+<table>
+<thead>
+<tr>
+<th>我的情况</th>
+<th>选择</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>就我一个人用，偶尔聊天</td>
+<td>留在 Ollama，别折腾</td>
+</tr>
+<tr>
+<td>几个人共用（5 人以内）</td>
+<td>Ollama + Open WebUI 足够</td>
+</tr>
+<tr>
+<td>几十人同时用，要求高吞吐</td>
+<td>考虑 vLLM + 一台好 GPU 的服务器</td>
+</tr>
+<tr>
+<td>要在树莓派、路由器这类小设备上跑</td>
+<td>用 llama.cpp 裸跑</td>
+</tr>
+</tbody>
+</table>
+<p>这张表的逻辑很简单：<strong>并发需求决定引擎选择</strong>。个人和小组场景，Ollama 的并发能力已经够用；只有「规模化服务」才需要 vLLM 这种专业引擎。别被「性能焦虑」绑架——用最简单的方式解决你的问题，就是最好的方案。</p>
+<h3 id="58-lm-studio-ollama">5.8 「LM Studio 和 Ollama 能同时装吗？」</h3>
+<p>可以，两者互不冲突（它们各自管理自己的模型目录）。但没必要同时用——选一个顺手的主力即可。更常见的玩法是：<strong>用 Ollama 当「引擎底座」</strong>（命令行和 API 好用），再让其他界面（比如第 7 篇的 Open WebUI）连上它。这种「引擎归引擎、界面归界面」的架构，正是整个本地部署生态最优雅的地方。</p>
+<h2 id="6">6. 本章小结</h2>
+<p>一张地图帮你收尾：</p>
+<pre class="codehilite"><code>推理引擎层（发动机）：llama.cpp（CPU友好、可移植） | vLLM（高并发、服务端）
+      ↑ 封装 ↑
+工具层（整车）：Ollama（命令行友好） | LM Studio（图形界面友好）
+      ↑ 统一接口 ↑
+你的使用层：个人聊天 / 网页界面 / API 服务
+</code></pre>
+
+<ol>
+<li><strong>Ollama 底层是 llama.cpp</strong>，这是理解整个生态的关键；</li>
+<li><strong>普通用户选 Ollama</strong>，无脑正确；</li>
+<li><strong>进阶方向</strong>：vLLM 用于高并发服务，llama.cpp 用于底层控制；</li>
+<li>选型口诀：<strong>要简单用 Ollama，要并发用 vLLM，要全鼠标用 LM Studio。</strong></li>
+</ol>
+<p>引擎讲完了，接下来给你的模型装上一件漂亮的「衣服」。</p>
+<p><strong>下一站：<code>content/Open WebUI：给本地模型装上网页界面.md</code></strong>。</p></body></html>

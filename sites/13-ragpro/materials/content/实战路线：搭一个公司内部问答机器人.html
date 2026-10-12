@@ -1,0 +1,222 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>实战路线：搭一个公司内部问答机器人 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="_1">实战路线：搭一个公司内部问答机器人</h1>
+<p>恭喜你走到了最后一篇。到这里，你已经把企业级 RAG 的每一块拼图都摸了一遍。现在要做的，是把它们<strong>拼成一艘能下水的船</strong>：一个真正跑在公司内部、同事每天都在用的问答机器人。本篇是整阶课程的收束——先是九篇内容的总复习，再给你一份<strong>照着做就能开工的分步清单</strong>，最后把最常见的坑提前帮你填平。</p>
+<h2 id="101">10.1 九章内容，一次总复习</h2>
+<p>用一张表回顾这九篇到底教会了我们什么：</p>
+<table>
+<thead>
+<tr>
+<th>篇目</th>
+<th>一句话核心</th>
+<th>你要带走的能力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>第 1 篇 全景</td>
+<td>企业级 RAG 要解决"多、杂、准、证"</td>
+<td>看懂架构图，建立工程心态</td>
+</tr>
+<tr>
+<td>第 2 篇 解析清洗</td>
+<td>垃圾进，垃圾出</td>
+<td>能把 PDF/扫描件变成干净文本</td>
+</tr>
+<tr>
+<td>第 3 篇 分块</td>
+<td>检索单位是"自包含的块"</td>
+<td>会定块大小、重叠、切分策略</td>
+</tr>
+<tr>
+<td>第 4 篇 Embedding 选型</td>
+<td>中文场景用 bge，向量库按规模选</td>
+<td>会选模型、建索引、定相似度</td>
+</tr>
+<tr>
+<td>第 5 篇 混合检索</td>
+<td>语义 + 关键词双路召回，RRF 合并</td>
+<td>能补上编号、专名的检索盲区</td>
+</tr>
+<tr>
+<td>第 6 篇 重排序</td>
+<td>召回 Top-50，精排 Top-5</td>
+<td>会用 rerank 把对的顶到最前</td>
+</tr>
+<tr>
+<td>第 7 篇 问答链路</td>
+<td>改写→检索→重排→拼装→生成→引用</td>
+<td>能搭完整链路，会做"承认不知道"</td>
+</tr>
+<tr>
+<td>第 8 篇 RAGFlow</td>
+<td>开源项目一键打包全套能力</td>
+<td>能部署、建库、开聊、看引用</td>
+</tr>
+<tr>
+<td>第 9 篇 评测调优</td>
+<td>用评测集和数据说话</td>
+<td>会打分、会诊断、会迭代</td>
+</tr>
+</tbody>
+</table>
+<p>这九件事不是孤立的，它们是一条流水线：<strong>数据进门 → 拆块 → 向量化 → 双路召回 → 精排 → 生成带引用 → 持续评测改进</strong>。你现在脑子里应该有这条流水线的完整画面了。</p>
+<h2 id="102">10.2 落地分步清单：从零到上线</h2>
+<p>下面是"搭一个公司内部问答机器人"的完整作战图。每步都标了大概产出，你可以当 check-list 用。</p>
+<pre class="codehilite"><code class="language-text">【第 1 步】定需求（半天）
+  产出：一页纸需求文档
+  内容：回答谁的问题？哪类问题（制度/合同/产品）？多少人在用？
+        错误容忍度（法务资料要求极高）？数据能公开给云服务吗？
+  关键决定：模型上云 or 本地部署？这直接决定后面的技术选型。
+
+【第 2 步】选型（1 天）
+  产出：技术选型表
+  引擎：中小团队直接选 RAGFlow（第 8 篇）；要深度定制再自研
+  模型：中文嵌入用 bge-large-zh（第 4 篇）；生成模型选 DeepSeek/通义
+  向量库：跟随 RAGFlow 内置，或独立用 Qdrant/Milvus
+
+【第 3 步】部署环境（1 天）
+  产出：能访问的管理后台
+  动作：准备一台 16G 内存服务器 → 装 Docker → 部署 RAGFlow
+        （命令见第 8 篇）→ 配置大模型 API Key
+
+【第 4 步】导入文档（1–3 天）
+  产出：第一批 100 份文档解析就绪
+  动作：建「公司制度」数据集 → 批量上传 → 逐个抽查解析结果
+  重点：先用小样本（10 份不同类型）验证解析质量，再放开批量传
+
+【第 5 步】分块与检索调优（2–3 天）
+  产出：一组经过验证的参数
+  动作：按第 3 篇原则设分块 → 确认混合检索开启 → 验证编号类问题
+        → 必要时加自定义分词词典（公司黑话）
+
+【第 6 步】搭问答界面（1–2 天）
+  产出：同事能用的聊天入口
+  动作：创建聊天助理 → 关联知识库 → 写一份带引用约束的提示词
+        → 接入公司 IM（钉钉/企微）或网页嵌入
+
+【第 7 步】建评测集并迭代（持续）
+  产出：50 题评测集 + 一份基线分数
+  动作：按第 9 篇建评测集 → 跑出基线 → 每周针对短板做一轮调优
+        → 每轮只改一个变量
+
+【第 8 步】小范围试用再放开（2 周）
+  产出：先让 10 个真实用户用，收集真实问题进评测集
+  动作：修掉 TOP 高频问题 → 再全员开放 → 建立反馈渠道
+</code></pre>
+
+<p>整个流程大约 <strong>2–3 周</strong>可以上线一个可用版本。别贪快，<strong>第 4 步的"抽查解析结果"和第 7 步的"评测集"是绝对不能省的</strong>——它们是质量的保险丝。</p>
+<h2 id="103">10.3 五大常见坑，提前填平</h2>
+<p>这些坑是无数团队用真金白银踩出来的，请你提前绕开。</p>
+<p><strong>坑一：中文 Embedding 选错。</strong> 直接用了英文模型的默认配置，中文检索一塌糊涂。<strong>解法</strong>：中文知识库必须选 bge-large-zh 这类中文模型（第 4 篇），并且上线前用中文评测集实测。</p>
+<p><strong>坑二：分块过大或过碎。</strong> 整篇文档一个块 → 检索精度为零；切得只剩一句话 → 语义破碎。<strong>解法</strong>：从 300–500 字起步，用"块能否独立回答问题"自测（第 3 篇）。</p>
+<p><strong>坑三：数据噪声没清理。</strong> 页眉页脚、乱码、OCR 错误直接进库，导致检索频繁命中垃圾块。<strong>解法</strong>：解析后必须抽样人工验收，定一个"可接受错字率"（第 2 篇）。</p>
+<p><strong>坑四：只有向量检索，没有关键词路。</strong> 编号、型号、条款号全查不到。<strong>解法</strong>：务必开启混合检索（第 5 篇），这是最低成本的高收益动作。</p>
+<p><strong>坑五：权限与合规被忽略。</strong> 所有员工能看所有文档——内部机密、薪酬资料泄露风险巨大。<strong>解法</strong>：上线前至少做到<strong>按知识库/数据集隔离权限</strong>；敏感资料（薪酬、人事）单独建库、单独授权。这一步不是可选项，是企业知识库的底线。</p>
+<p><strong>坑六：以为"上线就结束了"。</strong> 知识库是"活物"，文档会更新、问题会变多、旧制度会废止。如果没人维护，三个月后系统就会变得又旧又不可信。<strong>解法</strong>：从第一天就指定维护人，每周看未命中日志和负反馈，把维护当成日常工作的一部分，而不是"上线那天的事"。</p>
+<blockquote>
+<p>附加坑：<strong>忘了"承认不知道"</strong>。没有第 7 篇的三道保险，模型会对库外的内容瞎编，然后被用户当真的用，出事故的往往就是这种回答。请务必保留"检索不到就说不知道"的机制。</p>
+</blockquote>
+<h2 id="104">10.4 一个"最小可用"的起点建议</h2>
+<p>如果你时间紧张，只想用一个周末让东西跑起来，这是最简路径：</p>
+<ol>
+<li>用 RAGFlow 一键部署（第 8 篇的命令直接抄）。</li>
+<li>挑你手边最常用的 <strong>100 份文档</strong>导入（制度、操作手册、FAQ 都行）。</li>
+<li>创建一个聊天助理，默认参数直接开问。</li>
+<li>拿 10 个你真正会被问的问题测一遍，体验引用跳转。</li>
+</ol>
+<p>这 100 份文档里，大概率会立刻暴露几个问题（解析坏的、检索不到的）——<strong>那就恭喜你，你已经进入了第 9 篇的"评测-调优"循环</strong>。从"导入自己的 100 份文档"开始，比追求一个完美的架构重要一万倍。</p>
+<h2 id="105-faq">10.5 常见问题速答（FAQ）</h2>
+<p>把大家问得最多的几个问题集中答一遍，省得你到处翻：</p>
+<p><strong>Q1：完全没有 GPU 服务器，能做吗？</strong>
+能。中小知识库用 CPU 也能跑嵌入和 rerank（慢一些）；生成模型可以接云 API（DeepSeek 等），数据若不敏感完全可以先这么做。<strong>第一步先跑通，别被硬件卡住。</strong></p>
+<p><strong>Q2：RAGFlow 和 LangChain 是什么关系？</strong>
+LangChain 是"积木库"（你拿零件自己拼），RAGFlow 是"成品房"（开箱即住）。想快速落地选 RAGFlow；想深度定制、学习原理选 LangChain 自研。两者不冲突，很多团队先用 RAGFlow 验证效果，再决定是否自研。</p>
+<p><strong>Q3：100 份文档要建几个知识库（数据集）？</strong>
+建议按"主题"或"权限"拆分，而不是按格式。比如"公司制度""产品手册""薪酬保密"各一个数据集。拆得太碎（每份文档一个库）反而难管理。</p>
+<p><strong>Q4：多久能上线？</strong>
+按第 10.2 节的清单，一个人认真做，2–3 周能上线一个可用版本。如果你只想要"先跑起来"，一个周末就能搭出雏形（第 10.4 节）。别等"完美"再上线，先让同事用起来。</p>
+<p><strong>Q5：用户问题千奇百怪，评测集真的够用吗？</strong>
+评测集的目的不是覆盖所有问题，而是<strong>守住底线</strong>——保证你每次改动不会让系统变差。真实的千奇百怪问题，靠上线后的"负反馈采集"（第 9 篇）持续补充进评测集。评测集是越长越准的。</p>
+<h2 id="106">10.6 硬件预算参考</h2>
+<p>最后给一份务实的硬件参考，方便你向公司申请资源：</p>
+<table>
+<thead>
+<tr>
+<th>规模</th>
+<th>文档量（约）</th>
+<th>推荐配置</th>
+<th>预算量级（参考）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>小组试用</td>
+<td>100 份以内</td>
+<td>一台 16G 内存办公机 + 云 API 模型</td>
+<td>几乎为零</td>
+</tr>
+<tr>
+<td>部门使用</td>
+<td>数千份</td>
+<td>32G 内存 + 一块 12G 显存 GPU</td>
+<td>中</td>
+</tr>
+<tr>
+<td>全公司</td>
+<td>数万份+</td>
+<td>16G 显存 GPU + 独立向量库（Milvus/Qdrant）</td>
+<td>较高</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一条省钱的思路</strong>：嵌入和重排模型量级小，用便宜的 CPU/GPU 就能跑；生成模型是开销大头，先用云 API（按量付费）压成本，真到规模化再考虑私有化部署开源大模型。</p>
+<p>再补充一个常被忽略的开销项：<strong>向量库的存储与备份</strong>。10 万块、1024 维的向量，加上元数据和索引，通常需要几 GB 到几十 GB 的磁盘。记得给向量库所在磁盘做好定时备份——它和文档原件一样，是知识库的资产，丢了就真的丢了。备份策略很简单：每天增量备份索引，每周全量快照，测试恢复流程至少一次。别等数据丢了才想起来备份，那时候一切都晚了。</p>
+<h2 id="107">10.7 一个"成功上线"的自检清单</h2>
+<p>在正式宣布上线之前，花十分钟过一遍这份自检清单。全部打勾，你就有底气向同事们介绍这个系统了：</p>
+<pre class="codehilite"><code class="language-text">□ 权限配置完成：敏感资料已隔离，普通用户查不到薪酬类内容
+□ 文档解析质量合格：抽查了前 10 份核心文档，错字率和乱码在可接受范围
+□ 分块参数已验证：用 5 个典型问题测过，命中的块&quot;能独立回答问题&quot;
+□ 混合检索已开启：编号、型号类问题实测能命中
+□ 重排（如开启）分数阈值已设置：库中无答案时会说&quot;未找到&quot;
+□ 评测集已建立：至少 50 题，已跑出基线分数
+□ 回答带引用：答案下方的来源可点击，能跳回原文
+□ 高频问题有兜底：把最常见的 20 个问题人工核对过答案
+□ 已安排维护人：每周有人看未命中日志、更新过期文档
+□ 有反馈渠道：界面有&quot;有用/没用&quot;按钮或反馈入口
+</code></pre>
+
+<p>如果哪一项还没打勾，别急着上线——<strong>宁可多花一天补齐，也别让第一个用户在一分钟里失去信任</strong>。上线后的第一周，请每天花 30 分钟看未命中日志和负反馈，把暴露出来的高频问题修掉。两周后，这个系统会明显比第一天聪明。</p>
+<h2 id="108">10.8 从这阶毕业之后，往哪走？</h2>
+<p>如果你完整走完了这一阶，你已经具备独立搭建和维护一个企业级 RAG 知识库的能力。接下来值得深挖的方向：</p>
+<ul>
+<li><strong>Agent 化</strong>：把知识库接进能做多步任务的智能体（先查库、再调系统、再总结），这是 L14 及以后的进阶方向。</li>
+<li><strong>多模态</strong>：让知识库能"看"图表、图片、流程图，而不是只认文字。</li>
+<li><strong>实时更新与增量同步</strong>：文档变动时自动感知、自动重索引，让库"保鲜"。</li>
+<li><strong>评测自动化平台</strong>：把第 9 篇的评测集做成 CI（持续集成），每次改动自动回归。</li>
+</ul>
+<p>但无论往哪走，请记住这条流水线的心法——<strong>数据干净、分块合理、双路召回、精排把关、引用兜底、数据驱动调优</strong>。掌握了它，任何 RAG 系统在你眼里都不会再是黑盒。</p>
+<h2 id="109">10.9 结语</h2>
+<p>从第 1 篇的"多杂准证"，到本篇的"100 份文档起步"，这十篇课把一个看似高深的企业级 RAG 知识库，拆成了你可以一步步照做的工程流程。希望你不只是"读完了"，而是<strong>真的去建一个属于你自己的知识库</strong>——哪怕它小，哪怕它粗糙。</p>
+<p>去导入你的 100 份文档吧。你的第一个企业级问答机器人，正在等你开工。</p></body></html>

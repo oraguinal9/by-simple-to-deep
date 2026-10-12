@@ -1,0 +1,167 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>实战路线：做一个领域问答助手 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="_1">实战路线：做一个领域问答助手</h1>
+<p>最后一章，我们把前面 9 章的知识串成一条完整的流水线，亲手做一个「领域问答助手」。我们用「公司财务政策问答助手」作为贯穿例子——你可以换成任何你感兴趣的领域。</p>
+<h2 id="_2">目标定义</h2>
+<p>我们的目标是：<strong>让一个开源模型学会用「公司财务政策」的话术和口径回答员工的财务问题</strong>，并且答得比通用模型更准、更贴公司规则。</p>
+<p>先明确边界（回顾第 1 章的决策表）：</p>
+<ul>
+<li><strong>公司财务政策这类私有/最新知识</strong> → 其实更适合 RAG（可检索、可更新）；</li>
+<li><strong>固定的话术、口径、输出格式</strong> → 微调更能保证稳定性。</li>
+</ul>
+<p>所以一个成熟的方案往往是 <strong>RAG + 微调结合</strong>：RAG 负责「喂知识」，微调负责「学会话术与格式」。这一章我们重点做「微调」那一半，并说明如何与 RAG 配合。</p>
+<h2 id="_3">完整流水线总览</h2>
+<pre class="codehilite"><code>第2章 数据准备      → 整理财务问答对
+第5章 指令模板      → 转成 ChatML 格式
+第3章 训练          → Unsloth QLoRA 微调
+第8章 合并导出      → 合并回基座，导出模型
+第9章 评测          → 对比基座 vs 微调
+（配合 RAG）       → 让知识实时、可更新
+第10章 部署         → 起一个能问答的服务
+</code></pre>
+
+<h2 id="_4">第一步：构造财务问答数据</h2>
+<p>从公司的财务 FAQ、员工手册、报销制度里，整理出问答对。示例：</p>
+<pre class="codehilite"><code>用户：差旅费报销需要什么发票？
+助手：差旅费报销需提供合法有效的增值税发票，并附差旅审批单。
+     高铁票、住宿发票需为抬头为公司名称的电子发票。具体以最新
+     报销制度为准。
+
+用户：报销一般多久到账？
+助手：财务部在收到完整单据后 5 个工作日内完成审核，审核通过后
+     3 个工作日内打款到工资卡。
+</code></pre>
+
+<p>要点：<strong>答案要准、口径要统一</strong>（这是微调要「学会」的）。数量不用多，几百到几千条高质量的即可，再按第 2 章的配比混入少量通用对话防遗忘。</p>
+<h2 id="_5">第二步：转成模板文本</h2>
+<p>用 tokenizer 的 <code>apply_chat_template</code> 把每条问答转成符合你基座模型模板的文本（见第 5 章），存成 JSON，每条的 <code>text</code> 字段就是完整模板文本。这是训练数据。</p>
+<h2 id="unsloth">第三步：用 Unsloth 微调</h2>
+<p>直接复用第 3 章的最小代码，换上你的财务数据。基座选一个中文表现好的（如 Qwen2.5 系列），用 QLoRA + r=16，先跑小步数验证 loss 下降，再逐步到收敛。</p>
+<h2 id="_6">第四步：合并导出</h2>
+<p>训练完，<code>merge_and_unload()</code> 合并回基座，导出完整模型（第 8 章）。此时你有一个「会用财务话术说话」的模型。</p>
+<h2 id="_7">第五步：评测</h2>
+<p>用训练数据之外的 50 条财务问题评测（第 9 章）：</p>
+<ul>
+<li>对比基座 vs 微调的回答，看微调是否真的「更贴财务口径、更少泛泛而谈」；</li>
+<li>重点盯<strong>忠实度</strong>：财务领域答错会误导员工，务必检查有没有编造。</li>
+</ul>
+<h2 id="rag">第六步：与 RAG 配合（进阶）</h2>
+<p>纯微调有个死穴：<strong>模型记不住经常更新的政策</strong>。政策一改，你就要重新微调。</p>
+<p>成熟的落地是「RAG + 微调」双轨：</p>
+<pre class="codehilite"><code>用户提问
+  ├─ RAG 检索：从最新政策文档库检索相关段落（知识实时）
+  └─ 微调模型：用学到的「财务话术」组织回答（风格稳定）
+</code></pre>
+
+<ul>
+<li><strong>RAG 负责「知道最新政策」</strong>（改文档即可，不用重训）；</li>
+<li><strong>微调负责「怎么说话」</strong>（话术、口径、格式固定）。</li>
+</ul>
+<p>两者配合，既快又准又可维护。这也正是前面 L4/L13 讲 RAG、这一阶段讲微调的意义——<strong>它们不是二选一，而是互补</strong>。</p>
+<h2 id="_8">第七步：部署上线</h2>
+<p>合并后的模型起一个推理服务（vLLM 或本地 Ollama，见 L10），前端接一个问答界面，一个能用的领域助手就诞生了。</p>
+<h2 id="faq">FAQ：领域助手项目最常见的问题</h2>
+<p><strong>Q1：我该先做 RAG 还是先做微调？</strong>
+答：先做 RAG。它不用训练、见效快、可追溯，能先解决「知识准确」这一半问题。如果用了 RAG 之后，发现回答「话术不像公司的人、格式不固定」，再上微调解决「风格」这一半。<strong>别一上来就微调</strong>——很多项目根本不需要微调。</p>
+<p><strong>Q2：微调后回答变笨了（通用能力退化）？</strong>
+答：八成是数据配比问题。回第 2 章，把通用对话数据比例提上去（比如 40%+），重新微调。</p>
+<p><strong>Q3：微调后还是答错政策问题？</strong>
+答：先确认这是「知识问题」还是「表达问题」。政策细节答错 → 是知识问题，应该靠 RAG 喂最新资料，别指望微调记知识；同样的知识、换个说法就答对 → 才是微调该解决的表达问题。</p>
+<p><strong>Q4：要不要用更大的基座模型？</strong>
+答：如果你的任务在 7B 上已经达到 90 分，换 14B 可能只到 92 分，但成本和延迟翻倍。<strong>先在小模型上把数据和流程磨到极限，再决定要不要升。</strong></p>
+<p><strong>Q5：多久重训一次？</strong>
+答：取决于知识变化频率。政策经常变 → 靠 RAG 更新，不重训；话术口径变了 → 才重训。把「重训」当低频事件，把「RAG 更新」当高频事件。</p>
+<h2 id="_9">项目排期模板（给真实项目用）</h2>
+<p>如果你要在公司里做这个项目，一份务实的时间分配参考（以 2 周为例）：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>时间</th>
+<th>产出</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>需求定义与边界</td>
+<td>0.5 天</td>
+<td>「哪些靠 RAG、哪些靠微调」决策表</td>
+</tr>
+<tr>
+<td>数据收集与清洗</td>
+<td>3~4 天</td>
+<td>干净的数据集 + 评测集</td>
+</tr>
+<tr>
+<td>基线验证（RAG 先行）</td>
+<td>1~2 天</td>
+<td>RAG 版助手，发现问题清单</td>
+</tr>
+<tr>
+<td>微调训练与调参</td>
+<td>2~3 天</td>
+<td>LoRA 模型 + 多版本对比</td>
+</tr>
+<tr>
+<td>评测与迭代</td>
+<td>2~3 天</td>
+<td>评测报告 + 数据修订</td>
+</tr>
+<tr>
+<td>部署与上线</td>
+<td>1~2 天</td>
+<td>推理服务 + 前端 + 监控</td>
+</tr>
+</tbody>
+</table>
+<p>注意：<strong>数据 + 评测占了一半以上时间</strong>，这是常态，别压缩——压缩它们的项目最后都回来补课。</p>
+<h2 id="_10">一次完整的「微调项目复盘」</h2>
+<p>做完整个实战，你应该对一次微调项目有完整感知：</p>
+<ol>
+<li><strong>先定义边界</strong>：哪些靠 RAG，哪些靠微调；</li>
+<li><strong>数据是灵魂</strong>：质量 &gt; 数量，口径要统一；</li>
+<li><strong>模板要跟模型</strong>：用 <code>apply_chat_template</code>，别手拼；</li>
+<li><strong>QLoRA 起步</strong>：省显存，效果不差，先跑通再优化；</li>
+<li><strong>合并才能部署</strong>：别拿 adapter 直接上线；</li>
+<li><strong>评测定乾坤</strong>：拿数据和基座对比，别凭感觉。</li>
+</ol>
+<h2 id="_11">从这里再往哪走</h2>
+<p>微调学到这里，你已经具备独立完成一个微调项目的完整能力。如果想继续深入，几个方向：</p>
+<ul>
+<li><strong>RLHF / DPO</strong>：让模型「更讨人喜欢」——这正是 L6 讲过的内容，微调 + RLHF 是一对组合拳；</li>
+<li><strong>多模态微调</strong>：给视觉/音频模型做适配；</li>
+<li><strong>更长上下文的训练</strong>：学会处理超长序列；</li>
+<li><strong>更高效的数据工程</strong>：数据合成、主动学习。</li>
+</ul>
+<h2 id="_12">上线后的监控：别「训完就完事」</h2>
+<p>模型上线只是开始，还要持续盯三件事：</p>
+<ol>
+<li><strong>效果监控</strong>：收集真实用户提问，定期抽样评测回答质量，形成周报；</li>
+<li><strong>知识时效</strong>：政策/文档变化时，及时更新 RAG 知识库（不用重训模型）；</li>
+<li><strong>翻车预警</strong>：记录「用户明显不满/投诉」的对话，定期复盘是知识问题还是表达问题。</li>
+</ol>
+<p><strong>上线 ≠ 结束</strong>。一个健康的领域助手是「数据 → 训练 → 评测 → 监控 → 再迭代」的持续循环，微调只是其中的一环。</p>
+<h2 id="_13">结语</h2>
+<p>恭喜你完成「微调实战进阶」全部 10 章。你现在不仅知道怎么调库，更理解了<strong>微调的本质是改行为、数据是灵魂、评测是真相</strong>。把一个开源模型训练成自己的专属助手，对你来说已经不再是黑盒。</p>
+<p>去动手做一个真正属于你的领域助手吧——从你最熟悉、最想解决的领域开始。</p></body></html>

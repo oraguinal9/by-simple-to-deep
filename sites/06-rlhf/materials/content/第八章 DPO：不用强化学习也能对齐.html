@@ -1,0 +1,127 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第八章 DPO：不用强化学习也能对齐 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="dpo">第八章 DPO：不用强化学习也能对齐</h1>
+<p>前面七章都在讲 RLHF 的「标准姿势」：训奖励模型 + PPO 强化学习。这套流程有效，但<strong>又贵又复杂</strong>——要同时伺候 4 个模型、要调一堆超参、还容易被奖励黑客折磨。</p>
+<p>2023 年，一篇叫 <strong>DPO（Direct Preference Optimization，直接偏好优化）</strong> 的论文扔下了一句狠话：<strong>别训奖励模型了，也别跑强化学习了，直接用一个分类损失就能对齐。</strong></p>
+<p>这一章讲 DPO 到底怎么做到的，以及它和 PPO 该怎么选。</p>
+<h2 id="dpo_1">一、DPO 的核心洞察</h2>
+<p>PPO 的麻烦，一半来自「要先训一个 RM，再用 RL 去优化它」。DPO 的关键发现是：<strong>在特定的数学设定下，RLHF 的最优策略，可以直接用偏好数据写出来，而不需要显式训 RM、也不需要 RL 循环。</strong></p>
+<p>换句话说，原本「RM → RL」两步，被 DPO 压缩成了<strong>一步</strong>：直接在偏好对上做监督式的分类训练。</p>
+<h2 id="dpo_2">二、DPO 的损失函数（直觉版）</h2>
+<p>DPO 的训练目标长这样（别怕，我们拆开看）：</p>
+<blockquote>
+<p>L_DPO = − log σ( β · ( log π(y_w|x) − log π(y_l|x) ) − β · ( log π_ref(y_w|x) − log π_ref(y_l|x) ) )</p>
+</blockquote>
+<p>一堆对数，但本质就一句话：</p>
+<blockquote>
+<p><strong>让策略模型对「胜方 y_w」的概率，相对「败方 y_l」的概率，比参考模型时</strong>更高<strong>；而且这个「抬高幅度」由 β 控制。</strong></p>
+</blockquote>
+<p>对照着读：</p>
+<ul>
+<li><code>log π(y_w|x) − log π(y_l|x)</code>：当前策略下，偏好胜方胜过败方的程度；</li>
+<li><code>log π_ref(...)</code> 那一项：参考模型下同样的程度（作为基线扣掉）；</li>
+<li><code>β</code>：对齐强度，越大越「死守偏好」，越小越「随意」；</li>
+<li><code>σ(...)</code>：把差值压成 0~1 的概率，再用负对数做成损失。</li>
+</ul>
+<p><strong>肉眼可见的好处</strong>：这整套就是一个普通的<strong>监督分类损失</strong>，用标准 SGD/Adam 就能训，不需要采样、不需要 RM、不需要 PPO 的 four-model 流水线，也不需要 on-policy 重采样。</p>
+<h2 id="dpo_3">三、DPO 到底「偷」了什么</h2>
+<p>你可能会问：奖励去哪了？其实 DPO 并<strong>没有真的丢掉奖励</strong>，而是把它「隐式」吸收了——它证明：在 Bradley–Terry + KL 约束的 RLHF 设定下，最优策略里的「奖励差值」可以等价替换成「策略概率比值」。于是训练时我们直接优化策略概率，绕开了显式奖励建模和 RL 循环。</p>
+<p>可以理解为：DPO 把「奖励模型 + 强化学习」两阶段，在数学上<strong>折叠</strong>成了一个阶段。</p>
+<h2 id="dpo-vs-ppo">四、DPO vs PPO：一张对比表</h2>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>PPO (标准 RLHF)</th>
+<th>DPO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>是否训奖励模型</td>
+<td>要</td>
+<td>不要（隐式）</td>
+</tr>
+<tr>
+<td>是否跑强化学习</td>
+<td>要（on-policy 循环）</td>
+<td>不要</td>
+</tr>
+<tr>
+<td>同框模型数</td>
+<td>4 个（Actor/Critic/Ref/RM）</td>
+<td>2 个（策略 + 参考，参考冻结）</td>
+</tr>
+<tr>
+<td>训练稳定性</td>
+<td>需精调 β/ε/学习率，易崩</td>
+<td>较稳，像普通 SFT</td>
+</tr>
+<tr>
+<td>算力/显存</td>
+<td>高</td>
+<td>低很多</td>
+</tr>
+<tr>
+<td>防奖励黑客</td>
+<td>KL 约束 + 需盯 RM</td>
+<td>同样有 KL 式约束，但无显式 RM 可钻</td>
+</tr>
+<tr>
+<td>可控性/灵活性</td>
+<td>可加多奖励、过程奖励</td>
+<td>相对简单，复杂奖励难表达</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>超大模型、需精细控制、有 RM 基建</td>
+<td>快速对齐、资源有限、偏好数据充足</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dpo_4">五、DPO 不是「永远更好」</h2>
+<p>别被「不用 RL」误导，DPO 有它的边界：</p>
+<ul>
+<li><strong>偏好数据质量要求高</strong>：DPO 直接吃偏好对，数据噪声会被更直观地放大；</li>
+<li><strong>偏好要覆盖目标分布</strong>：如果训练分布的 prompt 和线上差太远，DPO 也会偏；</li>
+<li><strong>复杂奖励难表达</strong>：想同时优化「有用 + 安全 + 格式 + 长度」多个维度，PPO 的多奖励组合更灵活；</li>
+<li><strong>极端/长尾安全</strong>：有 RM 时你能单独给安全维度加权、做红队；DPO 把这些揉进一对偏好里，较难精细操控。</li>
+</ul>
+<p>所以业界常见做法是：<strong>小模型/快速迭代用 DPO，超大模型/强可控用 PPO</strong>，甚至两者结合（先用 DPO 粗调，再上 PPO 精修）。</p>
+<h2 id="rlaif-constitutional-ai">六、一个延伸：RLAIF /  Constitutional AI</h2>
+<p>既然人类标注贵，能不能让<strong>另一个强模型</strong>来生成偏好？这就是 <strong>RLAIF（AI Feedback）</strong> 和 <strong>Constitutional AI（宪法式 AI）</strong> 的思路：用一套「原则/宪法」让模型自我批评、自我对齐，大幅减少对人类标注的依赖。它们既可以用在 RM 训练，也可以直接用 DPO 式的损失消化 AI 生成的偏好。</p>
+<h2 id="_1">本章小结</h2>
+<ul>
+<li>DPO 的洞见：<strong>RLHF 最优策略可直接用偏好数据写出</strong>，无需显式 RM、无需 RL 循环。</li>
+<li>DPO 损失本质：让策略模型「胜方概率相对败方」比参考模型时更高，由 β 控制强度——就是一个监督分类损失。</li>
+<li>DPO 把「RM + RL」两阶段<strong>折叠成一阶段</strong>，显存/算力骤降、训练更稳。</li>
+<li>对比 PPO：DPO 简单便宜但偏好数据质量要求高、复杂奖励难表达；实践中常按规模/可控性混合使用。</li>
+<li>延伸：RLAIF / Constitutional AI 用 AI 反馈替代人类标注，是 DPO 思想的进一步放大。</li>
+</ul>
+<h2 id="_2">思考与延伸</h2>
+<ul>
+<li>既然 DPO 更简单，为什么大厂旗舰模型仍大量用 PPO？从「可控性」角度想一想。</li>
+<li>DPO 损失里的参考模型 π_ref 扮演什么角色？如果去掉它会怎样？</li>
+<li>延伸：搜索「DPO Direct Preference Optimization」读原论文损失公式。</li>
+</ul></body></html>

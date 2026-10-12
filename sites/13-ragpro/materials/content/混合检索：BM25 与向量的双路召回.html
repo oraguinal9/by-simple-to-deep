@@ -1,0 +1,259 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>混合检索：BM25 与向量的双路召回 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="bm25">混合检索：BM25 与向量的双路召回</h1>
+<p>第 4 篇我们建好了向量库，向量检索跑起来的那一刻，你可能会有一种"神器在手"的错觉。但用不了多久就会遇到尴尬事：用户问<strong>"合同编号 HT-2024-008 有没有归档？"</strong>，向量检索一本正经地返回一堆"合同归档流程"的块，就是答非所问。这就是向量检索的短板。本篇文章讲的<strong>混合检索</strong>，就是补上这个短板的标准答案。</p>
+<h2 id="51">5.1 向量检索的短板在哪？</h2>
+<p>向量检索靠"语义相似度"，这让它很聪明，但也带来了三个弱点：</p>
+<p><strong>弱点一：专有名词、编号、型号检索弱。</strong> "HT-2024-008"、"iPhone 15 Pro"、"GB/T 19001-2016" 这类字符串，没有"语义"可言。模型能把"手机"和"iPhone"联系起来，但没法把 "HT-2024-008" 理解成"一份合同"——它只是个毫无意义的符号组合。向量相似度对这种检索基本失灵。</p>
+<p><strong>弱点二：精确匹配做不到。</strong> 用户要的是"<strong>条款 4.3 原文</strong>"，向量检索给你的是"意思差不多的别处内容"。当你需要的不是"意思"而是"原话"，向量检索就抓瞎了。</p>
+<p><strong>弱点三：长尾关键词稀缺。</strong> 如果某个冷门词在语料里只出现一次，它的向量分布很孤僻，很难被检索命中；但关键词检索（BM25）能一抓一个准——因为"这个词在文档里出现过"本身就是最强的证据。</p>
+<blockquote>
+<p>一句话总结：<strong>向量检索擅长"意思像"，关键词检索擅长"字面像"。</strong> 真实世界里，用户两种问题都会问，所以我们把两条路都打开，再合起来——这就是"混合检索"。</p>
+</blockquote>
+<h2 id="52-bm25">5.2 BM25 关键词检索的原理</h2>
+<p>混合检索里的关键词一路，业界标准是 <strong>BM25</strong>（Best Matching 25）。它是在经典 TF-IDF 基础上改进的排序算法，原理用大白话说是三件事：</p>
+<ol>
+<li><strong>词频（TF）</strong>：一个词在文档里出现越多，说明文档越可能相关。</li>
+<li><strong>逆文档频率（IDF）</strong>：一个词越"稀有"，越能说明问题。比如"合同"在 100 份文档里出现了 99 份，它区分度低；而"HT-2024-008"只出现在 1 份文档里，一旦命中，几乎可以确定答案就在那里。</li>
+<li><strong>长度归一化</strong>：文档越长，里面那个词越可能只是"顺带出现"，要打点折扣。</li>
+</ol>
+<p>BM25 不需要训练，不需要模型，纯靠词频统计就能算分排序，速度快到毫秒级。它还有一个巨大的优势：<strong>可解释</strong>——"因为文档里出现了 'HT-2024-008' 这两个词，所以排第一"，清清楚楚。</p>
+<pre class="codehilite"><code class="language-text">BM25 对一个词 t 给文档 d 的打分（理解思路即可）：
+  得分 = IDF(t) × [ 词频(t,d) × (k1+1) ] / [ 词频(t,d) + k1×(1 - b + b×文档长度/平均长度) ]
+
+  直觉：
+  - 词出现得越多  → 分越高
+  - 词越稀有      → 分越高（IDF 大）
+  - 文档越短命中  → 分越高（长度归一化）
+</code></pre>
+
+<p>实现上不需要自己写公式。两个常用选择：<code>Elasticsearch</code> 自带 BM25，Python 里用 <code>rank_bm25</code> 或 <code>whoosh</code> 库几行就能跑起来。</p>
+<pre class="codehilite"><code class="language-python">from rank_bm25 import BM25Okapi
+
+# 语料：每个文档块先分词（中文必须分词，否则&quot;年假&quot;对不上&quot;休年假&quot;）
+tokenized_corpus = [list(jieba.cut(chunk)) for chunk in chunks]
+bm25 = BM25Okapi(tokenized_corpus)
+
+# 查询也分词
+query_tokens = list(jieba.cut(&quot;年假有几天&quot;))
+scores = bm25.get_scores(query_tokens)
+top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:5]
+print(top_indices)
+</code></pre>
+
+<p>注意代码里的一个关键动作：<strong>中文要先分词</strong>（用 <code>jieba</code>）。"年假有几天"不分词，BM25 只能匹配整个短语；分词成"年假/有/几天"后，才能单独匹配含"年假"的文档。这是中文场景 BM25 的必经步骤。</p>
+<h2 id="53">5.3 混合检索的整体流程</h2>
+<p>两条路并行跑，然后合并。整个流程是这样的：</p>
+<pre class="codehilite"><code class="language-text">用户问题
+   │
+   ├──► 路 1：向量检索（Embedding 相似度）
+   │        问题 ─编码→ 向量 ─余弦相似度→ 向量库中 Top-N 个块 + 分数
+   │
+   └──► 路 2：关键词检索（BM25）
+            问题 ─分词→ 词表 ─BM25 打分→ 语料中 Top-N 个块 + 分数
+   │
+   ▼
+合并：把两路的结果按规则合成一份总排名
+   │
+   ▼
+取出最终 Top-K 块，进入下一步（重排序 / 拼上下文）
+</code></pre>
+
+<p>关键点在于"怎么合并"。两路分数的"尺子"不一样：向量分数是余弦相似度（0–1），BM25 分数是词频得分（0 到几百）。不能直接相加。业界有两种主流合并方式。</p>
+<h3 id="rrfreciprocal-rank-fusion">方式一：RRF（Reciprocal Rank Fusion，倒数排名融合）</h3>
+<p>这是最简单也最稳的做法：<strong>不比较分数，只比较排名</strong>。一个块在两路中的名次越靠前，融合分越高。公式是：</p>
+<pre class="codehilite"><code class="language-text">RRF 分 = Σ 1 / (60 + 名次)
+例：某块在向量路排第 2、在关键词路排第 5
+    融合分 = 1/(60+2) + 1/(60+5) ≈ 0.0161 + 0.0154 ≈ 0.0315
+</code></pre>
+
+<p>它最大的好处：<strong>两路都认可"块 A 排前面"时，融合分自然高；只有一路认可时也不会被埋没</strong>。而且不需要调任何权重，实现极其简单：</p>
+<pre class="codehilite"><code class="language-python">def rrf_fuse(v_results, k_results, k=60):
+    fused = {}
+    for rank, block_id in enumerate(v_results):      # 向量路排名
+        fused[block_id] = fused.get(block_id, 0) + 1 / (k + rank + 1)
+    for rank, block_id in enumerate(k_results):      # 关键词路排名
+        fused[block_id] = fused.get(block_id, 0) + 1 / (k + rank + 1)
+    return sorted(fused, key=fused.get, reverse=True)  # 按融合分降序
+</code></pre>
+
+<h3 id="_1">方式二：加权分数融合</h3>
+<p>如果两路的分数都能归一化到同一量纲（比如都压到 0–1），可以加权相加：</p>
+<pre class="codehilite"><code class="language-text">总得分 = α × 向量分 + β × BM25 分    （α + β = 1）
+</code></pre>
+
+<p>例如 <code>α=0.7, β=0.3</code> 表示"以语义为主、关键词为辅"。权重需要凭经验或评测来调——这正是第 9 篇要讲的调优内容。相比之下，RRF 更适合作为<strong>默认起点</strong>，因为零参数、不容易翻车。</p>
+<h2 id="54">5.4 一个具体例子：效果对比</h2>
+<p>用一个企业内部例子，直观感受三条路的效果差异。假设知识库里有三个块：</p>
+<pre class="codehilite"><code class="language-text">块 A：合同编号 HT-2024-008，签署日期 2024 年 6 月，甲方……
+块 B：所有合同须在法务部门登记后，方可归档生效。
+块 C：公司印章使用需提前申请，审批通过后由专人盖章。
+</code></pre>
+
+<p>用户问："HT-2024-008 这个合同签了吗？"</p>
+<table>
+<thead>
+<tr>
+<th>检索方式</th>
+<th>返回结果</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>纯向量检索</td>
+<td>块 B、块 C（"意思上"与合同相关）</td>
+<td>失败，答非所问</td>
+</tr>
+<tr>
+<td>纯 BM25</td>
+<td>块 A（命中"HT-2024-008"）</td>
+<td>成功，但只对含明确关键词的问题有效</td>
+</tr>
+<tr>
+<td><strong>混合检索（向量+BM25）</strong></td>
+<td>块 A 排最前，块 B 紧随</td>
+<td><strong>语义问题和编号问题都能覆盖</strong></td>
+</tr>
+</tbody>
+</table>
+<p>这就是为什么企业级知识库几乎都用混合检索：<strong>它不是锦上添花，而是兜底</strong>。没有关键词这一路，编号、型号、条款号这类硬检索就全废了。</p>
+<h2 id="55">5.5 工程落地的三个细节</h2>
+<p>最后说三个工程细节，直接影响混合检索上线后的稳定表现：</p>
+<ol>
+<li><strong>中文分词词典要维护</strong>。公司有自己的黑话："三审三校"、"QMS"、"双录"。默认词典分不出来，要把行业词加入自定义词典（<code>jieba.add_word("三审三校")</code>），BM25 才能精准命中。</li>
+<li><strong>两路都限定候选量</strong>。先各自召回 Top-50（而不是 Top-5），合并后再精挑。因为"先宽后严"能保住可能被单路错杀的好块——这也是下一篇"重排序"的输入。</li>
+<li><strong>可以给块打"元数据标签"</strong>做过滤：比如按部门、按年份过滤后再混合检索，缩小范围、提高精度。</li>
+</ol>
+<h2 id="56-bm25">5.6 中文分词：BM25 的命门</h2>
+<p>第 5.2 节的代码里我们用了 <code>jieba</code> 分词，这一步在中文场景重要到值得单独讲。中文没有空格，分词对了检索就准，分词错了检索全歪。</p>
+<p><strong>分词的典型翻车案例：</strong></p>
+<pre class="codehilite"><code class="language-text">原文：&quot;三审三校制度要求所有稿件必须经总编室审核&quot;
+jieba 默认分词结果：三审/三校/制度/要求/所有/稿件/必须/经/总编室/审核
+问题：如果用户问&quot;总编室&quot;，能命中；但问&quot;三审三校&quot;（一个专有名词），
+      默认词典可能把它拆成&quot;三审/三校&quot;两半，精确匹配就失效了。
+</code></pre>
+
+<p><strong>解法：维护一份"行业自定义词典"。</strong> 把你公司的黑话、产品名、人名、编号规则全部加进去：</p>
+<pre class="codehilite"><code class="language-python">import jieba
+
+# 加载自定义词典（每行一个词：词 词频 词性）
+# 示例 dict.txt 内容：
+#   三审三校 1000 n
+#   飞书审批流 100 n
+#   HT-2024 500 nz
+jieba.load_userdict(&quot;company_dict.txt&quot;)
+
+# 还可以在代码里直接加词
+jieba.add_word(&quot;三审三校&quot;)
+jieba.add_word(&quot;知识库调优&quot;)
+
+# 验证
+print(list(jieba.cut(&quot;三审三校制度要求所有稿件必须审核&quot;)))
+# 期望输出：['三审三校', '制度', '要求', ...]
+</code></pre>
+
+<p><strong>词典怎么积累？</strong> 两个来源：一是人工收集（问业务同事有哪些行业黑话）；二是<strong>从检索日志里挖</strong>——当发现"用户搜的词在文档里存在但没命中"时，多半就是分词拆错了，把这个词补进词典。词典会随着使用越来越完善，这是混合检索持续变好的隐形引擎。</p>
+<h2 id="57-rrf-vs">5.7 合并方式的取舍：RRF vs 加权</h2>
+<p>第 5.3 节介绍了 RRF 和加权两种合并方式。这里把它们的取舍讲透，方便你按场景选：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>RRF（倒数排名融合）</th>
+<th>加权分数融合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调参</td>
+<td>基本不用调（只用常数 k）</td>
+<td>要调 α、β 两个权重</td>
+</tr>
+<tr>
+<td>对两路分数量纲的要求</td>
+<td>不关心（只看排名）</td>
+<td>需要先归一化到同一量纲</td>
+</tr>
+<tr>
+<td>稳健性</td>
+<td>高，两路冲突时不容易翻车</td>
+<td>中，权重调错会明显偏科</td>
+</tr>
+<tr>
+<td>灵活性</td>
+<td>低，没法精细控制</td>
+<td>高，可精确控制语义/关键词的比重</td>
+</tr>
+<tr>
+<td>适合场景</td>
+<td>默认起点、快速上线</td>
+<td>已评测出明确短板、精细调优时</td>
+</tr>
+</tbody>
+</table>
+<p>实操建议：<strong>第一版直接用 RRF，别纠结</strong>。等第 9 篇建好评测集后，如果发现"关键词类问题老是排不上去"，再切换到加权模式，把 BM25 的权重调高，用评测分数验证改进。<strong>先用简单的跑起来，再用数据驱动精细化。</strong></p>
+<h2 id="58">5.8 生产环境里的混合检索：还要注意什么</h2>
+<p>把混合检索从"能跑"变成"能扛生产"，还有几个工程细节：</p>
+<p><strong>第一，索引更新要跟上。</strong> 文档增删改后，向量索引和 BM25 索引要同步更新。别出现"向量里有了新文档，BM25 里还没有"的错位。RAGFlow 等成熟工具会自动处理；自研的话，建议<strong>两路共用一个"文档版本号"</strong>，检索前校验一致性。</p>
+<p><strong>第二，元数据过滤是混检的天然搭档。</strong> 前面说过按部门/年份过滤。更精细的做法：<strong>先过滤、再混合检索</strong>——缩小搜索范围能同时提升两路的精度。</p>
+<pre class="codehilite"><code class="language-text">查询（含过滤条件）：
+  content: &quot;年假&quot;  AND  department: &quot;技术部&quot;  AND  year: 2024
+流程：
+  ① 先在元数据上做结构化过滤，得到候选集（比如 2000 块）
+  ② 再在这个候选集里做向量 + BM25 混合检索
+</code></pre>
+
+<p><strong>第三，缓存高频查询。</strong> 用户反复问同样的问题（"报销流程"每天被问 100 次），缓存检索结果和生成结果能省下大量算力。缓存要带上"文档版本号"——资料更新了，缓存自动失效。</p>
+<p><strong>第四，埋点与日志。</strong> 每条查询记录：问题、两路各自的 Top-10、融合结果、用户最终点击/采纳了哪条。<strong>这些日志是第 9 篇评测集的第一手素材</strong>，也是判断"哪一路在拖后腿"的证据。</p>
+<h2 id="59">5.9 什么时候可以不用混合检索？</h2>
+<p>说完了混合检索的强大，也要诚实地讲它的边界——<strong>不是所有场景都需要它</strong>。判断依据很简单：你的问题类型和知识库结构。</p>
+<p><strong>可以只用向量检索的场景：</strong></p>
+<ul>
+<li>知识库是<strong>语义密集</strong>的内容（论文、散文、非结构化报告），用户问题都是"意思型"（"谈谈……""分析……"），很少问编号、型号。</li>
+<li>文档里几乎没有专有名词、编号、条款号。</li>
+<li>规模很小（几百条问答对），问题类型高度固定，向量检索已经足够。</li>
+</ul>
+<p><strong>可以只用关键词检索的场景：</strong></p>
+<ul>
+<li>知识库就是<strong>编号驱动的台账</strong>（合同、物料、工单），用户问题基本都是"查 XX 编号"。</li>
+<li>内容完全结构化、几乎没有语义模糊空间。</li>
+</ul>
+<p><strong>必须用混合检索的场景（大多数企业）：</strong></p>
+<ul>
+<li>用户问题"意思型"和"精确型"混着来（事实正是如此）。</li>
+<li>文档包含编号、型号、人名、专业术语，又有大段叙述性内容。</li>
+<li>出错代价高，需要在两种检索方式之间互相兜底。</li>
+</ul>
+<blockquote>
+<p>一个务实的判断方法：<strong>先用混合检索跑起来（成本不高），再用第 9 篇的评测集分别测"单路"和"双路"的差距</strong>。如果差距很小（比如 MRR 差不到 0.03），可以考虑砍掉一路来省成本；差距明显，就老老实实双路并行。用数据做决定，而不是拍脑袋。</p>
+</blockquote>
+<h2 id="510">5.10 本篇小结</h2>
+<ul>
+<li><strong>向量检索</strong>擅长语义相关，<strong>BM25 关键词检索</strong>擅长精确匹配与编号检索，二者互补。</li>
+<li><strong>混合检索 = 两路并行召回 → 合并排名</strong>。合并首选 <strong>RRF（倒数排名融合）</strong>，零参数、稳。</li>
+<li>中文 BM25 别忘了<strong>分词 + 自定义行业词典</strong>。</li>
+<li>混合检索召回 Top-50，供下一步精筛。</li>
+</ul>
+<p>混合检索把"候选块"找齐了，但 Top-50 里真正管用的可能只有三五块。怎么从 50 块里精挑出最相关的 5 块？下一篇讲<a href="content/重排序 Rerank：把最相关的排前面.html">重排序 Rerank</a>。</p></body></html>

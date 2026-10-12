@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>采样器与步数：速度与质量的权衡 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="_1">第七章 采样器与步数：速度与质量的权衡</h1>
+<p>你在使用文生图工具时，一定会遇到两个参数：<strong>采样步数（Steps）</strong> 和 <strong>采样器（Sampler）</strong>。它们决定了「去噪循环跑多少圈、以及每圈怎么跑」。这一章讲清楚这两个旋钮背后的原理，帮你用最少的时间换最好的图。</p>
+<h2 id="71">7.1 回顾：去噪是一个循环</h2>
+<p>第三章说过，生成就是反复执行「UNet 预测噪声 → 减去噪声 → 得到更干净图」这个动作。这个循环跑一次叫<strong>一步</strong>，跑 $T$ 步就叫<strong>采样步数</strong>。</p>
+<ul>
+<li>步数少（如 10）：快，但可能没「雕」干净，细节糊、结构飘。</li>
+<li>步数多（如 50）：细，但慢，且超过某个点后提升很小（边际递减）。</li>
+</ul>
+<p>经验上，多数模型在 <strong>20–30 步</strong> 就达到可用质量，再往上主要是「锦上添花」。</p>
+<h2 id="72">7.2 为什么步数不是越多越好</h2>
+<p>因为每一步都是在<strong>估计</strong>噪声，而估计有误差。步数过多时：</p>
+<ul>
+<li>累计的微小误差反而可能引入新的不自然；</li>
+<li>而且真实分布已经被充分采样，多加步只是「在已经不错的图上反复磨蹭」。</li>
+</ul>
+<p>所以步数是一个<strong>性价比拐点</strong>问题，不是越大越好。常见甜区：SD 系列 20–30 步；某些快速采样器甚至 8–15 步就够。</p>
+<h2 id="73">7.3 采样器：每一步「怎么减噪声」的策略</h2>
+<p>「步数」决定圈数，「采样器」决定<strong>每一圈具体怎么算</strong>。不同采样器是同一目标（去噪）下的不同数值积分策略，类比「从山脚到山顶，选哪条路线、每步迈多大」。</p>
+<p>主流几类：</p>
+<ul>
+<li>** ancestral（带随机性）**：如 Euler a、DPM++ 2M。每步加一点新噪声，结果更有「创意随机感」，但同一 Seed 也不完全可复现细节。</li>
+<li><strong>确定性（deterministic）</strong>：如 DPM++ 2M Karras、UniPC。过程更稳、可复现，适合追求一致性的出图。</li>
+<li><strong>快速蒸馏类</strong>：如 LCM、Turbo。用专门训练的模型，几步（4–8）就出图，主打「秒出」。</li>
+</ul>
+<h2 id="74-vs-vs">7.4 一个关键权衡：质量 vs 速度 vs 随机性</h2>
+<table>
+<thead>
+<tr>
+<th>采样器类型</th>
+<th>速度</th>
+<th>质量</th>
+<th>可复现</th>
+<th>适合场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Euler a</td>
+<td>中</td>
+<td>中</td>
+<td>弱</td>
+<td>探索创意、快速预览</td>
+</tr>
+<tr>
+<td>DPM++ 2M Karras</td>
+<td>中慢</td>
+<td>高</td>
+<td>强</td>
+<td>出最终成品图</td>
+</tr>
+<tr>
+<td>LCM / Turbo</td>
+<td>极快</td>
+<td>中</td>
+<td>强</td>
+<td>实时、批量、草稿</td>
+</tr>
+</tbody>
+</table>
+<p>没有「最好」的采样器，只有「最适合你当前目的」的。预览阶段用快的，定稿阶段换高质量的。</p>
+<h2 id="75-cfg-scale">7.5 CFG Scale：文字约束力有多强</h2>
+<p>另一个常伴的参数叫 <strong>CFG（Classifier-Free Guidance）尺度</strong>，它控制「文字提示对去噪的约束强度」：</p>
+<ul>
+<li>CFG 低（如 3–5）：模型更自由，可能有惊喜但容易跑题；</li>
+<li>CFG 高（如 10–15）：严格听提示，画面更贴合文字，但过高会过饱和、构图死板；</li>
+<li>常用甜区 7–11。</li>
+</ul>
+<p>原理上，CFG 同时跑「带提示」和「不带提示」两个去噪方向，按 CFG 比例把结果往「带提示」那边拉。CFG 越大，拉得越狠。</p>
+<h2 id="76">7.6 实战建议（可直接抄）</h2>
+<ul>
+<li><strong>快速找感觉</strong>：步数 20、Euler a、CFG 7。</li>
+<li><strong>出精品图</strong>：步数 28–30、DPM++ 2M Karras、CFG 7–9。</li>
+<li><strong>要秒出/实时</strong>：LCM 采样器、步数 4–8。</li>
+<li><strong>要角色一致</strong>：确定性采样器 + 固定 Seed。</li>
+</ul>
+<p>记住：先定目的，再选参数，别盲目拉满。</p>
+<h2 id="77">7.7 本章小结</h2>
+<ul>
+<li>步数 = 去噪循环圈数；20–30 步是多数模型的甜区，并非越多越好（边际递减）。</li>
+<li>采样器 = 每步「怎么减噪声」的策略；分 ancestral（有创意随机）与 deterministic（稳、可复现）。</li>
+<li>CFG Scale 控制文字约束力，7–11 常用，过高会死板过饱和。</li>
+<li>没有万能参数：预览用快采样器，定稿换高质量采样器。</li>
+<li>参数选择 = 目的驱动，先想清楚要速度还是质量。</li>
+</ul>
+<blockquote>
+<p>下一章我们讲进阶控制：当你不满足于「纯文字随机」，想精确控制姿势、构图时，图生图与 ControlNet 就派上用场了。</p>
+</blockquote></body></html>

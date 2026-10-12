@@ -1,0 +1,64 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><title>第二章 怎么和聊天机器人对话</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.8;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0ea5e9;padding-bottom:8px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 10px;text-align:left;}
+  th{background:#e0f2fe;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #7dd3fc;background:#f0f9ff;margin:12px 0;padding:8px 14px;color:#374151;}
+  a{color:#0ea5e9;}
+  .topbar{position:sticky;top:0;background:#0ea5e9;color:#fff;padding:8px 14px;margin:-28px -22px 22px;border-radius:0;}
+  .topbar a{color:#fff;font-weight:700;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回学习路线图</a></div><h1 id="_1">第二章 怎么和聊天机器人对话</h1>
+<p>学会「对话」是用好 AI 的第一步。这一章讲清楚：<strong>聊天界面背后发生了什么</strong>，以及几个立刻能用上的对话技巧。</p>
+<h2 id="21">2.1 一次对话长什么样</h2>
+<p>你用的 ChatGPT、豆包、通义、Kimi 等，背后都是大语言模型。一次典型交互：</p>
+<pre class="codehilite"><code>你：帮我写一段产品介绍
+AI：好的，请问您的产品是……
+你：是一款智能水杯
+AI：（生成介绍）
+</code></pre>
+
+<p>模型是<strong>「无记忆」地逐词生成</strong>的，所谓「记住上下文」，是把你们之前的对话<strong>整段重新喂给它</strong>，让它接着续写。所以：</p>
+<ul>
+<li>你每发一句话，模型看到的是「完整历史 + 你的新话」。</li>
+<li>上下文越长，它越容易「忘了」开头（受窗口长度限制）。</li>
+</ul>
+<h2 id="22">2.2 三个立刻有用的对话习惯</h2>
+<p><strong>① 一次说清背景</strong>
+模糊：「写个文案。」 → 模型只能瞎猜。
+清楚：「我是开咖啡馆的，要发一条朋友圈，吸引周末来打卡的年轻人，30 字以内。」</p>
+<p><strong>② 给它一个角色</strong>
+「你是一名资深营养师」比「告诉我怎么吃健康」更容易得到专业、稳定的回答。</p>
+<p><strong>③ 不满意就「接着改」</strong>
+AI 的第一版往往不完美。你可以：
+- 「再口语一点」
+- 「缩短到 50 字」
+- 「换个角度，从省钱的角度写」</p>
+<p>把它当<strong>协作伙伴</strong>，多轮打磨，而不是一次问完。</p>
+<h2 id="23">2.3 对话的边界</h2>
+<ul>
+<li><strong>单次对话有长度上限</strong>（上下文窗口）。太长的内容它会「截断」前面的。</li>
+<li><strong>它不会主动知道你的私有信息</strong>（除非你告诉它，或接入了你的数据）。</li>
+<li><strong>它不能保证实时准确</strong>：问「现在几点」「今天股价」这类，它可能乱编——需要联网工具或你提供数据。</li>
+</ul>
+<h2 id="24">2.4 一个小实验</h2>
+<p>打开任意聊天工具，连续做这三步，体会「角色 + 背景」的差别：</p>
+<ol>
+<li>问：「推荐一本书。」（看它回答有多泛）</li>
+<li>问：「你是一位科幻小说编辑，给喜欢硬科幻的成年读者推荐 3 本，并说明理由。」</li>
+<li>对比两次的回答质量。</li>
+</ol>
+<p>你会明显感到：<strong>你给的约束越清楚，它答得越对口</strong>。</p>
+<h2 id="25">2.5 衔接</h2>
+<p>为什么「说清楚背景和角色」这么管用？因为模型是凭「下一个词概率」生成的——你提供的信息越具体，它猜对方向的概率就越高。</p>
+<p>这正是下一章的主题：<strong>如何把「想说的话」组织成高质量的「提示词（Prompt）」</strong>。</p>
+<blockquote>
+<p>✅ 自测：回想你最近一次用 AI 的体验，如果结果不满意，能不能指出是「背景没说清」还是「没给角色」？</p>
+</blockquote></body></html>

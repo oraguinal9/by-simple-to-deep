@@ -1,0 +1,187 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>结构化输出：让模型按格式说话 | 提示词工程 L11</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#431407;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#b45309;line-height:1.35;}
+  h1{border-bottom:3px solid #f59e0b;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #fbbf24;padding-left:11px;}
+  code{background:#fffbeb;padding:2px 6px;border-radius:5px;font-size:90%;color:#b45309;}
+  pre{background:#451a03;color:#fde68a;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fde68a;padding:8px 11px;text-align:left;}
+  th{background:#fef3c7;color:#b45309;}
+  tr:nth-child(even){background:#fffbeb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #fbbf24;background:#fffbeb;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fde68a;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#d97706;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L11 学习路线图</a><span class='r'>提示词工程 · prompt.zbjh.top</span></div><h1 id="_1">结构化输出：让模型按格式说话</h1>
+<h2 id="_2">为什么需要「按格式说话」</h2>
+<p>先回忆一下前几章的成果：你已经学会了把话说清楚、给模型设定角色、用例子教它、让它先想再说。现在模型输出的内容质量不错了——但有个新问题：<strong>它说话太「随性」了。</strong></p>
+<p>你让它提取三条信息，它给你写成一段散文；你让它列个表格，它给你加一堆客套话；你让它输出五个要点，它有时候给你四个、有时候给你六个。作为人，这种小瑕疵忍忍就过去了；但如果你是<strong>让程序来读模型的输出</strong>（比如自动把模型的结果存进 Excel、发给后台系统、拼进网页），格式一乱，程序就「崩」了。</p>
+<p>结构化输出（Structured Output），解决的就是这个问题：<strong>在提示词里明确要求模型按指定的格式回答——JSON、表格、固定模板、固定字段——让输出规规整整，可直接被程序解析，也方便人阅读。</strong></p>
+<blockquote>
+<p>一句话概括：普通输出是「让模型自由说话」，结构化输出是「给模型一张有格子的表格，让它一格一格填」。</p>
+</blockquote>
+<p>这一章我们会讲：结构化输出到底是什么、为什么对程序特别重要、怎么用「输出格式字段 + 示例」约束它，以及最常见的 JSON 输出有哪些坑、怎么避。</p>
+<h2 id="_3">三种常见的结构化输出形式</h2>
+<p>先直观感受一下「自由输出」和「结构化输出」的区别。</p>
+<h3 id="_4">自由输出（不约束格式）</h3>
+<pre class="codehilite"><code class="language-text">请总结这份产品评测，提取出产品名、评分、优点、缺点。
+</code></pre>
+
+<p>模型的回答大概是：</p>
+<pre class="codehilite"><code class="language-text">这篇评测讲的是某品牌的降噪耳机，整体评分还行，4 分左右吧。优点是降噪效果不错、佩戴舒服，缺点是续航一般，还有就是价格偏贵。另外还提到了 APP 有点难用……
+</code></pre>
+
+<p>信息其实都有，但散在一段话里。人要读没问题，程序要「把评分存进数据库」就麻烦了——它不知道该从哪截取。</p>
+<h3 id="_5">结构化输出（用表格约束）</h3>
+<pre class="codehilite"><code class="language-text">请总结这份产品评测，提取出产品名、评分、优点、缺点，用表格输出：
+| 项目 | 内容 |
+</code></pre>
+
+<p>模型的回答就会是：</p>
+<pre class="codehilite"><code class="language-text">| 项目 | 内容 |
+| --- | --- |
+| 产品名 | 某品牌降噪耳机 |
+| 评分 | 4 分 |
+| 优点 | 降噪效果好；佩戴舒适 |
+| 缺点 | 续航一般；价格偏贵；APP 难用 |
+</code></pre>
+
+<p>一眼看过去清清楚楚，也容易复制到 Excel。这算是「轻量结构化」。</p>
+<h3 id="json">结构化输出（用 JSON 约束）</h3>
+<p>JSON 是另一种更「硬」的格式。先别被这个词吓到，<strong>JSON 就是一段有固定语法规则的文本</strong>，长得像「名字: 值」的一串列表，它的好处是电脑程序读取起来非常方便。用 JSON 约束：</p>
+<pre class="codehilite"><code class="language-text">请提取下面的信息，输出 JSON 格式，不要输出任何其他内容：
+{&quot;产品名&quot;: &quot;...&quot;, &quot;评分&quot;: ..., &quot;优点&quot;: [&quot;...&quot;], &quot;缺点&quot;: [&quot;...&quot;]}
+</code></pre>
+
+<p>模型输出：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;产品名&quot;: &quot;某品牌降噪耳机&quot;,
+  &quot;评分&quot;: 4,
+  &quot;优点&quot;: [&quot;降噪效果好&quot;, &quot;佩戴舒适&quot;],
+  &quot;缺点&quot;: [&quot;续航一般&quot;, &quot;价格偏贵&quot;, &quot;APP 难用&quot;]
+}
+</code></pre>
+
+<p>这种输出可以直接被程序读取，比如存进数据库、渲染成网页、喂给下一个流程。<strong>JSON 是「程序眼中的表格」。</strong> 常见结构有数组（用方括号 <code>[ ]</code> 括起来的一串值）和对象（用花括号 <code>{ }</code> 括起来的「键: 值」集合），后面讲坑的时候会再提。</p>
+<h2 id="_6">为什么要结构化：程序解析与二次处理</h2>
+<p>结构化输出最大的价值，是让模型的输出<strong>可以被程序自动消费</strong>。举两个真实场景你就明白了。</p>
+<h3 id="_7">场景一：批量录入</h3>
+<p>你经营着一家小店，每天要把几十条顾客留言分类、提取要点。如果让模型一条条自由输出，你得每条手工「翻译」成表格。但如果你让模型按固定格式输出，程序就可以自动把几十条结果合并成一张表，一键导出。</p>
+<h3 id="_8">场景二：流水线作业</h3>
+<p>你搭了一个「AI 工作流」：第一步让模型读合同，第二步把提取的条款喂给另一个程序做风险判断，第三步生成提醒邮件。每一步之间要传递数据，数据格式必须是程序认识的——这时候 JSON 就成了「接口语言」。自由文本在流水线里是没法传的，结构化输出是流水线的「接插件」。</p>
+<blockquote>
+<p>对普通用户而言，结构化输出还有两个顺手的好处：一是<strong>可读性</strong>——表格比一大段话好看；二是<strong>可复现性</strong>——要求固定格式，模型每次输出的「骨架」一致，你对比两次结果也更容易。</p>
+</blockquote>
+<h2 id="json_1">怎么让模型输出 JSON：格式字段 + 示例双保险</h2>
+<p>让模型输出 JSON，光靠说一句「输出 JSON」往往不够——它可能给你加一句「好的，以下是 JSON：」之类的废话，或者格式略偏。最稳的做法是<strong>「格式字段」和「示例」双管齐下</strong>。</p>
+<h3 id="_9">第一步：在提示词里写明「输出格式」字段</h3>
+<p>明确告诉它要输出什么字段、字段叫什么名、什么类型：</p>
+<pre class="codehilite"><code class="language-text">请从下面的订单邮件中提取信息，按如下 JSON 格式输出：
+{
+  &quot;订单号&quot;: &quot;字符串&quot;,
+  &quot;下单日期&quot;: &quot;字符串（YYYY-MM-DD）&quot;,
+  &quot;商品清单&quot;: [&quot;字符串&quot;],
+  &quot;总金额&quot;: &quot;数字（元）&quot;,
+  &quot;客户姓名&quot;: &quot;字符串&quot;
+}
+</code></pre>
+
+<p>把字段名、类型、格式都写死，模型就有了「填表模板」。</p>
+<h3 id="json_2">第二步：加一条「只输出 JSON」的硬约束</h3>
+<p>模型最大的坏习惯是「答完还想再寒暄两句」。所以在格式要求后面，加上严格约束：</p>
+<pre class="codehilite"><code class="language-text">要求：只输出 JSON，不要输出任何解释、注释、前后缀文字。如果某字段信息不存在，填写 null。
+</code></pre>
+
+<p>注意「如果某字段信息不存在，填写 null」——这条很关键，它规定了「缺数据时怎么办」，避免模型自作主张编一个假数据填进去。</p>
+<h3 id="_10">第三步（可选，更稳）：给一个完整示例</h3>
+<p>如果要更高的一致性，就示范一条。用 few-shot 的思路给一个「输入→输出」对：</p>
+<pre class="codehilite"><code class="language-text">示例：
+邮件内容：张伟先生您好，您于 2026-07-01 订购的商品已发货，订单号 A10086，含保温杯 2 个、充电宝 1 个，实付 256 元。
+输出：
+{&quot;订单号&quot;: &quot;A10086&quot;, &quot;下单日期&quot;: &quot;2026-07-01&quot;, &quot;商品清单&quot;: [&quot;保温杯&quot;, &quot;充电宝&quot;], &quot;总金额&quot;: 256, &quot;客户姓名&quot;: &quot;张伟&quot;}
+</code></pre>
+
+<p>模型看到完整范例，格式几乎不会跑偏。这一招的原理，就是上一章 <a href="content/few-shot 示例：用例子教会模型.html">few-shot 示例：用例子教会模型</a> 里讲的「照葫芦画瓢」。</p>
+<h2 id="json_3">JSON 输出的四个常见坑（以及怎么绕开）</h2>
+<p>即使写了格式要求，JSON 输出仍然有几个高频翻车点。逐个认识它们，你就能提前避开。</p>
+<h3 id="_11">坑一：多余的「前后缀文字」</h3>
+<p>模型偶尔会在 JSON 前后加「好的，我提取如下：」或「希望对你有所帮助！」。程序读取时，这些前缀会造成解析失败。</p>
+<ul>
+<li><strong>绕法</strong>：在提示词里明确写「只输出 JSON 本身，禁止任何多余文字」，必要时多强调一遍。</li>
+</ul>
+<h3 id="_12">坑二：引号与转义错误</h3>
+<p>JSON 对引号非常严格：键和字符串值必须用英文双引号 <code>"</code> 包起来，字符串内部再出现引号，要用反斜杠转义（写成 <code>\"</code>）。如果模型输出的字符串里直接带了没转义的引号，比如 <code>"备注": "他说"今天到""</code>，整段 JSON 就坏了。</p>
+<ul>
+<li><strong>绕法</strong>：遇到「文本里可能带引号、换行、特殊符号」的字段，在提示词里提醒「文本中的引号请用转义字符表示」；更省事的办法是让这类字段尽量短，或干脆不让它输出自由长文本。</li>
+</ul>
+<h3 id="_13">坑三：字段缺失或字段名被改</h3>
+<p>模型可能偷偷改字段名，比如你把 <code>订单号</code> 写死，它输出成 <code>订单ID</code>。程序按原字段名取值，就取不到了。</p>
+<ul>
+<li><strong>绕法</strong>：格式字段写死 + 给示例；并且要求「字段名必须与要求完全一致，不能增删改」。</li>
+</ul>
+<h3 id="_14">坑四：把数字当字符串、或反过来</h3>
+<p>你要求 <code>"评分": 4</code>（数字），它输出 <code>"评分": "4"</code>（字符串）；或者金额要求字符串它给你数字。类型不对，程序运算时会报错。</p>
+<ul>
+<li><strong>绕法</strong>：在格式字段里注明类型（数字 / 字符串 / 数组），并在示例里展示正确的类型。</li>
+</ul>
+<p>给你一个把这些坑都堵上的「抗坑版」JSON 提示词：</p>
+<pre class="codehilite"><code class="language-text">请从下面的文字中提取信息，输出一个 JSON 对象，必须遵守：
+1. 字段名严格使用下面的名称，不允许改名、增删字段；
+2. 只输出 JSON 本身，禁止任何解释、前缀、后缀文字；
+3. 字符串中的引号必须使用转义字符；
+4. 缺失的信息填 null，不要编造；
+5. 数字字段必须是数字，不要加引号。
+
+格式：
+{&quot;项目名称&quot;: &quot;字符串&quot;, &quot;数量&quot;: 数字, &quot;单价(元)&quot;: 数字, &quot;备注&quot;: &quot;字符串或null&quot;}
+
+文字如下：
+【粘贴待提取的文本】
+</code></pre>
+
+<h2 id="json_4">非 JSON 的结构化：表格、清单与固定模板</h2>
+<p>不是所有场景都需要 JSON。根据「谁来读」决定格式：<strong>程序读 → JSON；人读 → 表格或清单。</strong></p>
+<h3 id="_15">表格输出模板</h3>
+<pre class="codehilite"><code class="language-text">请把下面的内容整理成 Markdown 表格，列名为：姓名、部门、入职年份、一句话评价。
+要求：不要输出表头以外的任何文字；没有信息的单元格写「未知」。
+</code></pre>
+
+<h3 id="_16">清单输出模板</h3>
+<pre class="codehilite"><code class="language-text">请输出 5 条建议，每条占一行，格式为「第 N 条：建议内容」。不要输出序号以外的多余文字。
+</code></pre>
+
+<h3 id="_17">固定模板输出</h3>
+<pre class="codehilite"><code class="language-text">请按下面的模板回答，模板外的内容一律不输出：
+问题：【我的问题】
+我的回答：【一句话结论】
+原因：【不超过三句话的理由】
+一个反例：如果我的回答是错的，可能是【哪种情况】
+</code></pre>
+
+<p>「固定模板」的好处是：即便内容质量有波动，<strong>骨架永远是同一副</strong>，方便你逐项对比和复用。</p>
+<p>补充一个实用技巧：固定模板里可以留一个「追问位」，让结构化输出变成「可对话的表单」。比如上面模板的「一个反例」那一栏，如果模型填得模棱两可，你可以接着追问「请把『一个反例』这一栏展开成完整的推导：什么条件下我的结论会失效」。模板负责「骨架统一」，追问负责「细节深挖」，两者配合，既保持了输出结构，又不牺牲内容深度。很多办公场景（比如让 AI 每篇输出「背景—判断—证据—风险」四段）都适合这种「模板 + 追问」的组合拳。</p>
+<h2 id="_18">结构化输出的四条经验法则</h2>
+<ul>
+<li><strong>先想清楚「给谁读」</strong>：给人读用表格/清单，给程序读用 JSON。别在给人看的场景里硬塞 JSON，也别把表格喂给程序。</li>
+<li><strong>格式要写进提示词，不是靠碰运气</strong>：把字段、类型、示例都写清楚，再辅以「只输出格式内容」的硬约束。</li>
+<li><strong>给示例永远比纯描述稳</strong>：一个完整示例顶得上十句解释，这是 few-shot 在格式任务上的又一次胜利。</li>
+<li><strong>留好后路</strong>：万一模型格式真的坏了，别慌——你可以把「让它按刚才的格式重新输出一遍」也写成一句提示词（比如「请把上面输出重写成标准 JSON，其他不要」），往往能救回来。</li>
+</ul>
+<h2 id="_19">本章小结</h2>
+<ul>
+<li>结构化输出 = 明确要求模型按固定格式（JSON / 表格 / 清单 / 模板）回答。</li>
+<li>核心价值是「可被程序解析」，适合批量录入、流水线作业等场景；对人来说也更好读、更可复现。</li>
+<li>让它输出 JSON 的套路：写明格式字段 + 类型 + 只输出 JSON 的硬约束 + 一个完整示例。</li>
+<li>四个高频坑：多余前后缀文字、引号转义错误、字段名被改、类型错乱——各有对应绕法。</li>
+<li>选格式的口诀：程序读用 JSON，人读用表格/清单。</li>
+</ul>
+<p>模型终于「规规矩矩说话」了。但你可能已经想到一个问题：如果输入给模型的内容本身很长很长，比如一整本书、一份几十页的合同，该怎么办？下一章，我们处理「上下文与长文本」。请阅读 <a href="content/上下文与长文本：摘要、切片与分步处理.html">上下文与长文本：摘要、切片与分步处理</a>。</p></body></html>

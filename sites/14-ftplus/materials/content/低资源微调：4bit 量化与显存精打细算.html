@@ -1,0 +1,223 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>低资源微调：4bit 量化与显存精打细算 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="4bit">低资源微调：4bit 量化与显存精打细算</h1>
+<p>很多想微调的人卡在第一步不是不会写代码，而是「显存不够」。这一章帮你把账算清楚：微调到底要多少显存？怎么用 4bit 量化把它压下来？量化到底是什么、有没有代价？</p>
+<h2 id="_1">先算一笔账：模型权重占多少显存</h2>
+<p>显存里要装的东西大致分四块：<strong>模型权重、梯度、优化器状态、激活值</strong>。前三个和「参数精度」直接相关，我们先算权重这块。</p>
+<p>一个参数的字节数取决于精度（bit）：</p>
+<table>
+<thead>
+<tr>
+<th>精度</th>
+<th>每个参数</th>
+<th>一个 7B 模型的权重</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>32bit（fp32）</td>
+<td>4 字节</td>
+<td>约 28 GB</td>
+</tr>
+<tr>
+<td>16bit（bf16/fp16）</td>
+<td>2 字节</td>
+<td>约 14 GB</td>
+</tr>
+<tr>
+<td>8bit</td>
+<td>1 字节</td>
+<td>约 7 GB</td>
+</tr>
+<tr>
+<td>4bit</td>
+<td>0.5 字节</td>
+<td>约 3.5 GB</td>
+</tr>
+</tbody>
+</table>
+<p>所以光是模型权重，7B 模型用 16bit 就要约 14GB，很多消费级显卡（8GB/12GB）根本装不下。</p>
+<h2 id="_2">为什么全参数微调那么费显存</h2>
+<p>就算权重用 16bit 能装下，训练时还要额外存：</p>
+<ul>
+<li><strong>梯度</strong>：每个参数一份梯度，和权重同精度，又 +14GB；</li>
+<li><strong>优化器状态</strong>：Adam 优化器要为每个参数维护两个状态（一阶矩、二阶矩），32bit 的话每个参数 8 字节，7B 模型又是 +56GB……</li>
+</ul>
+<p>加起来轻松超过显存，这就是为什么全参数微调 7B 模型需要好几张专业卡。<strong>LoRA 和 QLoRA 的价值，就是把后面这三大块成本几乎清零。</strong></p>
+<h2 id="lora">LoRA 怎么省：少训练参数</h2>
+<p>LoRA 冻结原权重，所以<strong>不需要为 7B 的权重存梯度、存优化器状态</strong>，只需要为 LoRA 的小矩阵 A、B 准备这些。可训练参数只有 0.1%~1%，梯度和优化器开销骤降。</p>
+<p>这就像：你不需要为整栋楼的每一面墙重新刷漆，只需要为几个小房间的改动存记录。</p>
+<h2 id="qlora-4bit">QLoRA 怎么更省：4bit 量化基座</h2>
+<p>QLoRA 在 LoRA 之上，把<strong>冻结的基座权重</strong>进一步压缩成 4bit 存储。7B 模型权重从 14GB 降到约 3.5GB，配合 LoRA，一块 8GB 显卡就能训 7B 模型。</p>
+<p><strong>量化原理（一句话）</strong>：权重原来用 16bit 存，数值范围很宽。量化把它「舍入」到只有 16 个可能取值（4bit 能表示 2⁴=16 个值），精度降低但省 4 倍空间。训练时计算仍会临时反量化到较高精度，所以不是「全程都在用低精度瞎算」。</p>
+<h3 id="_3">量化有代价吗？</h3>
+<p>有，但通常很小：</p>
+<ul>
+<li><strong>基座精度略降</strong>：4bit 相比 16bit 会引入一点点噪声，理论上影响生成质量，实测对多数任务几乎无感；</li>
+<li><strong>训练更稳的关键</strong>：虽然基座是 4bit，但 LoRA 矩阵用正常精度，所以<strong>训练质量损失很小</strong>，这正是 QLoRA 能大放异彩的原因。</li>
+</ul>
+<blockquote>
+<p><strong>结论</strong>：个人电脑 / 单卡环境微调，直接上 QLoRA 是性价比之王。</p>
+</blockquote>
+<h2 id="_4">显存到底要多少：一张经验表</h2>
+<p>以下是「微调一个 7B 模型」的粗估（会因序列长度、batch、优化器而异）：</p>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>大概显存需求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全参数微调</td>
+<td>60GB+（多卡）</td>
+</tr>
+<tr>
+<td>LoRA（16bit 基座）</td>
+<td>16~20GB</td>
+</tr>
+<tr>
+<td>QLoRA（4bit 基座）</td>
+<td>6~10GB</td>
+</tr>
+</tbody>
+</table>
+<p>QLoRA 把「个人微调 7B」从不可能变成可能。这也是本阶段课程选择 QLoRA 为默认方案的原因。</p>
+<h2 id="_5">显存精打细算的其它技巧</h2>
+<p>即使用了 QLoRA，显存仍可能紧张。这些技巧按「先易后难」排：</p>
+<ol>
+<li><strong>调小 batch_size</strong>：从 2 降到 1，立竿见影；</li>
+<li><strong>调短 max_seq_length</strong>：序列越长激活值越多，够用就行，别一味拉长；</li>
+<li><strong>开启 gradient_checkpointing</strong>：不存全部中间激活值，训练时重算，省显存换时间（Unsloth 里一行开启）；</li>
+<li><strong>用 gradient_accumulation</strong>：batch 小没关系，多攒几步再更新梯度，等效大 batch，显存却不变；</li>
+<li><strong>换更小的基座</strong>：7B 扛不住就换 3B / 1.5B，很多任务小模型足够。</li>
+</ol>
+<h2 id="_6">显存不够时怎么选模型</h2>
+<p>「越大越好」是个迷思。模型大小和显存、速度是强相关的，你要在<strong>效果</strong>和<strong>资源</strong>之间找平衡：</p>
+<ul>
+<li><strong>1~3B</strong>：轻量任务、移动端、极低显存，跑得快；</li>
+<li><strong>7~8B</strong>：综合性价比之王，个人微调的甜蜜点；</li>
+<li><strong>14B+</strong>：效果更好，但 QLoRA 也需要 16GB+，通常上云 GPU。</li>
+</ul>
+<p><strong>建议</strong>：先用你能跑的最小模型验证数据质量和流程，再逐步升级模型大小。</p>
+<h2 id="_7">一个完整的显存计算实操</h2>
+<p>别只背经验表，学会自己算才有底气。用前面讲的知识，手算一次「8B 模型 QLoRA 微调」的显存：</p>
+<pre class="codehilite"><code>权重（4bit）：8B × 0.5 字节 ≈ 4 GB
+LoRA 可训练参数（约 0.5%）：约 0.04B × 各种状态 ≈ 0.3 GB
+激活值（seq_len=2048, batch=1）：约 1~2 GB（视层数而定）
+其他开销（缓存、临时）：约 1 GB
+─────────────────────────────
+合计 ≈ 6~8 GB
+</code></pre>
+
+<p>所以一块 <strong>8GB 显卡用 QLoRA 微调 8B 模型是可行的</strong>（把 seq_len 调到 1024、batch=1 更稳）。这个「先列清单、逐项相加」的估算方法，比任何现成表格都可靠——因为你随时可以根据自己的参数重算。</p>
+<h2 id="gpu">云 GPU：本地不够时的出路</h2>
+<p>如果你的显卡确实带不动，别硬撑。云 GPU 按小时计费，是个人微调的常见选择：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>国内云（阿里云/腾讯云 GPU 实例）</td>
+<td>延迟低、中文文档全、可开可关</td>
+</tr>
+<tr>
+<td>海外云（AWS/Azure/GCP）</td>
+<td>型号选择多</td>
+</tr>
+<tr>
+<td>算力租赁平台（AutoDL 等）</td>
+<td>便宜、按小时、适合学习</td>
+</tr>
+</tbody>
+</table>
+<p><strong>省钱技巧</strong>：
+- 用完<strong>立刻关机</strong>（很多人的账单就是这么烧掉的）；
+- 先本地用 MiniMind 小模型把流程跑通，再上云跑大模型（避免在云上调试浪费时间）；
+- 保存好环境镜像，下次直接复用，不用重新装依赖。</p>
+<h2 id="qlora">量化级别怎么选：QLoRA 之外还有选择</h2>
+<p>除了 QLoRA（4bit），你还会遇到 8bit 训练选项：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>8bit 基座 + LoRA</th>
+<th>4bit 基座 + QLoRA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>显存</td>
+<td>中等</td>
+<td>更低</td>
+</tr>
+<tr>
+<td>精度损失</td>
+<td>较小</td>
+<td>略大（通常无感）</td>
+</tr>
+<tr>
+<td>速度</td>
+<td>较快</td>
+<td>略慢（反量化开销）</td>
+</tr>
+<tr>
+<td>适用</td>
+<td>显存略充裕</td>
+<td>显存紧张首选</td>
+</tr>
+</tbody>
+</table>
+<p>经验：<strong>显存够 12GB+ 可以试 8bit；显存紧张无脑 4bit</strong>。两者效果差距在实际任务中通常很小，不必焦虑。</p>
+<h2 id="_8">常见显存报错与定位</h2>
+<p>给一份「报错 → 对策」速查：</p>
+<pre class="codehilite"><code>CUDA out of memory（训练刚开始就炸）
+→ batch 太大 / seq_len 太长 / 没开梯度检查点
+
+CUDA out of memory（训练中途才炸）
+→ 某个 batch 恰好有超长样本，调短 max_seq_length 或
+   drop_last
+
+显存占用持续上涨最后炸
+→ 代码里泄漏（如循环里重复创建张量未释放），
+   或把验证也放进了训练循环
+
+CPU RAM 爆了（不是显存）
+→ 数据加载太多，减少 num_workers 或分批加载
+</code></pre>
+
+<p><strong>诊断小技巧</strong>：<code>nvidia-smi</code> 实时看显存曲线；训练脚本里逐段打印显存占用，能精确定位是哪一步吃掉的。</p>
+<h2 id="_9">小练习</h2>
+<ol>
+<li>用第 3 章的公式，算一下「8B 模型、16bit」的权重占多少 GB；再用 4bit 算一次。</li>
+<li>你的显卡是 8GB，想微调一个 7B 模型，方案选全参数、LoRA 还是 QLoRA？为什么？</li>
+<li>如果训练中途报「CUDA out of memory」，按什么顺序去调参？（提示：从最不伤效果的开始）</li>
+<li>进阶：上 <code>nvidia-smi</code> 监控一次微调，把「权重、激活、峰值」三块的显存实测值记下来，和自己估算对比。</li>
+</ol>
+<p>下一章，我们把数据塞进模型的形式讲透——<strong>ChatML 与指令模板</strong>。</p></body></html>

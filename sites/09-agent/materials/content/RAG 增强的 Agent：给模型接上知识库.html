@@ -1,0 +1,133 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>RAG 增强的 Agent：给模型接上知识库 | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="rag-agent">RAG 增强的 Agent：给模型接上知识库</h1>
+<p>大模型的知识停留在「训练时那一刻」，之后发生的事它一概不知；而且它还会一本正经地编造细节（幻觉）。怎么办？把<strong>知识库</strong>接给它——这就是 <strong>RAG（Retrieval-Augmented Generation，检索增强生成）</strong>。在 L4 我们已经系统学过 RAG，这一章重点看它和 Agent 怎么结合。</p>
+<h2 id="rag">先快速复习 RAG 三步</h2>
+<ol>
+<li><strong>离线准备</strong>：把文档切成小块，转成向量，存进向量数据库。</li>
+<li><strong>检索（Retrieval）</strong>：用户提问时，把问题转成向量，在库里找出最相关的几段。</li>
+<li><strong>生成（Generation）</strong>：把检索到的段落和问题一起发给大模型，让它<strong>基于这些材料</strong>回答。</li>
+</ol>
+<pre class="codehilite"><code>用户问 ──&gt; 问题转向量 ──&gt; 向量库检索 Top-K ──&gt; 拼进上下文 ──&gt; 大模型 ──&gt; 有据可依的回答
+</code></pre>
+
+<h2 id="rag-agent_1">RAG 和 Agent 的三种结合方式</h2>
+<h3 id="agent">方式一：检索是 Agent 的「工具」之一（最常用）</h3>
+<p>把「知识库检索」本身注册成工具，Agent 按需调用：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;name&quot;: &quot;search_knowledge_base&quot;,
+  &quot;description&quot;: &quot;在公司的知识库中检索相关资料，回答产品、政策、流程类问题时优先使用&quot;,
+  &quot;parameters&quot;: {
+    &quot;query&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;检索关键词或问题&quot; }
+  }
+}
+</code></pre>
+
+<p>Agent 的 ReAct 循环会自己决定「这个问题要不要先查知识库」：</p>
+<pre class="codehilite"><code>Thought: 用户问年假政策，这是公司政策问题，应该查知识库而不是凭记忆。
+Action: search_knowledge_base[年假 计算规则]
+Observation: 返回 3 段相关资料……
+Thought: 有了依据，可以回答了。
+Final Answer: 按公司制度，年假按入职年限折算……
+</code></pre>
+
+<p><strong>关键区别</strong>：RAG 的「检索 → 生成」是固定流水线；而在 Agent 里，<strong>检索是一个可选的、由模型自主决定的动作</strong>——它可能先查知识库，再查网页，再决定怎么答，全流程自己编排。</p>
+<h3 id="agent_1">方式二：工具返回的内容再喂给「读文档 Agent」</h3>
+<p>当知识库很大时，一个 Agent 装不下所有材料。常见做法：<strong>检索 Agent</strong> 负责找材料、做摘要，把浓缩后的「资料包」传给下游写作者（多智能体 + RAG 结合，见上一章的例子）。</p>
+<h3 id="agent-query-rewriting">方式三：Agent 先问问题，再检索（Query Rewriting）</h3>
+<p>用户问得含糊时，Agent 先自己「改写」成几个清晰的检索问题，再逐个查：</p>
+<pre class="codehilite"><code>用户：帮我看看今年咱们的收益情况怎么样？
+Agent 改写检索问题：
+  ① 公司 2026 年上半年营收与利润
+  ② 与去年同期对比
+  ③ 主要业务线的表现
+→ 分别检索 → 汇总成回答
+</code></pre>
+
+<h2 id="agent_2">一个知识库型 Agent 的完整流程</h2>
+<p>以「企业客服 Agent」为例：</p>
+<pre class="codehilite"><code>用户: 我上个月的项目报销还没到账，怎么回事？
+        │
+        ▼
+┌────────────────────────────────────────────────────┐
+│ 1. 意图识别：涉及「报销流程」→ 属于知识库可答问题     │
+│ 2. 检索：查报销流程文档、到账周期、常见问题           │
+│ 3. 若信息不足：调用 get_order(工单号) 查真实状态      │
+│ 4. 综合回答 + 给出下一步（如补材料入口）              │
+│ 5. 超出权限/无法解决 → 转人工（发给客服 Agent）       │
+└────────────────────────────────────────────────────┘
+</code></pre>
+
+<p>注意第 3 步：<strong>知识库查不到时，Agent 会「升级」去查真实业务系统</strong>——RAG 给的是「常识/制度」，工具给的是「实时状态」，两者配合才完整。</p>
+<h2 id="rag-agent_2">RAG 增强 Agent 的工程要点</h2>
+<ol>
+<li><strong>优先检索</strong>：系统提示里写「凡是公司内部制度、产品参数类问题，先查知识库再回答」。</li>
+<li><strong>检索要有「触发词」</strong>：给知识库工具写清楚的 description，模型才知道什么时候该用它。</li>
+<li><strong>标注可信度</strong>：检索结果带上来源和日期，Agent 回答时可以说「根据公司 2026 版制度」。</li>
+<li><strong>检索不到就承认</strong>：规定「知识库没有相关内容时，明确告知，不要编造」。</li>
+<li><strong>新鲜度管理</strong>：知识库要定期更新；过期文档的日期要标出来，避免 Agent 用旧政策答新问题。</li>
+</ol>
+<h2 id="rag-vs">RAG vs 微调：什么时候用哪个</h2>
+<p>很多初学者纠结 RAG 和微调（L5 学的）怎么选，一句话：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>RAG</th>
+<th>微调</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本质</td>
+<td>外接知识，运行时检索注入</td>
+<td>改模型参数，把知识「背进」模型</td>
+</tr>
+<tr>
+<td>更新</td>
+<td>换文档就行，秒级更新</td>
+<td>重新训练，成本高周期长</td>
+</tr>
+<tr>
+<td>幻觉</td>
+<td>有据可依，显著降低</td>
+<td>仍可能编造</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>事实类、常变化的私有知识</td>
+<td>风格、格式、专业能力（如按公司格式写报告）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>现实中最常见组合：RAG 管「知识」，微调管「技能」。</strong> Agent 主要靠 RAG 获取事实，微调通常不是第一步。</p>
+<h2 id="_1">本章小结</h2>
+<ul>
+<li>RAG = 检索 + 生成，让模型「开卷考试」，是解决幻觉和知识过时的核心手段。</li>
+<li>三种结合方式：检索当工具（最常用）、检索 Agent 给下游喂资料、Agent 改写问题再检索。</li>
+<li>知识库 Agent 的典型流程：意图识别 → 检索 → 必要时调业务工具 → 综合回答 → 转人工。</li>
+<li>工程要点：优先检索、触发词清楚、标注来源、查不到就承认、注意新鲜度。</li>
+<li>RAG 管知识、微调管技能，Agent 先用 RAG 解决「知道」，再考虑微调解决「会做」。</li>
+</ul>
+<p>下一章是「安全带」：<strong>Agent 的安全与可控</strong>。</p></body></html>

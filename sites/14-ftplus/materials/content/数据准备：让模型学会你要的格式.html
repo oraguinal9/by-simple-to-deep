@@ -1,0 +1,171 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>数据准备：让模型学会你要的格式 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="_1">数据准备：让模型学会你要的格式</h1>
+<p>微调界有句老话：<strong>「Garbage in, garbage out.」</strong> 数据质量决定了微调质量的上限，而训练只是尽量逼近这个上限。这一章专门讲数据——你该准备什么样的数据，怎么构造，怎么清洗，怎么组织成模型认识的格式。</p>
+<h2 id="_2">微调数据到底长什么样</h2>
+<p>大模型微调最常用的数据形态是<strong>指令对（instruction-response）</strong>：一条「用户指令」配一条「期望回答」。</p>
+<pre class="codehilite"><code>用户：请用一句话解释什么是微调。
+助手：微调是指用新的数据对预训练好的大模型做进一步的训练，
+     以改变它的行为、输出格式或领域能力。
+</code></pre>
+
+<p>但实际训练时，模型看到的不是这种「人话」，而是被模板包起来的完整文本。为了让模型学会「用户问 → 助手答」的互动，我们要把上面的对话组织成模型理解的 token 序列。最常见的模板叫 ChatML，形如：</p>
+<pre class="codehilite"><code>&lt;|im_start|&gt;system
+你是一个乐于助人的中文助手。&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+请用一句话解释什么是微调。&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+微调是指用新的数据对预训练好的大模型做进一步的训练，
+以改变它的行为、输出格式或领域能力。&lt;|im_end|&gt;
+</code></pre>
+
+<p>模型训练时，损失只计算「助手回答」那一部分，让模型学会在看到前面的对话后，续写正确的回答。</p>
+<h2 id="_3">数据的三种主要来源</h2>
+<p>你要的数据从哪来？通常有三条路：</p>
+<h3 id="1">1. 人工标注 / 问答对</h3>
+<p>找领域专家或内部员工，针对你的真实场景写「问题 + 标准答案」。这是<strong>质量最高</strong>的来源，缺点是贵、慢。</p>
+<p>适合：客服话术、政策问答、产品文档问答等，数量不需要太多（几千条高质量的就比几万条粗糙的强）。</p>
+<h3 id="2">2. 从文档自动抽取生成</h3>
+<p>把现有的产品手册、技术文档、FAQ 喂给一个通用大模型，让它批量生成「问题—答案」对。速度快、覆盖广，但需要清洗和去重。</p>
+<p>适合：公司知识库转问答对、教程转练习题。</p>
+<h3 id="3">3. 开源数据 / 公开数据集</h3>
+<p>社区有很多整理好的中文指令数据集，可以直接下载使用。优点是量大，缺点是和你业务的贴合度低，通常只用来当「通用配比」混进去。</p>
+<p>适合：用来防止灾难性遗忘的通用对话数据。</p>
+<h2 id="_4">数据清洗：比训练更花时间的活</h2>
+<p>真实世界的原始数据通常是脏的。清洗是微调里最容易被低估、却最影响效果的一步。</p>
+<p><strong>清洗清单</strong>：
+- <strong>去重</strong>：完全重复的样本删掉；语义高度相似的只留一两条。重复太多会让模型「背题」。
+- <strong>去噪</strong>：去掉乱码、HTML 标签、无意义符号、半截句子。
+- <strong>去错</strong>：核对答案是否真的正确。答案错了模型就会学到错误知识——这是最危险的。
+- <strong>长度控制</strong>：回答太短（一个「嗯」）没学习价值，太长（上万字）显存扛不住。通常限制在合理的长度范围。
+- <strong>隐私过滤</strong>：涉及个人信息、公司机密的数据要么脱敏要么删除。</p>
+<blockquote>
+<p><strong>一个反直觉的点</strong>：微调数据<strong>不是越多越好</strong>。数据量过大且质量参差时，模型会被「平均化」拖累。小而精的数据集往往效果更好、训练更快。</p>
+</blockquote>
+<h2 id="_5">数据配比：平衡「学新」与「防忘」</h2>
+<p>如果你只用纯领域数据微调，模型可能很快就「灾难性遗忘」——它原来会的通用对话能力退化了。解决办法是<strong>混入通用数据</strong>。</p>
+<p>一个实用的经验配方：</p>
+<pre class="codehilite"><code>领域数据（你真正要学的）  50%~70%
+通用对话数据（防遗忘）   30%~40%
+高质量精选数据（提上限）  10%左右
+</code></pre>
+
+<p>比例可以根据你的场景微调：任务越特殊，领域占比越高；越需要保持通用对话能力，通用占比越高。</p>
+<h2 id="json">数据格式：从 JSON 到模型输入</h2>
+<p>现实中，数据通常以 JSON 文件组织，一条一条的对话记录。常见的开源格式如 ShareGPT 格式：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;conversations&quot;: [
+    {&quot;from&quot;: &quot;human&quot;, &quot;value&quot;: &quot;什么是微调？&quot;},
+    {&quot;from&quot;: &quot;gpt&quot;,   &quot;value&quot;: &quot;微调是指……&quot;}
+  ]
+}
+</code></pre>
+
+<p>也有的库用 Alpaca 格式（instruction / input / output 三段），或 ShareGPT 的 variant。<strong>不同训练框架默认接受不同格式</strong>，你在准备数据时就要先查清楚你用的库（比如下一章的 Unsloth）要哪种格式，否则加载就会报错。</p>
+<p>关键要理解：格式的差别只是「外壳」，本质都是「把对话组织成文本」，供模型做下一个 token 的预测。</p>
+<h2 id="vs">数据的质量维度：好数据 vs 坏数据</h2>
+<p>「干净」只是底线。除了去重去噪，还要从这几个维度审视数据质量：</p>
+<p><strong>1. 一致性（Consistency）</strong>：同样的问题，答案口径是否统一？比如「报销多久到账」在 10 条数据里有 3 种说法，模型就会「精神分裂」。这是团队协作准备数据时最常见的坑——每个人写法不同。对策：先写一份「写作规范」，规定术语、格式、口径，再让所有人照着写。</p>
+<p><strong>2. 覆盖度（Coverage）</strong>：你的问题类型是否覆盖了实际场景？只准备「定义类」问题，模型遇到「怎么办类」问题就抓瞎。对策：先列一个「问题类型清单」（定义、流程、政策、异常、对比……），按清单配比。</p>
+<p><strong>3. 难度梯度（Difficulty）</strong>：全是简单问题，模型学不到深度；全是难题，模型容易学崩。混合简单、中等、困难样本，训练更稳。</p>
+<p><strong>4. 答案质量（Answer quality）</strong>：答案是否真的正确、完整、有条理？模型会模仿答案的「坏习惯」，比如答案里带「嗯嗯」「大概吧」这类词，模型也会学着说。<strong>模型学的是你数据的「平均气质」。</strong></p>
+<h2 id="_6">数据量到底多少合适</h2>
+<p>这是被问最多的问题。给一个粗略的参考阶梯（指「纯领域数据」，不含通用配比）：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>数据量参考</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>学会一个固定话术/格式</td>
+<td>100~1000 条</td>
+</tr>
+<tr>
+<td>学会一个领域的常见问答</td>
+<td>1000~5000 条</td>
+</tr>
+<tr>
+<td>明显提升领域能力</td>
+<td>5000~20000 条</td>
+</tr>
+<tr>
+<td>深度内化复杂任务</td>
+<td>20000 条以上</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键洞察</strong>：对大多数「让模型学会怎么回答」的场景，<strong>几百到几千条高质量数据就够</strong>，再多就开始边际递减，甚至过拟合。别一上来就追求「越多越好」。</p>
+<h2 id="_7">数据增强：不够的时候怎么办</h2>
+<p>数据量不够怎么办？几个实用的增强手段：</p>
+<ol>
+<li><strong>改写扩充</strong>：把一条高质量问答改写多个说法（换措辞、换场景、换主语），一个变五个；</li>
+<li><strong>模型合成</strong>：让强模型基于你的文档生成「问题—答案」对，人工审核后再用；</li>
+<li><strong>难度提升</strong>：把已有问答扩展成「追问」「异常情况」「多轮对话」，增加覆盖面。</li>
+</ol>
+<p>注意：增强不是无限加水。合成数据要<strong>人工抽检</strong>，防止模型幻觉被「训练」进你的模型。</p>
+<h2 id="_8">数据泄漏：最隐蔽的坑</h2>
+<p><strong>数据泄漏</strong>是指训练数据和评测数据重叠——你以为模型「学会了」，其实是「背过了」。</p>
+<p>常见的泄漏场景：
+- 评测集和训练集来自同一个文档的不同改写；
+- 从网上扒的评测题正好也在训练数据里；
+- 数据增强生成的变体，语义上仍和评测题重叠。</p>
+<p>对策：
+- <strong>先分后配</strong>：原始数据先切出评测集（10%~20%），剩下的才去做增强和训练；
+- <strong>语义去重</strong>：训练和评测之间做相似度检查，把高相似样本从训练集剔除。</p>
+<h2 id="_9">一条数据的完整旅程</h2>
+<p>看完这一章，你应该能想象一条数据怎么走完全程：</p>
+<ol>
+<li><strong>来源</strong>：从人工、文档抽取或开源获得原始问答对；</li>
+<li><strong>清洗</strong>：去重、去噪、去错、控制长度、过滤隐私；</li>
+<li><strong>配比</strong>：按领域 + 通用 + 精选的比例混成一个数据集；</li>
+<li><strong>格式化</strong>：转成训练框架认识的 JSON 格式；</li>
+<li><strong>模板化</strong>：训练加载时，用 ChatML 等模板把对话包成文本序列；</li>
+<li><strong>训练</strong>：模型学到「看到这段对话 → 续写正确回答」。</li>
+</ol>
+<h2 id="_10">一个数据准备自查清单</h2>
+<p>动手前，用这份清单检查你的数据集：</p>
+<ul>
+<li>[ ] 去重了吗？（精确重复 + 语义重复）</li>
+<li>[ ] 去噪了吗？（乱码、HTML、半截句子）</li>
+<li>[ ] 答案正确吗？（每条核对，错误是最大毒药）</li>
+<li>[ ] 口径统一吗？（术语、格式、风格一致）</li>
+<li>[ ] 长度合适吗？（既不太短没信息量，也不超长爆显存）</li>
+<li>[ ] 覆盖够吗？（问题类型、难度梯度合理）</li>
+<li>[ ] 隐私安全吗？（脱敏/删除个人信息）</li>
+<li>[ ] 配比对吗？（领域 + 通用 + 精选）</li>
+<li>[ ] 评测集分出来了吗？（先分后配，防泄漏）</li>
+<li>[ ] 格式对吗？（和训练框架要求的 JSON 结构一致）</li>
+</ul>
+<p>10 项全过，你的数据才算「能上场」。</p>
+<h2 id="_11">小练习</h2>
+<ol>
+<li>为什么「纯领域数据」微调容易导致灾难性遗忘？你的对策是什么？</li>
+<li>如果你只有 2000 条高质量人工问答，和 5 万条自动生成但质量参差的数据，你会怎么选？</li>
+<li>动手：从你手边任意一份产品 FAQ 里，挑 3 条改写成「问题 + 标准答案」的 JSON 指令对。</li>
+<li>进阶：把其中一条改写 5 个不同说法，感受「改写扩充」的力度和尺度。</li>
+</ol>
+<p>下一章，我们用真正好用的库把训练跑起来——<strong>Unsloth</strong>。</p></body></html>

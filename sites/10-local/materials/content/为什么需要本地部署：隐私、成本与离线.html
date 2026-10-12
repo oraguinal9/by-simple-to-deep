@@ -1,0 +1,222 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>为什么需要本地部署：隐私、成本与离线 | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="_1">为什么需要本地部署：隐私、成本与离线</h1>
+<p>欢迎来到「由简入深」AI 学习站的第 10 阶——本地部署大模型。这一阶一共 10 篇，我们会从「为什么」讲到「怎么做」，从「一行命令」讲到「性能调优」。这一篇，先解决最重要的问题：<strong>为什么要把大模型搬到自己的电脑上？</strong></p>
+<p>很多读者可能已经用过 ChatGPT、DeepSeek、通义千问这些「云端的 AI」。它们好用，但你有没有想过：你的每一句话，其实都发到了千里之外的服务器上。这一篇，我们把云端方案的三个痛点（隐私、成本、离线）掰开揉碎，再讲清楚本地部署的好处，也讲清楚它的代价，让你能理性地做决定：<strong>到底要不要上本地部署这条船。</strong></p>
+<h2 id="1-ai-ai">1. 先建立一个直觉：云端 AI 像「叫外卖」，本地 AI 像「自家厨房」</h2>
+<p>我们先用一个生活化的比喻，把两种模式的区别讲清楚。</p>
+<p>用云端大模型（比如 ChatGPT、DeepSeek），就像<strong>叫外卖</strong>：</p>
+<ul>
+<li>你把需求（一句话）通过电话/网络发给店家（云端服务器）；</li>
+<li>店家在后厨做好（模型推理），再配送回来（网络返回结果）；</li>
+<li>你家里不用备锅碗瓢盆（不用买显卡），但每一顿饭都要付钱（按用量计费）；</li>
+<li>如果外卖平台倒闭、厨师辞职（模型下线）、或者断网，你就没饭吃了。</li>
+</ul>
+<p>而本地部署大模型，就像<strong>自家厨房</strong>：</p>
+<ul>
+<li>锅碗瓢盆（显卡、内存、软件）一次性买好，从此做菜不花钱；</li>
+<li>菜在自己家里做，外人看不到你吃的是什么（数据不出门）；</li>
+<li>断网也能做菜（完全离线可用）；</li>
+<li>但你得自己买菜、自己洗锅、自己研究菜谱（学习、维护的成本）。</li>
+</ul>
+<p>这个比喻先放在这里，后面的每一节都会对应回来。</p>
+<h2 id="2-api">2. 云端 API 的三大痛点</h2>
+<h3 id="21">2.1 隐私：你的每句话都出了门</h3>
+<p>这是最容易被忽略、却最重要的问题。</p>
+<p>当你把一段文字粘贴进 ChatGPT 或 DeepSeek 的对话框，点击发送，这段文字就通过网络，被发送到了运营商的服务器上。这意味着：</p>
+<ol>
+<li><strong>数据离开了你的设备</strong>。无论服务商承诺「加密传输」，数据最终还是要在其服务器上被「解包」、被模型读取，才能生成回答。</li>
+<li><strong>可能被用于训练或留存</strong>。不同厂商对数据的使用政策不同。有些会声明「你的对话会被用于改进模型」，有些虽然宣称「不用于训练」，但依然存在留存、审计、内部可见的风险。</li>
+<li><strong>法律与合规风险</strong>。如果你身处一个对数据出境有严格监管的地区（比如把公司客户名单、财务报表、医疗记录发给国外服务），很可能违反法律。即便服务商在中国境内，敏感行业（金融、医疗、政务）对「数据出机房」也有硬性红线。</li>
+</ol>
+<blockquote>
+<p>一句话记住：<strong>凡是你发给云端 AI 的内容，就再也不是「只有你知道」的内容了。</strong></p>
+</blockquote>
+<p>什么时候这个痛点最要命？</p>
+<ul>
+<li>你处理的是<strong>医疗报告、体检数据</strong>，想请 AI 帮你解读；</li>
+<li>你写的是<strong>公司内部方案、投标报价</strong>，里面有商业机密；</li>
+<li>你是律师、审计师，涉及<strong>客户隐私与行业规范</strong>；</li>
+<li>你只是<strong>话痨</strong>，喜欢跟 AI 聊私人生活，不想让任何人知道。</li>
+</ul>
+<p>本地部署一劳永逸地解决这个问题：模型在你自己的电脑里跑，你的文字<strong>从头到尾没有离开过这台机器</strong>。断网的情况下照样能用，从物理上切断了「上传」这条路。</p>
+<h3 id="22">2.2 成本：按量收费，细水长流地放血</h3>
+<p>云端 AI 的收费模式，绝大多数是<strong>按 Token 计费</strong>。</p>
+<p>这里先解释一个术语。Token（词元）是模型处理文本的基本单位。中文里大约 <strong>1 个汉字 ≈ 1～2 个 Token</strong>，英文里大约 1 个词 ≈ 1～1.5 个 Token。可以粗暴理解成「模型按字数收费」。</p>
+<p>以常见的收费水平为例：</p>
+<table>
+<thead>
+<tr>
+<th>收费项</th>
+<th>常见价格（人民币，仅示意）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入（你发给模型的内容）</td>
+<td>几元～几十元 / 百万 Token</td>
+</tr>
+<tr>
+<td>输出（模型回复的内容）</td>
+<td>通常比输入贵 3～4 倍</td>
+</tr>
+<tr>
+<td>会员订阅（ChatGPT Plus 等）</td>
+<td>每月 20 美元左右</td>
+</tr>
+</tbody>
+</table>
+<p>看着单价不高，但要注意两个坑：</p>
+<ol>
+<li><strong>输出比输入贵</strong>。模型回你一段 500 字的话，花的是「输出」的价钱。</li>
+<li><strong>长对话会重复计费</strong>。AI 为了记住上下文，每次都要把<strong>整段历史对话</strong>重新读一遍，再开始生成。聊到第 50 轮，一次请求的输入可能是几万 Token——这些统统都要钱。</li>
+</ol>
+<p>用一个具体例子感受一下：假设你每天跟 AI 深度对话 2 小时，涉及大量长文档处理，一个月的 API 账单完全可能从几十元涨到几百元。<strong>「免费的 ChatGPT 网页版」其实也很贵</strong>——你付出的不是钱，而是你的数据（见 2.1）。</p>
+<p>本地部署的成本模型完全不同：<strong>一次买硬件，终身免费用</strong>。电费一天顶多几毛到几块钱，软件全免费（开源）。对一个重度使用者来说，本地部署往往是几个月就回本的事。</p>
+<h3 id="23">2.3 离线：断网即失联，服务器抽风你就抓瞎</h3>
+<p>第三个痛点是<strong>可用性</strong>：</p>
+<ul>
+<li>出差坐高铁，隧道里断网，云端 AI 立即罢工；</li>
+<li>公司网络策略封锁了某些境外域名，ChatGPT 网页打不开；</li>
+<li>服务商限流（高峰期回答变慢）、宕机（整站 502）、甚至「AI 提示词被审查」直接拒绝回答你的合法问题；</li>
+<li>你想在实验室、产线、病房这种<strong>封闭内网环境</strong>里用 AI，云端方案根本进不去。</li>
+</ul>
+<p>本地部署在这三点上完全是「另一个物种」：<strong>你拥有 100% 的控制权</strong>。模型装在硬盘上，软件跑在本机进程里，谁也没法远程关掉它、限你的速、或者审你的词。</p>
+<h2 id="3">3. 本地部署的好处，重新整理一遍</h2>
+<p>把上面的内容浓缩成一张「好处清单」：</p>
+<ul>
+<li><strong>隐私</strong>：数据不出机器，物理级隔离；</li>
+<li><strong>成本</strong>：一次硬件投入，软件全免费，适合高频重度使用；</li>
+<li><strong>离线</strong>：断网可用，内网可用，无审查、无限流、无宕机牵连；</li>
+<li><strong>可定制</strong>：你可以随意换模型、调参数、改造代码，云端你只能接受官方给你的版本；</li>
+<li><strong>可实验</strong>：本地是学习 AI 最好的教室——你能亲眼看到模型怎么被加载、推理速度有多快、换一个量化版本效果差多少。这些在云端都是黑盒。</li>
+</ul>
+<h2 id="4">4. 但是！本地部署也有代价，别头脑发热</h2>
+<p>「由简入深」的原则是：<strong>不粉饰问题</strong>。本地部署的代价必须讲透，否则你会带着错误的预期入坑，然后骂骂咧咧地退坑。</p>
+<h3 id="41">4.1 代价一：硬件门槛</h3>
+<p>大模型是个「显存怪兽」。这里先埋一个伏笔（下一篇 <code>content/硬件怎么选：显存、内存与 CPU 的账.md</code> 会详细讲），先给你一个概念：</p>
+<ul>
+<li>一个 7B（70 亿参数）的模型，用标准精度（FP16）装进内存，大约需要 <strong>14GB</strong> 显存；</li>
+<li>一个 13B 模型约需 <strong>26GB</strong>；</li>
+<li>一个 70B 模型约需 <strong>140GB</strong>。</li>
+</ul>
+<p>普通人的电脑（8GB 显存的显卡，或者干脆只有核显）是装不下的。当然有「量化」这种压缩手段（见第 4 篇 <code>content/模型格式与量化：GGUF 与 Q4/Q8.md</code>），可以把体积压到原来的四分之一，但即便如此，<strong>想跑一个效果不错的中大模型，一张 16GB 以上显存的显卡几乎是起步配置</strong>。</p>
+<h3 id="42">4.2 代价二：效果通常不如顶级云端模型</h3>
+<p>这是必须直面的现实：</p>
+<blockquote>
+<p><strong>本地能跑起来的模型（7B～14B 量化版），综合能力普遍弱于云端最强的模型（GPT-4o、Claude、DeepSeek-R1 这种几百 B 到上千 B 的巨兽）。</strong></p>
+</blockquote>
+<p>打个比方：云端模型像是「请了一整支专家团队」为你服务；本地模型像是「请了一个靠谱但普通的助理」。日常写邮件、查资料、翻译，本地 7B 模型完全够用；但复杂推理、长文创作、前沿知识问答，差距会很明显。</p>
+<p>不过差距在快速缩小：开源社区的 Qwen、Llama、DeepSeek 最新一代模型，能力已经非常能打（见第 5 篇 <code>content/开源模型怎么挑：Llama、Qwen 与 DeepSeek.md</code>），在很多场景下「够用」得超出想象。</p>
+<h3 id="43">4.3 代价三：维护成本</h3>
+<p>云端方案「打开网页就能用」，本地部署则需要你：</p>
+<ul>
+<li>会装软件、会敲命令行（不用精通，但要有动手的意愿）；</li>
+<li>知道怎么下载模型、怎么换模型；</li>
+<li>遇到显卡驱动、内存不足、中文乱码等问题能自己排查；</li>
+<li>硬盘要留出几十 GB 甚至上百 GB 的空间放模型。</li>
+</ul>
+<p>好在：这套学习站会把每一步都拆开讲，跟着做就行。而且<strong>现在的工具（Ollama、Open WebUI）已经傻瓜化到令人发指的程度</strong>——第 3 篇 <code>content/Ollama 入门：一行命令跑起大模型.md</code> 会让你一行命令就跑起一个能对话的模型。</p>
+<h2 id="5">5. 做决策：你到底该不该本地部署？</h2>
+<p>我们不搞一刀切，给你一个「自我体检清单」，逐条打勾：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>是</th>
+<th>否</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>我的内容涉及隐私/机密/合规，不能交给云端？</td>
+<td>→ 强烈建议本地</td>
+<td>可继续用云端</td>
+</tr>
+<tr>
+<td>我是重度使用者，每天大量对话/长文档？</td>
+<td>→ 本地更省钱</td>
+<td>轻度使用云端更划算</td>
+</tr>
+<tr>
+<td>我经常出差、断网，或要在内网环境用？</td>
+<td>→ 必须本地</td>
+<td>无此需求可忽略</td>
+</tr>
+<tr>
+<td>我有 16GB 以上显存的显卡，或愿意用 CPU 跑小模型？</td>
+<td>→ 硬件支持</td>
+<td>先别急，看第 2 篇</td>
+</tr>
+<tr>
+<td>我想学习 AI 原理、自己折腾？</td>
+<td>→ 本地是最好的课堂</td>
+<td>图省事就用云端</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>现实中最常见的组合是：<strong>「隐私/学习」用本地，「高强度复杂任务」用云端</strong>。两者并不互斥，完全可以并存——很多发烧友就是本地 7B 模型日常待命，需要时再开云端。本地模型甚至可以直接接进云端应用的接口（见第 8 篇 <code>content/API 服务化：把本地模型变成接口.md</code>）。</p>
+</blockquote>
+<h2 id="6">6. 三个具体场景：帮你想清楚「要不要做」</h2>
+<p>光讲理论还不够，我们用三个真实的「用户画像」对号入座，看看他们各自该不该本地部署。</p>
+<h3 id="_2">场景一：张医生</h3>
+<p>张医生经常需要把患者的影像报告、检验单整理成通俗解释，发给患者或家属。这些内容极其敏感，医疗数据受法律严格保护，绝对不能上传到任何云端服务。</p>
+<ul>
+<li>他的需求：<strong>隐私第一</strong>，能力只要「能把专业术语翻译成人话」；</li>
+<li>结论：<strong>必须本地部署</strong>。7B 的量化模型完全够用，配一台 8GB 显存的电脑即可，而且断网可用、数据零外流。</li>
+</ul>
+<h3 id="_3">场景二：李记者</h3>
+<p>李记者每天要写大量稿件，习惯用云端 AI 帮忙找灵感、改句子。她不在乎隐私（都是公开发表的内容），但一天要用十几个小时。</p>
+<ul>
+<li>她的需求：<strong>成本敏感 + 高频</strong>；</li>
+<li>结论：<strong>建议本地部署</strong>。她一个月光 API 账单就要几百元，本地部署几个月省回硬件钱；更重要的是本地模型生成速度快、不排队，写作体验反而更流畅。遇到实在写不动的深度分析，再临时开一下云端顶配模型。</li>
+</ul>
+<h3 id="_4">场景三：王老师</h3>
+<p>王老师偶尔用 AI 查查资料、改改作文，一周用不了几次，也没有任何敏感内容。</p>
+<ul>
+<li>他的需求：<strong>偶尔用、图省事</strong>；</li>
+<li>结论：<strong>云端就挺好</strong>。为每周几次使用买显卡、折腾软件，性价比很低。本地部署是「锦上添花」，不适合他。</li>
+</ul>
+<blockquote>
+<p>三个场景说明一件事：<strong>本地部署不是「人人都该上」的潮流，而是「有明确需求的人」的选择。</strong> 你先问自己属于哪一类，再决定要不要继续读下去。</p>
+</blockquote>
+<h2 id="7">7. 常见顾虑问答（先打预防针）</h2>
+<h3 id="71">7.1 「我完全不懂技术，能搞成吗？」</h3>
+<p>能。本阶课程的设计原则就是「由简入深」：第 3 篇只要你会复制粘贴一行命令，就能跑起模型。你不需要懂 C++、Python 或神经网络，只需要<strong>愿意跟着步骤操作、遇到问题愿意读报错信息</strong>。真正的门槛只有一个——动手的意愿。</p>
+<h3 id="72">7.2 「本地部署是不是需要买很贵的显卡？」</h3>
+<p>不一定。入门阶段用 CPU 就能跑小模型（慢但能用），M 系列 Mac 更是低成本首选。等确定「长期要用、追求效果」之后，再考虑 1500～4000 元价位的 8～16GB 显存显卡，性价比已经很高。第 2 篇会把账算清楚。</p>
+<h3 id="73">7.3 「本地模型会不会很快过时？」</h3>
+<p>开源社区迭代速度极快，每年都有好几代新模型发布。但好消息是：<strong>换模型对你来说只是一行命令的事</strong>（<code>ollama run 新模型</code>）。模型文件可以删了再下，硬件不淘汰，投资是持续有效的。</p>
+<h3 id="74">7.4 「本地模型和云端模型能不能配合用？」</h3>
+<p>不仅能，而且强烈推荐。你完全可以搭建「本地优先、云端兜底」的架构：常规任务走本地（免费、私密、快），复杂任务自动切换到云端大模型（能力更强）。第 8 篇会教你用统一接口同时对接两边的模型。</p>
+<h2 id="8">8. 本章小结与下篇预告</h2>
+<p>这一篇我们搞清楚了三个核心问题：</p>
+<ol>
+<li><strong>云端 AI 的痛点</strong>：隐私（数据出境）、成本（按量收费）、离线（断网失联）；</li>
+<li><strong>本地部署的好处</strong>：数据不出机器、一次买断、完全离线、可自由定制、是最好的学习教室；</li>
+<li><strong>本地部署的代价</strong>：硬件门槛、效果上限、维护成本——要理性决策，别被「免费」冲昏头。</li>
+</ol>
+<p>如果你读完还在犹豫，可以换个角度想：<strong>本地部署的「最小成本」其实很低</strong>——不需要买显卡，用 CPU 也能跑一个 7B 小模型，慢是慢点，但能真实体验「自己养一个大模型」的感觉。第 2 篇我们就来看这笔账到底怎么算。</p>
+<p><strong>下一站：<code>content/硬件怎么选：显存、内存与 CPU 的账.md</code></strong>，把「显存、内存、CPU 各自干什么」彻底讲明白。</p></body></html>

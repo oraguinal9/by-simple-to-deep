@@ -1,0 +1,154 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>主流客户端接入：Claude Desktop、Cursor 与自研 | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="claude-desktopcursor">主流客户端接入：Claude Desktop、Cursor 与自研</h1>
+<p>Server 写好了，得有人来「连」它。连 Server 的那个角色就是 <strong>Host（宿主应用）</strong>。这一章讲几个最常见的 Host 怎么接入 MCP Server，以及如果你想自己做一个 Host，核心逻辑是什么。</p>
+<h2 id="claude-desktop-host">一、Claude Desktop（桌面端 Host）</h2>
+<p>Claude Desktop 是官方最早支持 MCP 的 Host。接入方式就是在它的配置文件里声明要连哪些 Server。</p>
+<h3 id="_1">配置位置（示意）</h3>
+<ul>
+<li>macOS：<code>~/Library/Application Support/Claude/claude_desktop_config.json</code></li>
+<li>Windows：<code>%APPDATA%\Claude\claude_desktop_config.json</code></li>
+</ul>
+<h3 id="stdio-server">配置示例（STDIO 本地 Server）</h3>
+<pre class="codehilite"><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;filesystem&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;@modelcontextprotocol/server-filesystem&quot;, &quot;/Users/你/Desktop&quot;]
+    },
+    &quot;demo&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;/绝对路径/server.py&quot;]
+    }
+  }
+}
+</code></pre>
+
+<p>重启 Claude Desktop 后，它会在后台启动这些 Server 子进程，并把它们的能力提供给模型。你在对话里说「读一下我桌面上的 xxx」，模型就会去调 filesystem Server。</p>
+<h3 id="_2">它的行为特点</h3>
+<ul>
+<li>启动时拉起所有配置的 Server；</li>
+<li>自动做能力发现（<code>tools/list</code> 等）；</li>
+<li>危险操作弹<strong>确认框</strong>（人在回路，见第九章）；</li>
+<li>配置是「声明式」的——你只说「连谁」，具体协议它内部搞定。</li>
+</ul>
+<h2 id="cursoride-host">二、Cursor（IDE 里的 Host）</h2>
+<p>Cursor 这类 AI 编程 IDE，把 MCP 当「给编程 Agent 接工具」的渠道。开发者可以接：</p>
+<ul>
+<li>文件系统 / Git Server（让 Agent 读写代码）；</li>
+<li>数据库 Server（让 Agent 查 schema）；</li>
+<li>自定义内部工具 Server（让 Agent 调公司接口）。</li>
+</ul>
+<h3 id="_3">配置思路</h3>
+<p>Cursor 的设置里有一个 MCP 配置区，填法和 Claude Desktop 类似：指定 <code>command</code> + <code>args</code>（STDIO）或指定远程 URL（HTTP+SSE）。配好后，Agent 在「自动写代码 / 跑命令」时就能用上这些能力。</p>
+<h3 id="host">和桌面聊天 Host 的区别</h3>
+<ul>
+<li>编程 IDE 的 Host 更强调「让 Agent 自主完成多步任务」（读代码→改代码→跑测试→看结果）；</li>
+<li>因此它对「多 Server 组合」「长链路工具调用」的依赖更强；</li>
+<li>权限模型也更激进（允许 Agent 跑命令），所以安全设置要更谨慎。</li>
+</ul>
+<h2 id="host_1">三、自研 Host：核心逻辑是什么</h2>
+<p>如果你想做一个自己的 AI 应用，并接入 MCP，核心就这五步：</p>
+<h3 id="1-mcp-client">第 1 步：选一个 MCP Client 库</h3>
+<p>你的应用里需要一个「会讲 MCP 协议」的 Client 组件。各语言都有 SDK（Python、TypeScript 等）。它负责和 Server 建立连接、收发 JSON-RPC。</p>
+<h3 id="2-server">第 2 步：启动 / 连接 Server</h3>
+<ul>
+<li><strong>STDIO</strong>：用 <code>subprocess</code> 把 Server 脚本拉成子进程，把它的 stdin/stdout 接给 Client；</li>
+<li><strong>HTTP+SSE</strong>：Client 用 POST 发请求、用 SSE 收推送。</li>
+</ul>
+<h3 id="3">第 3 步：能力发现</h3>
+<p>连上后，Client 调 <code>tools/list</code>、<code>resources/list</code>、<code>prompts/list</code>，拿到 Server 会什么，存起来给模型用。</p>
+<h3 id="4">第 4 步：把能力喂给模型</h3>
+<p>把发现到的工具清单，按你所用模型的格式（OpenAI 的 / Anthropic 的 / 通用的），塞进每次请求。模型才知道有这些工具可用。</p>
+<h3 id="5">第 5 步：转发调用、回灌结果</h3>
+<p>模型返回「我要调 X 工具、参数是 Y」，你的程序：
+1. 通过 Client 把调用发给对应 Server；
+2. 拿到结果；
+3. 把结果拼回对话，让模型继续生成。</p>
+<p>这就是第二章讲的「模型出意图 → 程序执行 → 结果回灌」在你自建 Host 里的落地。</p>
+<h3 id="_4">伪代码骨架</h3>
+<pre class="codehilite"><code class="language-python">client = MCPClient()              # 第1步：Client 库
+await client.connect_stdio(&quot;python&quot;, &quot;server.py&quot;)   # 第2步：连 Server
+tools = await client.list_tools()                   # 第3步：发现能力
+reply = model.chat(user_msg, tools=tools)            # 第4步：带能力问模型
+if reply.wants_tool_call:
+    result = await client.call_tool(reply.name, reply.args)  # 第5步：转发
+    reply = model.chat(append_result(result))        # 回灌后继续
+</code></pre>
+
+<h2 id="_5">四、接入时的常见坑</h2>
+<table>
+<thead>
+<tr>
+<th>坑</th>
+<th>现象</th>
+<th>解决</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Server 启动失败</td>
+<td>Host 连不上</td>
+<td>看 Server 的 stderr 日志（不是 stdout）</td>
+</tr>
+<tr>
+<td>STDIO 下 Server 往 stdout 打日志</td>
+<td>协议流被污染，Client 报错</td>
+<td>日志改 stderr / 文件</td>
+</tr>
+<tr>
+<td>工具太多模型选不准</td>
+<td>瞎调、漏调</td>
+<td>精简暴露、写好 description</td>
+</tr>
+<tr>
+<td>远程 Server 没鉴权</td>
+<td>谁都能调</td>
+<td>加 token / HTTPS</td>
+</tr>
+<tr>
+<td>忘了回灌结果</td>
+<td>模型答非所问</td>
+<td>确保结果进了下一轮对话</td>
+</tr>
+</tbody>
+</table>
+<h2 id="host_2">五、三种 Host 怎么选</h2>
+<ul>
+<li><strong>只想体验</strong>：用 Claude Desktop，改个 JSON 配置就行；</li>
+<li><strong>做编程助手</strong>：用 Cursor 类 IDE，让 Agent 接代码/数据库 Server；</li>
+<li><strong>做自己的产品</strong>：用 MCP Client SDK 自研 Host，按上面五步走。</li>
+</ul>
+<p>MCP 的价值在这里体现得最清楚：<strong>同一个 Server，三个不同的 Host 都能直接用</strong>，不用为每家重写对接。</p>
+<h2 id="_6">六、本章小结</h2>
+<ul>
+<li>Host 是「连 Server 的那个应用」，主流有 Claude Desktop（配置式）、Cursor（Agent 式）、自研（SDK 式）；</li>
+<li>接入通用流程：选 Client 库 → 连 Server → 能力发现 → 喂给模型 → 转发调用并回灌；</li>
+<li>STDIO 用子进程 + stdin/stdout；HTTP+SSE 用 POST + SSE；</li>
+<li>常见坑：Server 日志污染 stdout、工具过多、远程无鉴权、忘回灌结果；</li>
+<li>核心价值：一个 Server 被多 Host 复用，零重复对接。</li>
+</ul>
+<p>下一章我们重点讲<strong>安全与权限</strong>——这是 MCP 落地时最容易翻车、也最重要的一环。</p>
+<hr />
+<p><em>小练习：如果你要做一个「团队内部的 AI 排障助手」，需要接（a）公司内部 API Server、（b）每个成员的本地日志 Server。这两个分别适合 STDIO 还是远程？在你的自研 Host 里要怎么管理这两种连接？</em></p></body></html>

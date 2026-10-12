@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>本地部署大模型 L10 · 由简入深</title>
+<style>
+  :root{
+    --l1:#3b82f6; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#f0fdf4; --ink:#052e16; --sub:#4d7c66;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#f0fdf4,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#15803d,#22c55e 55%,#4ade80);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(22,163,74,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#d1fae5;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#16a34a)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#16a34a;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #bbf7d0;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(22,163,74,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(22,163,74,.16);border-color:#16a34a}
+  .card .day{font-size:12px;color:#15803d;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #86efac;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#16a34a;border-color:#16a34a}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #bbf7d0;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(22,163,74,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#15803d}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#f0fdf4;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #86efac}
+  .btn{background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#15803d}
+  .btn.ghost{background:#fff;color:#16a34a;border:1px solid #16a34a}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#dcfce7;color:#15803d;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#052e16;color:#86efac;padding:2px 7px;border-radius:6px;font-size:12px}
+  .sel{display:inline-block;background:#fff;border:1px solid #86efac;border-radius:10px;padding:8px 14px;margin:5px 6px 0 0;font-size:14px;cursor:pointer;transition:.15s}
+  .sel:hover{border-color:#16a34a}
+  .sel.on{background:#16a34a;color:#fff;border-color:#16a34a}
+  .meter{height:14px;border-radius:999px;background:#dcfce7;overflow:hidden;margin:6px 0}
+  .meter > i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#4ade80,#16a34a)}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#dcfce7;border:1px solid #86efac;border-radius:12px;padding:12px 16px;font-size:13px;color:#166534;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L10 · 由简入深 AI 学习路线</div>
+  <h1>🖥️ 本地部署大模型</h1>
+  <p>把大模型装进你自己的电脑：隐私不外泄、不按量付费、断网也能用。从硬件选型到 Ollama 一键跑起，再到网页界面与 API 服务化。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · <a href="https://agent.zbjh.top/">agent</a> · local</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「为什么本地部署」到「从零搭一个本地 AI 助手」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里把「本地部署」的关键计算玩明白。</p>
+    <div class="demos">
+
+      <!-- 演示1 显存估算 -->
+      <div class="demo">
+        <h3>① 显存估算台</h3>
+        <p class="sub">选一个模型规模和精度，看看你的显卡到底够不够。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn ghost" id="reset1">重置</button>
+        </div>
+      </div>
+
+      <!-- 演示2 量化对比 -->
+      <div class="demo">
+        <h3>② 量化对比台</h3>
+        <p class="sub">同一个 7B 模型，FP16 / Q8 / Q4 的体积、显存与质量差多少？</p>
+        <div class="stage" id="stage2"></div>
+      </div>
+
+      <!-- 演示3 API 兼容 -->
+      <div class="demo">
+        <h3>③ API 兼容测试台</h3>
+        <p class="sub">像调 OpenAI 一样调本地模型——体验 OpenAI 兼容接口的调用格式。</p>
+        <div class="stage" id="stage3"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示中的数字为常见估算值，实际以你的硬件与模型实测为准。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · agent · <b>local</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L10</b> · 本地部署大模型 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"为什么需要本地部署：隐私、成本与离线"},
+  {no:"第2天", t:"硬件怎么选：显存、内存与 CPU 的账"},
+  {no:"第3天", t:"Ollama 入门：一行命令跑起大模型"},
+  {no:"第4天", t:"模型格式与量化：GGUF 与量化级别"},
+  {no:"第5天", t:"开源模型怎么挑：Llama、Qwen 与 DeepSeek"},
+  {no:"第6天", t:"推理引擎对比：llama.cpp、vLLM 与 Ollama"},
+  {no:"第7天", t:"Open WebUI：给本地模型装上网页界面"},
+  {no:"第8天", t:"API 服务化：把本地模型变成接口"},
+  {no:"第9天", t:"性能调优：并发、批处理与显存优化"},
+  {no:"第10天", t:"实战路线：从零搭一个本地 AI 助手"},
+];
+const KEY = "local_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：显存估算台 ============ */
+(function(){
+  const stage = document.getElementById("stage1");
+  const models = [
+    {n:"7B 模型", gb16:14,  gb8:7,  gb4:4},
+    {n:"13B 模型", gb16:26, gb8:13, gb4:7},
+    {n:"32B 模型", gb16:64, gb8:32, gb4:18},
+    {n:"70B 模型", gb16:140,gb8:70, gb4:40},
+  ];
+  const precs = [
+    {n:"FP16（全精度）", key:"gb16", tip:"质量最好，但最占显存"},
+    {n:"INT8（Q8）", key:"gb8", tip:"体积减半，质量几乎无损"},
+    {n:"INT4（Q4）", key:"gb4", tip:"体积最小，质量略降，单卡能跑"},
+  ];
+  let mi=0, pi=0;
+  function render(){
+    const m=models[mi], p=precs[pi];
+    const need=m[p.key];
+    let html = '<div class="muted" style="margin-bottom:8px">① 选模型规模：</div>';
+    models.forEach((x,i)=>{ html += '<span class="sel'+(i===mi?' on':'')+'" data-m="'+i+'">'+x.n+'</span>'; });
+    html += '<div class="muted" style="margin:14px 0 8px">② 选精度：</div>';
+    precs.forEach((x,i)=>{ html += '<span class="sel'+(i===pi?' on':'')+'" data-p="'+i+'">'+x.n+'</span>'; });
+    html += '<div style="margin-top:16px;background:#fff;border:1px solid #bbf7d0;border-radius:12px;padding:14px">';
+    html += '<div>需要显存（约）：<b style="color:#15803d;font-size:20px">'+need+' GB</b></div>';
+    html += '<div class="meter" style="margin-top:10px"><i style="width:'+Math.min(100,need*100/64)+'%"></i></div>';
+    html += '<div class="muted" style="font-size:12px;margin-top:4px">参考：RTX 3060 12G / 4070 12G / 4090 24G / M 系列 Mac 统一内存</div>';
+    html += '<div class="muted" style="margin-top:8px">'+p.tip+'。不够的话，换更小的模型或更低精度（Q4）。</div>';
+    html += '</div>';
+    stage.innerHTML = html;
+    stage.querySelectorAll(".sel[data-m]").forEach(b=>{ b.onclick=()=>{mi=+b.dataset.m;render();}; });
+    stage.querySelectorAll(".sel[data-p]").forEach(b=>{ b.onclick=()=>{pi=+b.dataset.p;render();}; });
+  }
+  document.getElementById("reset1").onclick = ()=>{ mi=0; pi=0; render(); };
+  render();
+})();
+
+/* ============ 演示2：量化对比台 ============ */
+(function(){
+  const stage = document.getElementById("stage2");
+  const rows = [
+    {k:"FP16（全精度）", size:"约 14 GB", vram:"约 14 GB", qual:"★★★★★ 满分", pct:100},
+    {k:"Q8（INT8）", size:"约 7 GB", vram:"约 7 GB", qual:"★★★★☆ 几乎无损", pct:58},
+    {k:"Q4（INT4）", size:"约 4 GB", vram:"约 4 GB", qual:"★★★☆☆ 略有损失", pct:33},
+  ];
+  function render(){
+    let html = '<div class="muted" style="margin-bottom:10px">以 7B 模型为例，量化前后的体积与质量：</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:14px">';
+    html += '<tr style="background:#dcfce7"><th style="padding:8px;border:1px solid #bbf7d0;text-align:left">精度</th><th style="padding:8px;border:1px solid #bbf7d0">模型文件</th><th style="padding:8px;border:1px solid #bbf7d0">占用显存</th><th style="padding:8px;border:1px solid #bbf7d0">质量</th></tr>';
+    rows.forEach(r=>{
+      html += '<tr><td style="padding:8px;border:1px solid #bbf7d0"><b>'+r.k+'</b></td>'
+        +'<td style="padding:8px;border:1px solid #bbf7d0">'+r.size+'</td>'
+        +'<td style="padding:8px;border:1px solid #bbf7d0">'+r.vram+'</td>'
+        +'<td style="padding:8px;border:1px solid #bbf7d0">'+r.qual+'</td></tr>';
+    });
+    html += '</table>';
+    html += '<div class="muted" style="margin-top:12px">结论：<b>Q8 是「性价比之王」</b>——体积减半、质量几乎无损；显存吃紧再上 Q4。这也是 Ollama 默认推荐 Q4_K_M 的原因。</div>';
+    stage.innerHTML = html;
+  }
+  render();
+})();
+
+/* ============ 演示3：API 兼容测试台 ============ */
+(function(){
+  const stage = document.getElementById("stage3");
+  const replies = [
+    "你好！我是一个运行在你本地电脑上的大语言模型（Ollama 本地推理）。有什么可以帮你？",
+    "本地部署的好处是：数据不出机器、不按量计费、完全离线可用。我现在就是例子——没有连任何云端 API。",
+    "要接 OpenAI 兼容接口很简单：把请求发到 http://localhost:11434/v1/chat/completions，代码几乎不用改。",
+  ];
+  let i = 0;
+  function render(){
+    const r = replies[i];
+    stage.innerHTML =
+      '<div class="muted" style="margin-bottom:8px">模拟一次 OpenAI 兼容调用（curl 形式）：</div>'
+      +'<pre style="background:#052e16;color:#86efac;padding:12px;border-radius:10px;font-size:12.5px;overflow:auto;line-height:1.7">'
+      +'curl http://localhost:11434/v1/chat/completions \\\n'
+      +'  -H "Content-Type: application/json" \\\n'
+      +'  -d \'{"model":"qwen2.5:7b","messages":[{"role":"user","content":"请用一句话介绍本地部署"}]}\'</pre>'
+      +'<div class="muted" style="margin:12px 0 8px">本地模型返回（模拟）：</div>'
+      +'<div style="background:#fff;border:1px solid #bbf7d0;border-radius:10px;padding:12px;font-size:14px">"'+r+'"</div>'
+      +'<div class="row"><button class="btn" id="next3">换一条消息 ▶</button></div>';
+    document.getElementById("next3").onclick = ()=>{ i=(i+1)%replies.length; render(); };
+  }
+  render();
+})();
+</script>
+</body>
+</html>

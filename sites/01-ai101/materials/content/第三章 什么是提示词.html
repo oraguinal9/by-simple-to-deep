@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><title>第三章 什么是提示词</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.8;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0ea5e9;padding-bottom:8px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 10px;text-align:left;}
+  th{background:#e0f2fe;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #7dd3fc;background:#f0f9ff;margin:12px 0;padding:8px 14px;color:#374151;}
+  a{color:#0ea5e9;}
+  .topbar{position:sticky;top:0;background:#0ea5e9;color:#fff;padding:8px 14px;margin:-28px -22px 22px;border-radius:0;}
+  .topbar a{color:#fff;font-weight:700;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回学习路线图</a></div><h1 id="prompt">第三章 什么是提示词（Prompt）</h1>
+<p>「提示词（Prompt）」是这两年最火的词之一。说白了，它没那么玄——<strong>你输给 AI 的那段话，就是提示词</strong>。</p>
+<h2 id="31">3.1 提示词就是「给模型的指令」</h2>
+<p>大模型是「接话高手」：你给它什么开头，它就顺着往下接。提示词，就是你精心设计的「开头」。</p>
+<ul>
+<li>你随口说：「写首诗。」——这是提示词，只是很粗糙。</li>
+<li>你认真写：「以春天和离别为主题，写一首七言绝句，押 an 韵，最后一句点明不舍。」——这还是提示词，但质量高得多。</li>
+</ul>
+<p><strong>模型本身不变，变的是你给它的「开头」。好的开头，决定好的输出。</strong></p>
+<h2 id="32">3.2 为什么提示词值得专门学</h2>
+<p>因为大模型「能力很强，但很听话」——它严格按你给的信息行事：</p>
+<ul>
+<li>你说得模糊 → 它自由发挥，结果随机、可能跑偏。</li>
+<li>你说得具体 → 它朝你指的方向走，结果稳定、对口。</li>
+</ul>
+<p>所以「提示词工程（Prompt Engineering）」不是玄学，而是一门<strong>把需求清晰传达给模型</strong>的技术：用尽量准确的语言，把「你要什么、以什么身份、什么格式、有什么限制」讲明白。</p>
+<h2 id="33">3.3 一个提示词的常见组成部分</h2>
+<p>一个好提示词，通常包含下面几块（不全都要，但缺了容易跑偏）：</p>
+<table>
+<thead>
+<tr>
+<th>组成</th>
+<th>作用</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>角色</strong></td>
+<td>设定身份，影响语气与专业度</td>
+<td>「你是一名小学老师」</td>
+</tr>
+<tr>
+<td><strong>任务</strong></td>
+<td>你要它做什么</td>
+<td>「解释什么是光合作用」</td>
+</tr>
+<tr>
+<td><strong>背景/上下文</strong></td>
+<td>提供的信息</td>
+<td>「听众是 8 岁孩子」</td>
+</tr>
+<tr>
+<td><strong>格式</strong></td>
+<td>输出长什么样</td>
+<td>「用 3 个要点，每点一句话」</td>
+</tr>
+<tr>
+<td><strong>约束</strong></td>
+<td>不能做什么 / 必须做什么</td>
+<td>「不要超过 50 字、用口语」</td>
+</tr>
+<tr>
+<td><strong>示例</strong></td>
+<td>给个样板，让它照着学</td>
+<td>「像这样：……」</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>口诀：<strong>角色 + 任务 + 背景 + 格式 + 约束 + 示例</strong>，缺哪块补哪块。</p>
+</blockquote>
+<h2 id="34">3.4 对比一下</h2>
+<p><strong>模糊提示词：</strong></p>
+<blockquote>
+<p>帮我写个自我介绍。</p>
+</blockquote>
+<p><strong>结构化提示词：</strong></p>
+<blockquote>
+<p>你是一位求职辅导老师。帮我写一段求职自我介绍，背景：计算机专业应届生，应聘后端开发，熟悉 Python 和 MySQL。要求：100 字内、分「我是谁 / 我会什么 / 我想要什么」三句、语气自信。</p>
+</blockquote>
+<p>第二个明显更可能一次到位。</p>
+<h2 id="35">3.5 衔接</h2>
+<p>知道了提示词由哪些部分组成，下一章我们就<strong>逐个拆解这些组成部分的写法技巧</strong>，并配上可直接套用的模板。</p>
+<blockquote>
+<p>✅ 自测：把「帮我推荐一部电影」补全成结构化提示词，至少包含角色、背景、格式三块。</p>
+</blockquote></body></html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第六章 PPO 训练循环：RLHF 是怎么一步步炼成的 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="ppo-rlhf">第六章 PPO 训练循环：RLHF 是怎么一步步炼成的</h1>
+<p>第五章讲了 PPO 的「零件」，这一章我们把它<strong>组装成一条流水线</strong>，看看一次完整的 RLHF 训练到底在跑什么。理解了这条流水线，你就看懂了 InstructGPT、ChatGPT 背后的那台「对齐发动机」。</p>
+<h2 id="_1">一、四个同框的模型（角色扮演）</h2>
+<p>RLHF 的 PPO 阶段，同时活在显存里的通常有<strong>四个模型</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>代号</th>
+<th>干什么</th>
+<th>是否更新参数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>策略模型</strong></td>
+<td>Actor (π)</td>
+<td>真正生成回答的模型，也是我们要训练的</td>
+<td>✅ 不断变好</td>
+</tr>
+<tr>
+<td><strong>参考模型</strong></td>
+<td>Reference (π_ref)</td>
+<td>SFT 后的初始模型，作为「别跑太远」的锚</td>
+<td>❌ 冻结</td>
+</tr>
+<tr>
+<td><strong>奖励模型</strong></td>
+<td>Reward (RM)</td>
+<td>给生成的回答打分</td>
+<td>❌ 冻结</td>
+</tr>
+<tr>
+<td><strong>价值模型</strong></td>
+<td>Critic (V)</td>
+<td>估算「当前状态往后的预期总奖励」，用来算优势</td>
+<td>✅ 和 Actor 一起训练</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>为什么这么「重」？因为 on-policy（第四章）要求现采现学，而打分、算优势、防塌陷都需要专门的模型。显存占用≈4 个模型，这就是 RLHF 贵的根源。</p>
+</blockquote>
+<h2 id="_2">二、一次迭代的七步</h2>
+<p>把一次 PPO 更新（一个 mini-batch）拆开看：</p>
+<p><strong>第 1 步：采样（Rollout）</strong>
+用当前 Actor 对一批问题 x，逐词生成回答 y。这一步产生轨迹：x → y₁ → … → y_T。</p>
+<p><strong>第 2 步：打分（Reward）</strong>
+把 (x, y) 送进冻结的 RM，得到整段回答的分数 r。有时还会在每步叠加一个 <strong>KL 惩罚项</strong>（来自 Reference），奖励变成 r − β·KL，越早偏离参考模型，奖励越低。</p>
+<p><strong>第 3 步：算优势（Advantage）</strong>
+用 Critic 估计每一步的 V(s)，结合结尾的 r，算出每个 token 位置的优势 A_t（第四章）。一句话：这一步选得好不好、比平均好多少。</p>
+<p><strong>第 4 步：构造损失</strong>
+对 Actor，用第五章的裁剪目标 L_PPO（优势×比值，clip 住）；对 Critic，用「它估的 V 与真实回报的误差」做回归损失。两者合在一起反向传播。</p>
+<p><strong>第 5 步：小步更新</strong>
+执行几次（比如 1~4 次）梯度更新，<strong>只动 Actor 和 Critic</strong>，且受 clip 限制，每次只挪一点点。</p>
+<p><strong>第 6 步：同步 Reference / RM</strong>
+Reference 和 RM 全程不动。它们像「评委席」，只打分、不改分。</p>
+<p><strong>第 7 步：回到第 1 步</strong>
+因为 on-policy，更新后的 Actor 已经变了，旧样本失效，必须<strong>重新采样</strong>再训。如此循环成千上万次。</p>
+<h2 id="_3">三、一张「信息流」图（文字版）</h2>
+<blockquote>
+<p>问题 x ──▶ Actor 生成 y ──▶ RM 打总分 r
+                                 │
+                                 ▼
+                   Critic 算 V，结合 r 得优势 A
+                                 │
+                                 ▼
+           Actor/Critic 用 (A, clip, KL) 更新参数
+                                 │
+        KL 项来自 Reference（始终冻结，当尺子）
+                                 │
+                        循环，直到收敛</p>
+</blockquote>
+<p>你可以把 Reference 想成「出厂设置相册」，Actor 每动一步都要回头看看：「我离出厂设置是不是太远了？」RM 是「客户满意度评分」，Critic 是「自身对成败的预判」。</p>
+<h2 id="_4">四、工程上的真实痛点</h2>
+<ul>
+<li><strong>显存爆炸</strong>：4 个模型同框。常用招数：用 <strong>LoRA</strong>（只训低秩适配，见 L5）挂在 Actor 上、用 ZeRO/张量并行切分、把 Reference 和 RM 用「参数卸载 / 共享」省显存。</li>
+<li><strong>奖励尺度漂移</strong>：RM 的分数范围可能不均匀，导致训练信号忽大忽小，需要归一化（如奖励减均值除标准差）。</li>
+<li><strong>采样慢</strong>：rollout 是逐词生成，是整条流水线最耗时的环节，往往靠大 batch、多卡推理加速。</li>
+<li><strong>不稳定</strong>：学习率、KL 系数 β、clip 范围 ε 都要精调，否则容易「训崩」或「训不动」。</li>
+</ul>
+<h2 id="rm-fine-tune">五、一个常被问的问题：为什么不直接用 RM 监督 fine-tune？</h2>
+<p>既然 RM 能给分数，能不能像 SFT 那样「让模型直接模仿高分回答」？不行，因为 RM 只给<strong>一个总分</strong>，它并不告诉你「哪个词、哪句话好」，也没法生成「标准高分回答」给你模仿。RL 的价值，正是通过「试错 + 优势分配」让模型自己摸索出<strong>如何持续产出高分回答</strong>的策略。</p>
+<h2 id="_5">本章小结</h2>
+<ul>
+<li>RLHF 的 PPO 阶段同框 <strong>4 个模型</strong>：Actor（训）、Critic（训）、Reference（冻）、Reward（冻）。</li>
+<li>一次迭代七步：采样 → RM 打分(+KL) → Critic 算优势 → 构造裁剪损失 → 小步更新 → 参考/奖励冻结 → 循环重采样（on-policy）。</li>
+<li>信息流：问题→Actor 生成→RM/Critic 评分→Actor/Critic 更新→受 Reference 约束。</li>
+<li>工程痛点：显存（4 模型）、奖励漂移、采样慢、超参敏感；常用 LoRA + 并行 + 奖励归一化缓解。</li>
+</ul>
+<h2 id="_6">思考与延伸</h2>
+<ul>
+<li>为什么 Reference 和 RM 要「冻结」而不是一起训？如果一起训会怎样？</li>
+<li>假如显存放不下 4 个模型，你认为优先拿掉/压缩哪一个最划算？为什么？</li>
+<li>延伸：搜索「InstructGPT training pipeline」看原论文图 2，对照本章流程。</li>
+</ul></body></html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>硬件怎么选：显存、内存与 CPU 的账 | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="cpu">硬件怎么选：显存、内存与 CPU 的账</h1>
+<p>上一篇讲了「为什么需要本地部署」，相信你已经心痒痒，想看看自己的电脑能不能跑。这一篇我们把账算清楚：<strong>跑大模型到底需要什么硬件？显存、内存、CPU 各自扮演什么角色？</strong> </p>
+<p>别怕，这一篇不要求你懂电路。我们从一个「厨房比喻」开始，把三大件的关系讲得明明白白。</p>
+<h2 id="1-cpu">1. 先认识三大件：显存是「操作台」，内存是「备菜区」，CPU 是「厨师」</h2>
+<p>先给没有硬件基础的读者建立一个直觉。</p>
+<p>跑大模型（推理，也就是「让模型回答问题」这件事），主要涉及电脑的三个部件：</p>
+<table>
+<thead>
+<tr>
+<th>部件</th>
+<th>通俗类比</th>
+<th>在这件事里的角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>显卡（GPU）</strong></td>
+<td>后厨的「大厨」</td>
+<td>负责最重的并行计算，把模型「算」起来</td>
+</tr>
+<tr>
+<td><strong>显存（VRAM）</strong></td>
+<td>大厨的「操作台」</td>
+<td>模型本体必须放在这里，才能被快速调用</td>
+</tr>
+<tr>
+<td><strong>内存（RAM）</strong></td>
+<td>后厨的「备菜区」</td>
+<td>临时存各种数据，也会放一部分模型（当显存不够时）</td>
+</tr>
+<tr>
+<td><strong>CPU</strong></td>
+<td>后厨的「总管」</td>
+<td>协调调度；显存不够时它亲自下厨（虽然慢）</td>
+</tr>
+</tbody>
+</table>
+<p>关键结论提前说：<strong>跑大模型的瓶颈，几乎永远是「显存」</strong>。</p>
+<p>为什么？因为模型在推理前，要把全部权重（也就是「模型大脑里的所有参数」）加载到一个地方，供计算单元随时读取。这个「随手能拿到」的地方就是显存。操作台只有那么大，放不下整个模型，厨师就做不了这道菜。</p>
+<h2 id="2">2. 模型有多大？先看懂参数与精度的关系</h2>
+<h3 id="21-7b13b70b">2.1 什么是「7B」「13B」「70B」？</h3>
+<p>B 是 Billion（十亿）的缩写。<strong>7B 模型 = 70 亿个参数</strong>。</p>
+<p>参数是什么？可以把模型想象成一本超级厚的「工具书」，参数就是书里的每一个「知识点/判断标准」。参数越多，书越厚，懂的事情越多，但也越占地方。</p>
+<p>常见规模划分：</p>
+<ul>
+<li><strong>小模型（0.5B～4B）</strong>：跑得飞快，手机都能跑，但能力有限，适合简单任务；</li>
+<li><strong>中型模型（7B～14B）</strong>：本地玩家的甜点区，效果好、硬件要求适中；</li>
+<li><strong>大模型（32B～72B）</strong>：能力强很多，但需要好显卡或大内存；</li>
+<li><strong>超大模型（100B+）</strong>：基本告别个人电脑，那是云端的领域。</li>
+</ul>
+<h3 id="22-fp16fp32">2.2 什么是 FP16、FP32？——精度的账</h3>
+<p>模型参数存到电脑里，需要一种「数字表示法」，最常见的有：</p>
+<ul>
+<li><strong>FP32</strong>（单精度，32 位）：每个参数占 4 字节，最精确，最占空间；</li>
+<li><strong>FP16</strong>（半精度，16 位）：每个参数占 2 字节，精度够用，占一半空间——<strong>这是本地推理最常见的基准</strong>；</li>
+<li><strong>INT8 / INT4</strong>（量化，8 位 / 4 位整数）：每个参数占 1 / 0.5 字节，体积更小、速度更快，但精度打折。这就是第 4 篇 <code>content/模型格式与量化：GGUF 与 Q4/Q8.md</code> 要讲的内容。</li>
+</ul>
+<p><strong>显存需求的估算公式（超简单）</strong>：</p>
+<pre class="codehilite"><code>所需显存 ≈ 参数数量 × 每个参数占用的字节数
+</code></pre>
+
+<p>例如 7B 模型，用 FP16（2 字节）：</p>
+<pre class="codehilite"><code>70 亿 × 2 字节 = 140 亿字节 ≈ 14 GB
+</code></pre>
+
+<p>看，这就是上一篇提到「7B 模型约需 14GB」的来源。</p>
+<h2 id="3">3. 对照表：模型规模 × 精度 × 显存需求</h2>
+<p>我帮你把常用组合的账直接算好，这张表建议截图保存：</p>
+<table>
+<thead>
+<tr>
+<th>模型规模</th>
+<th>FP16 需要显存</th>
+<th>INT8（Q8）需要</th>
+<th>INT4（Q4）需要</th>
+<th>能否纯 CPU 跑</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.5B</td>
+<td>~1 GB</td>
+<td>~0.6 GB</td>
+<td>~0.4 GB</td>
+<td>✅ 轻松</td>
+</tr>
+<tr>
+<td>1.5B</td>
+<td>~3 GB</td>
+<td>~1.6 GB</td>
+<td>~1 GB</td>
+<td>✅ 轻松</td>
+</tr>
+<tr>
+<td>3B</td>
+<td>~6 GB</td>
+<td>~3.2 GB</td>
+<td>~2 GB</td>
+<td>✅ 可以（慢）</td>
+</tr>
+<tr>
+<td>7B</td>
+<td>~14 GB</td>
+<td>~7 GB</td>
+<td>~4.5 GB</td>
+<td>⚠️ 8GB 内存能跑，很慢</td>
+</tr>
+<tr>
+<td>14B</td>
+<td>~28 GB</td>
+<td>~14 GB</td>
+<td>~9 GB</td>
+<td>❌ 建议至少 16GB 内存</td>
+</tr>
+<tr>
+<td>32B</td>
+<td>~64 GB</td>
+<td>~32 GB</td>
+<td>~20 GB</td>
+<td>⚠️ 32GB 内存勉强，非常慢</td>
+</tr>
+<tr>
+<td>70B</td>
+<td>~140 GB</td>
+<td>~70 GB</td>
+<td>~40 GB</td>
+<td>❌ 不现实</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>上表是「纯模型权重」的显存需求，实际操作时还要留出<strong>上下文（KV cache，见第 9 篇 <code>content/性能调优：并发、批处理与显存优化.md</code>）</strong> 的余量，建议再预留 2～4GB 空间。数字会因量化方式、上下文长度略有出入，但量级完全够你做决策。</p>
+</blockquote>
+<p><strong>一句话读表</strong>：想让体验「流畅」而不是「卡顿」，显存请按 FP16 那一列的上限去对标；想「挤一挤」就用量化那一列。</p>
+<h2 id="4-vs">4. 推理 vs 训练：为什么普通人只需要考虑「推理」</h2>
+<p>这里必须澄清一个常见误区。很多人一听「跑大模型」就以为要烧几块几十万的显卡。其实那是<strong>训练（training）</strong>的事。</p>
+<ul>
+<li><strong>训练</strong>：让模型从零学知识，需要海量数据、超长周期，是 AI 公司和高校的事。一次训练耗电抵一个小城市的日常用电，普通人不用碰。</li>
+<li><strong>微调（fine-tuning）</strong>：在训练好的模型基础上「补课」，让它学你的风格、你的业务。对硬件要求中等（可量化，入门级显卡也能做）。</li>
+<li><strong>推理（inference）</strong>：模型已经训练好，你只是在「用」它——输入问题、得到回答。<strong>本地部署 99% 的场景是推理</strong>，推理对显存的要求远低于训练，一块家用显卡就够。</li>
+</ul>
+<p>所以记住：<strong>我们本地部署，主要干的是「推理」这件事，别被「训练要烧钱」吓退。</strong></p>
+<h2 id="5-cpu">5. 没有好显卡怎么办？CPU 方案完全可行</h2>
+<p>如果你的电脑<strong>没有独显，或者只有 4GB、8GB 显存的入门卡</strong>，先别灰心。三个现实可行的方案：</p>
+<h3 id="cpu-05b3b">方案一：纯 CPU 跑小模型（0.5B～3B）</h3>
+<p>大模型的推理原理是大量矩阵乘法，天生适合 GPU 的并行计算，CPU 也能算，就是慢——但<strong>慢不代表不可用</strong>。</p>
+<ul>
+<li>0.5B～1.5B 的小模型在 CPU 上跑，每秒能出 10～20 个字，<strong>基本可用</strong>；</li>
+<li>7B 模型在 CPU 上跑，每秒可能只有 1～3 个字，<strong>能用来聊天但很煎熬</strong>；</li>
+<li>内存建议 16GB 起步，32GB 更舒服。</li>
+</ul>
+<h3 id="cpu_1">方案二：CPU + 内存「混合跑」（推荐入门）</h3>
+<p>这就是 <strong>llama.cpp / Ollama</strong> 这类工具的重要能力（见第 6 篇 <code>content/推理引擎对比：llama.cpp、vLLM 与 Ollama.md</code>）：把模型的一部分放进显存，剩下的放在内存里，让 GPU 和 CPU 协同工作。</p>
+<ul>
+<li>你有 8GB 显存 + 16GB 内存 → 可以跑 7B 量化模型，速度比纯 CPU 快不少；</li>
+<li>你有 12GB 显存 + 32GB 内存 → 14B 量化模型也能跑，效果明显上一个台阶。</li>
+</ul>
+<h3 id="cpu_2">方案三：内存超大 + 纯 CPU 跑中大型模型</h3>
+<p>如果你有一台 64GB 内存的机器（很多办公机、Mac 高配其实是这个量级），直接 CPU 跑 32B 的量化模型也行——速度慢，但<strong>效果很好</strong>，适合「不赶时间、要质量」的场景（比如批量写报告、分析长文档）。</p>
+<blockquote>
+<p><strong>Mac 用户的特别提醒</strong>：Apple Silicon（M 系列芯片）的 Mac，其「统一内存」（Unified Memory）既能当显存又能当内存，Ollama 可以直接用内存跑大模型。一台 16GB 的 M 系列 Mac 跑 7B 模型非常流畅，这是「没显卡」人群里体验最好的一种。</p>
+</blockquote>
+<h2 id="6">6. 一张图看懂「我的电脑能跑什么」</h2>
+<p>把上面的内容浓缩成决策表，按你的硬件对号入座：</p>
+<table>
+<thead>
+<tr>
+<th>你的配置</th>
+<th>建议的模型规模（量化后）</th>
+<th>预期体验</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>只有 8GB 内存，无独显</td>
+<td>0.5B～1.5B</td>
+<td>能用，聊天级</td>
+</tr>
+<tr>
+<td>16GB 内存，无独显</td>
+<td>1.5B～3B</td>
+<td>流畅，小任务够用</td>
+</tr>
+<tr>
+<td>16GB 内存 + 4GB 显存</td>
+<td>3B～7B</td>
+<td>可以，速度一般</td>
+</tr>
+<tr>
+<td>32GB 内存 + 8GB 显存</td>
+<td>7B～14B</td>
+<td>甜点区，推荐</td>
+</tr>
+<tr>
+<td>32GB 内存 + 12GB 显存</td>
+<td>14B～32B</td>
+<td>很舒服</td>
+</tr>
+<tr>
+<td>64GB 内存 + 16GB+ 显存</td>
+<td>32B～70B</td>
+<td>进阶玩家</td>
+</tr>
+<tr>
+<td>M 系列 Mac 16GB</td>
+<td>7B～14B</td>
+<td>流畅</td>
+</tr>
+<tr>
+<td>M 系列 Mac 32GB+</td>
+<td>32B</td>
+<td>很舒服</td>
+</tr>
+</tbody>
+</table>
+<p><strong>新手建议</strong>：不管你什么硬件，第一步都先跑一个 <strong>7B 的 Q4 量化模型</strong>——它是对硬件最友好、效果最稳的「万能起点」。跑通了，再逐步往上试探。</p>
+<h2 id="7">7. 其他几个容易踩的坑</h2>
+<h3 id="71-vs">7.1 笔记本显卡 vs 台式机显卡</h3>
+<p>笔记本的显卡虽然型号也叫 RTX 4060，但功耗墙更低（性能释放约 60%～80%），且显存通常比台式机少。买之前先查清楚你笔记本的真实显存。</p>
+<h3 id="72">7.2 「共享显存」不是真显存</h3>
+<p>很多显卡广告说「8GB 显存 + 16GB 共享显存」，那个「共享显存」是借用内存的，速度差一个数量级。<strong>判断标准只看独立显存（dedicated VRAM）多少。</strong></p>
+<h3 id="73">7.3 硬盘空间也别忘了</h3>
+<p>模型文件动辄 4～40GB（见第 4 篇的量化体积表）。下载前确认 C 盘或模型存放盘有足够空间，SSD（固态硬盘）加载模型比机械硬盘快得多，强烈建议模型放 SSD。</p>
+<h3 id="74">7.4 电源与散热</h3>
+<p>桌面高端显卡满载功耗 200W+，电源瓦数要够，机箱散热要好。长期满载导致过热降频，速度会打折扣。</p>
+<h2 id="8">8. 怎么快速查看自己电脑的配置？</h2>
+<p>你不需要装任何第三方软件，用系统自带工具就能查到最关键的三样：显存、内存、CPU。</p>
+<p><strong>Windows 用户</strong>：</p>
+<ol>
+<li>按 <code>Win + R</code>，输入 <code>dxdiag</code> 回车，打开「DirectX 诊断工具」；</li>
+<li>看「显示」标签页：上面有显卡型号，下面「显示内存 (VRAM)」就是显存大小；</li>
+<li>看「系统」标签页：有内存大小和 CPU 型号。</li>
+</ol>
+<p><strong>macOS 用户</strong>：点左上角苹果图标 →「关于本机」，直接看到芯片型号（如 M3）和内存大小。Apple Silicon 的统一内存就是可用的「显存」，比如 16GB 的 M3 大约等价于「16GB 显存」的体验。</p>
+<p><strong>Linux 用户</strong>：终端执行：</p>
+<pre class="codehilite"><code class="language-bash"># 查看显卡与显存
+nvidia-smi
+
+# 查看内存与 CPU
+free -h
+lscpu
+</code></pre>
+
+<p>查到结果后，对着第 6 节「我的电脑能跑什么」的表格对号入座，就知道自己该从哪个模型起步了。</p>
+<h2 id="9">9. 三档预算配置方案（直接抄作业）</h2>
+<p>如果你确定要为此掏钱，这里给三档「闭眼买」的方案（价格为 2025 年左右的参考区间，仅供参考）：</p>
+<table>
+<thead>
+<tr>
+<th>档位</th>
+<th>大致预算</th>
+<th>配置要点</th>
+<th>能跑什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>入门</td>
+<td>0 元</td>
+<td>就用现有电脑 + CPU 跑小模型</td>
+<td>1.5B～3B，聊天级</td>
+</tr>
+<tr>
+<td>实用</td>
+<td>2000～4000 元</td>
+<td>加一张 12GB 显存的显卡（如 RTX 3060 12G 一类的甜点卡）+ 32GB 内存</td>
+<td>7B～14B 量化模型，流畅</td>
+</tr>
+<tr>
+<td>进阶</td>
+<td>6000～12000 元</td>
+<td>16GB 以上显存的显卡 + 64GB 内存 + 大容量固态硬盘</td>
+<td>32B～70B 量化模型</td>
+</tr>
+</tbody>
+</table>
+<p><strong>几点省钱建议</strong>：</p>
+<ol>
+<li><strong>二手显卡是本地玩家的好朋友</strong>。本地推理不吃「最新架构」的红利，上一代的中高端卡性能完全够用，二手价能省三成以上；</li>
+<li><strong>内存 32GB 是甜点</strong>：16GB 内存跑 7B 会比较局促，32GB 基本无痛；64GB 则直接解锁 CPU 跑中大型模型的玩法；</li>
+<li><strong>固态硬盘必须</strong>：模型加载速度、系统流畅度都靠它，千万别在这上面省；</li>
+<li><strong>先软件后硬件</strong>：先用现有电脑跑通流程（第 3 篇），确定「真的需要」再买卡——避免冲动消费。</li>
+</ol>
+<h2 id="9_1">9. 常见硬件问答</h2>
+<h3 id="91">9.1 「笔记本能跑大模型吗？」</h3>
+<p>能，但有前提。关键是看<strong>独立显存</strong>：8GB 显存的笔记本跑 7B 量化模型没问题；只有核显（共享内存）的笔记本只能跑 1.5B～3B 小模型。另外注意散热——笔记本跑大模型发热大，长时间满载会降频变慢。</p>
+<h3 id="92">9.2 「内存和显存到底什么关系？」</h3>
+<p>可以这样理解：<strong>显存是显卡自带的高速「台面」，内存是电脑的「仓库」</strong>。模型要跑得快，就得整体放在台面上（显存）；台面不够，部分放仓库（内存），让 CPU 和 GPU 配合搬运。仓库越大，能「挤」的模型越大，但搬运本身要花时间，所以速度会降。</p>
+<h3 id="93-8gb-7b">9.3 「为什么我的 8GB 显存显卡跑 7B 还是报错？」</h3>
+<p>因为显存还要装 KV cache（上下文缓存）和其他临时数据，不是只有模型本身。8GB 显存跑 7B 的 Q4 版本刚刚好，但一旦上下文拉长（比如长文档总结），KV cache 就把显存吃满了。对策是<strong>缩短上下文</strong>或<strong>降量化</strong>（第 9 篇 <code>content/性能调优：并发、批处理与显存优化.md</code> 会详细讲）。</p>
+<h3 id="94">9.4 「跑模型和玩游戏，对显卡的要求一样吗？」</h3>
+<p>不完全一样。游戏看重「峰值算力」和「帧数」，大模型推理看重「显存容量」和「显存带宽」。所以一张「游戏表现一般但显存大、带宽宽」的显卡，跑模型可能反而比旗舰游戏卡更实用——<strong>选卡时优先盯显存容量</strong>，别只看算力。</p>
+<h3 id="95">9.5 「显存带宽重要吗？」</h3>
+<p>非常重要，是仅次于容量的第二个指标。模型推理时，GPU 需要高速读取权重，带宽越低越「卡顿」。这也是为什么高端卡跑模型明显更快——不只是算力强，带宽也宽。预算允许时，选带宽高的卡。</p>
+<h2 id="10">10. 本章小结</h2>
+<p>这一篇的「账」可以总结成三句话：</p>
+<ol>
+<li><strong>显存是第一瓶颈</strong>：模型必须装进显存才能快跑，显存 = 参数 × 精度；</li>
+<li><strong>量化是把钥匙</strong>：FP16 的 14GB 需求，量化成 Q4 只要约 4.5GB，普通人也能上车；</li>
+<li><strong>没显卡也能玩</strong>：CPU + 小模型慢速可用，M 系列 Mac 更是低门槛方案。</li>
+</ol>
+<p>现在你已经知道「要买什么」或者「手头有什么」。接下来最重要的一步——<strong>把模型真正跑起来</strong>。下一篇我们介绍一个让整个流程简单到不可思议的工具：Ollama。</p>
+<p><strong>下一站：<code>content/Ollama 入门：一行命令跑起大模型.md</code></strong>。</p></body></html>

@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><title>第一章 什么是人工智能与大模型</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.8;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0ea5e9;padding-bottom:8px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 10px;text-align:left;}
+  th{background:#e0f2fe;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #7dd3fc;background:#f0f9ff;margin:12px 0;padding:8px 14px;color:#374151;}
+  a{color:#0ea5e9;}
+  .topbar{position:sticky;top:0;background:#0ea5e9;color:#fff;padding:8px 14px;margin:-28px -22px 22px;border-radius:0;}
+  .topbar a{color:#fff;font-weight:700;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回学习路线图</a></div><h1 id="_1">第一章 什么是人工智能与大模型</h1>
+<p>这一章帮你建立最基础的心智模型：<strong>不用任何公式</strong>，只要能分清「AI / 机器学习 / 深度学习 / 大模型」这几层关系就够了。</p>
+<h2 id="11-ai">1.1 一句话理解 AI</h2>
+<p><strong>人工智能（AI）</strong> 是一个大帽子：凡是让机器「看起来像在思考、能完成通常需要人类智能的任务」的技术，都算 AI。下棋、翻译、认脸、写文章，都是 AI 的应用。</p>
+<p>但 AI 不是「一个程序」，而是一堆方法的统称。</p>
+<h2 id="12">1.2 从机器学习到深度学习</h2>
+<p>可以把这几个概念想成「套娃」：</p>
+<pre class="codehilite"><code>人工智能 (AI)
+ └─ 机器学习 (ML)：让机器从数据中自己找规律，而不是人写死规则
+     └─ 深度学习 (DL)：用「神经网络」这一种特别强的模型来学规律
+         └─ 大语言模型 (LLM)：深度学习里专门处理「语言」的一类大模型
+</code></pre>
+
+<ul>
+<li><strong>传统编程</strong>：人写规则，机器执行。比如「如果温度&gt;30，就提醒防暑」。</li>
+<li><strong>机器学习</strong>：人给数据+答案，机器自己总结规则。比如给一万张猫狗图，机器学会分辨。</li>
+<li><strong>深度学习</strong>：用很多层「神经元」组成的网络，能自动从原始数据里提取特征，特别适合图像、语言、声音。</li>
+</ul>
+<h2 id="13">1.3 什么是「大模型」</h2>
+<p>「大模型」里的「大」主要指三件事：</p>
+<ol>
+<li><strong>参数多</strong>：模型内部有几十亿到上千亿个可调节的数字（参数）。参数越多，能记住的模式越细。</li>
+<li><strong>数据多</strong>：在海量文本（网页、书籍、代码）上训练。</li>
+<li><strong>算力强</strong>：靠大量 GPU 训练出来。</li>
+</ol>
+<p>你可以把大模型想象成一个「读过了几乎整个互联网」的超级速记员——它未必真正「理解」，但见过太多例子，所以能根据上下文「续写」出像人写的东西。</p>
+<h2 id="14">1.4 它到底在做什么：预测下一个字</h2>
+<p>大语言模型最核心的能力其实很简单：<strong>给定前面的文字，预测「下一个最可能出现的词」</strong>。</p>
+<blockquote>
+<p>输入：今天天气真
+模型预测下一个词：好 / 热 / 不错 ……（选概率最高的）</p>
+</blockquote>
+<p>它一个字一个字地往外蹦，连起来就像在「说话」。所以你看它「写文章、答题、翻译」，本质上都是同一件事：<strong>不停猜下一个词</strong>。</p>
+<p>理解这一点很重要：它<strong>不是在数据库里检索答案</strong>，而是在「凭见过的大量文本，算出接下来最合理的字」。这也解释了为什么它会「一本正经地胡说八道」（下一节会讲）——因为猜测偶尔会跑偏。</p>
+<h2 id="15">1.5 常见误区</h2>
+<ul>
+<li>❌ 误区：大模型「联网搜索」了所有知识。
+  ✅ 真相：训练时把数据「压缩」进了参数；回答时通常<strong>不联网</strong>，只是凭记忆生成。</li>
+<li>❌ 误区：它像人一样「懂」意思。
+  ✅ 真相：它更像一个极其擅长「接话」的统计模型，没有真实感受。</li>
+<li>❌ 误区：它永远正确。
+  ✅ 真相：它会出错、会编造，需要你保持判断。</li>
+</ul>
+<h2 id="16">1.6 小结与衔接</h2>
+<p>你已经知道：AI 是个大范畴，大模型是其中专门处理语言的「深度学习模型」，核心能力是「预测下一个词」。</p>
+<p>下一章，我们直接上手——<strong>怎么跟这个「接话高手」对话</strong>，才能让它更好地帮你。</p>
+<blockquote>
+<p>✅ 自测：能不能用一句话向朋友解释「大模型为什么有时候会胡说八道」？</p>
+</blockquote></body></html>

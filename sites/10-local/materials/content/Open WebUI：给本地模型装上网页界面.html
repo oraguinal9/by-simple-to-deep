@@ -1,0 +1,250 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Open WebUI：给本地模型装上网页界面 | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="open-webui">Open WebUI：给本地模型装上网页界面</h1>
+<p>到现在为止，你都是通过「终端黑框」和模型聊天。这当然很酷，但如果你想给朋友用、想在手机/平板上访问、想要一个像 ChatGPT 一样漂亮的网页界面——该上 <strong>Open WebUI</strong> 了。</p>
+<p>这一篇的目标：<strong>二十分钟内，让你的本地模型拥有一个功能齐全的「ChatGPT 同款」网页界面。</strong></p>
+<h2 id="1-open-webui">1. 先建立一个直觉：Open WebUI 是「咖啡馆前台」</h2>
+<p>你的模型（Ollama）是后厨，Open WebUI 是前台：</p>
+<ul>
+<li>顾客（你/你的朋友）进店，看到的是漂亮的菜单和座椅（网页界面）；</li>
+<li>点单后，前台把单子转给后厨（Ollama 跑模型）；</li>
+<li>做好后端上来（回答显示在网页上）。</li>
+</ul>
+<p>技术上说：<strong>Open WebUI 是一个跑在你电脑上的网页服务，它只做「界面和交互」，真正干活的是背后的 Ollama</strong>。两者通过 HTTP 请求对接（Ollama 提供的本地 API，见第 8 篇 <code>content/API 服务化：把本地模型变成接口.md</code>）。</p>
+<p>一次完整的请求是这样流动的：</p>
+<pre class="codehilite"><code>你在浏览器里输入问题
+   ↓
+Open WebUI 收到并保存对话（浏览器 → 3000 端口）
+   ↓
+Open WebUI 把请求转发给 Ollama（http://localhost:11434）
+   ↓
+Ollama 加载模型，逐字生成回答
+   ↓
+回答原路返回，显示在网页上
+</code></pre>
+
+<p>这段流程解释了三个现象：网页打开很快但回答要等——因为速度由「后厨」（模型和硬件）决定；Open WebUI 和 Ollama 要分开装——它们是两个独立程序，职责不同；以及「换模型不用重启网页」——网页只是把请求转发出去，模型切换发生在 Ollama 那一层。</p>
+<p>为什么要多此一举？</p>
+<ol>
+<li><strong>好看</strong>：ChatGPT 级别的现代化界面，聊天气泡、Markdown 渲染、代码高亮；</li>
+<li><strong>多用户</strong>：注册账号、多人同时用，每个人的对话互相隔离；</li>
+<li><strong>多端</strong>：手机、平板、同事的电脑，只要在同一网络下，浏览器一开就能用；</li>
+<li><strong>功能扩展</strong>：联网搜索、文件上传、知识库（RAG）、语音等，后厨（模型）不用动，前台全给你加上。</li>
+</ol>
+<h2 id="2">2. 部署前的准备</h2>
+<h3 id="21">2.1 前提条件</h3>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>要求</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ollama</td>
+<td>已安装并在运行</td>
+<td>第 3 篇已完成；用 <code>ollama serve</code> 确认服务在 11434 端口</td>
+</tr>
+<tr>
+<td>模型</td>
+<td>至少一个已下载</td>
+<td><code>ollama run qwen2.5:7b</code> 跑通过即可</td>
+</tr>
+<tr>
+<td>Docker（推荐路线）</td>
+<td>已安装</td>
+<td>最简单可靠的部署方式</td>
+</tr>
+<tr>
+<td>或者 Python 3.11+</td>
+<td>替代路线</td>
+<td>没有 Docker 时的备选方案</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>先确认 Ollama 服务正常：</p>
+<p><code>bash
+curl http://localhost:11434/api/tags</code></p>
+<p>如果返回一段包含你已装模型名字的 JSON，说明后厨「开火了」，可以部署前台。</p>
+</blockquote>
+<h3 id="22-docker">2.2 关于 Docker：一句话解释</h3>
+<p>Docker 是「集装箱」——把 Open WebUI 连同它需要的运行环境打包成一个盒子，在任何电脑上一键启动，不污染你的系统，删掉也干干净净。对 Open WebUI 这种组件，Docker 是最省心的方式。</p>
+<blockquote>
+<p>对「Docker 是什么」还没概念的读者，暂时理解成「一键启动器」就足够了。你不需要懂容器、镜像这些底层概念——只要按命令执行，Open WebUI 就会被装进这个「集装箱」里跑起来。</p>
+</blockquote>
+<h2 id="3-docker">3. 方案一（推荐）：Docker 一键启动</h2>
+<p>打开终端，执行这一条命令：</p>
+<pre class="codehilite"><code class="language-bash">docker run -d -p 3000:8080 --add-host=host.docker.internal:host-gateway \
+  -v open-webui:/app/backend/data \
+  --name open-webui \
+  --restart always \
+  ghcr.io/open-webui/open-webui:main
+</code></pre>
+
+<p>初次运行会自动拉取镜像（约 2～3GB，需几分钟，视网速而定），之后每次开机它都会自动启动。</p>
+<p>启动完成后，打开浏览器访问：</p>
+<pre class="codehilite"><code>http://localhost:3000
+</code></pre>
+
+<h3 id="31">3.1 首次使用三步走</h3>
+<ol>
+<li><strong>注册账号</strong>：第一眼看到的是登录页，点「注册」，创建你的第一个账号（第一个账号自动成为管理员）；</li>
+<li><strong>登录</strong>：进入主界面，和 ChatGPT 几乎一模一样；</li>
+<li><strong>连接 Ollama</strong>：页面右上角（或设置里）找到「连接」，填写 Ollama 地址：</li>
+<li>地址填：<code>http://host.docker.internal:11434</code></li>
+<li>（Windows/macOS 用这个地址让 Docker 容器访问宿主机上的 Ollama；如果是 Linux 直接部署，可能填 <code>http://localhost:11434</code>）</li>
+<li>点「保存」后，下拉模型列表就能看到你已下载的模型（如 <code>qwen2.5:7b</code>）。</li>
+</ol>
+<blockquote>
+<p><strong>如果模型列表是空的</strong>：检查 1) Ollama 服务是否在运行；2) 连接地址是否填对；3) 是否已下载模型（<code>ollama list</code> 看看）。90% 的「连不上」都是这三件事。</p>
+</blockquote>
+<h3 id="32">3.2 局域网访问：让手机/同事也能用</h3>
+<p>默认的 <code>localhost:3000</code> 只有本机能用。想在同一局域网内其他设备访问：</p>
+<ol>
+<li>查你电脑的局域网 IP（Windows 用 <code>ipconfig</code> 看 IPv4 地址，比如 <code>192.168.1.5</code>）；</li>
+<li>其他设备浏览器访问：<code>http://192.168.1.5:3000</code>。</li>
+</ol>
+<blockquote>
+<p>安全性提醒：这等于把你的 AI 暴露给整个局域网，建议尽快设置好账号密码（默认要求注册登录，其实已经相对安全），不要在公共网络（如咖啡馆 Wi-Fi）上长期开放。</p>
+</blockquote>
+<h2 id="4-docker">4. 方案二（替代）：没有 Docker 怎么办？</h2>
+<p>没装 Docker、或不想装，用 Python 直接跑：</p>
+<pre class="codehilite"><code class="language-bash"># 需要 Python 3.11+
+pip install open-webui
+open-webui serve
+</code></pre>
+
+<p>启动后同样访问 <code>http://localhost:3000</code>。之后连接 Ollama 时，地址填 <code>http://localhost:11434</code> 即可。</p>
+<blockquote>
+<p>两个提醒：<code>pip install open-webui</code> 在部分网络环境下安装较慢，耐心等待即可；Python 版本过低会直接报错，先确认 <code>python --version</code> 是 3.11 或更高。</p>
+<p>如果 <code>pip</code> 安装失败（国内网络常有），可以加镜像源：</p>
+<p><code>bash
+pip install open-webui -i https://pypi.tuna.tsinghua.edu.cn/simple</code></p>
+</blockquote>
+<h2 id="5">5. 体验进阶功能</h2>
+<p>Open WebUI 不只是「好看」——它是个功能怪兽，挑几个最实用的：</p>
+<h3 id="51">5.1 多模型切换</h3>
+<p>页面顶部下拉框直接切换模型（<code>qwen2.5:7b</code>、<code>deepseek-r1:7b</code>……），一次开多个模型随意对比。<strong>「同一个问题问两个模型」是学习本地部署最直观的乐趣</strong>。</p>
+<h3 id="52-web-search">5.2 联网搜索（Web Search）</h3>
+<p>在设置里配置搜索引擎（如 Google 或 SearXNG）后，可以给模型「开外挂」——问「今天的新闻」，它真的会去网上搜再回答，不再受限于训练截止日期。</p>
+<h3 id="53">5.3 文件上传</h3>
+<p>直接拖文件进对话框：把 PDF/Word/Excel 丢给它，让它总结、问答。Open WebUI 会做文本提取，把内容喂给模型。</p>
+<h3 id="54-rag">5.4 知识库（RAG，检索增强生成）</h3>
+<p>在「文档」页面建一个知识库，把你的资料（制度文档、产品手册）传上去。之后提问时勾选知识库，模型会先从你的资料里检索相关内容再回答——<strong>这就是企业版的「专属 AI 助手」雏形</strong>，全在本地完成，数据不出门。</p>
+<p>这里值得花 30 秒讲清楚 RAG 的原理，因为它太常被提到：</p>
+<ul>
+<li>模型本身并不知道你的私有资料——它的「知识」停留在训练截止的那一刻；</li>
+<li>Open WebUI 会先把你的文档<strong>切块、建索引</strong>，像给文件编目录；</li>
+<li>你提问时，它先<strong>检索</strong>出最相关的几个片段，连同你的问题一起发给模型；</li>
+<li>模型基于这些片段作答，相当于「先查资料、再回答」。</li>
+</ul>
+<p>好处很直观：既避免模型凭空编造你的业务细节，又<strong>不需要重新训练模型</strong>——只要换文档，知识库就跟着更新。</p>
+<h3 id="55">5.5 多人协同</h3>
+<p>管理员账号可以在「管理面板」里创建用户。几个人共用一个本地模型，对话、设置互不干扰，适合团队内网试用。</p>
+<h3 id="56-prompt">5.6 提示词模板（Prompt）</h3>
+<p>把常用的提示词存成模板，一键套用，比如「帮我润色」「翻译成英文」「写周报」。</p>
+<h3 id="57">5.7 语音输入</h3>
+<p>网页端支持麦克风语音输入（基于浏览器的语音识别），对着电脑说话就能提问。适合整理思路、懒得打字的时候——你说，它答，全程不用碰键盘。</p>
+<h3 id="58">5.8 对话导出</h3>
+<p>每条对话都能一键导出成 Markdown 文件，或直接生成分享链接。方便把有价值的问答沉淀成笔记、文档，配合知识库功能用效果更好。</p>
+<h2 id="6">6. 第一次配置：值得做的五件事</h2>
+<p>装上 Open WebUI 只是开始，花五分钟做这几件小事，体验会提升一大截。</p>
+<p><strong>第一件：设好默认模型。</strong> 在「设置 → 通用」里，把默认模型设为你最常用的 <code>qwen2.5:7b</code>。这样打开网页就能直接聊，不用每次从下拉框里挑。</p>
+<p><strong>第二件：理解「流式输出」。</strong> 默认回答是一个字一个字蹦出来的（这叫流式输出），这是正常现象，不是卡顿。如果你不习惯，可以在设置里关掉流式，回答会一次性完整显示——代价是要多等一会儿。</p>
+<p><strong>第三件：存几个提示词模板。</strong> 把「帮我润色这段文字」「总结这份文件」「翻译成英文」这类高频需求存成模板，下次一键调用，省去反复打字。</p>
+<p><strong>第四件：管好用户权限。</strong> 团队使用时，在「管理面板 → 用户」里创建成员账号并分配角色（管理员/普通用户），别让每个人都拿管理员权限乱改设置。</p>
+<p><strong>第五件：别追「最新版」。</strong> Open WebUI 迭代很快。用 Docker 部署时建议固定一个版本号（如 <code>:0.5.x</code>），避免某次自动升级后配置不兼容。想更新时手动拉取新版本，更稳妥可控。</p>
+<h2 id="7">7. 常见问题速查</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>原因</th>
+<th>解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>打不开 <code>localhost:3000</code></td>
+<td>容器没起来</td>
+<td><code>docker ps</code> 看容器状态；<code>docker logs open-webui</code> 看日志</td>
+</tr>
+<tr>
+<td>模型列表为空</td>
+<td>Ollama 连接失败</td>
+<td>确认 Ollama 在跑；核对地址 <code>host.docker.internal:11434</code></td>
+</tr>
+<tr>
+<td>上传文件报错</td>
+<td>权限或格式</td>
+<td>检查管理员设置里的文件上传开关；试试 PDF/文本</td>
+</tr>
+<tr>
+<td>网页很卡</td>
+<td>容器与浏览器争资源</td>
+<td>模型推理本身吃资源，给电脑多点余量；关掉无用标签页</td>
+</tr>
+<tr>
+<td>重启电脑后打不开</td>
+<td>容器未随系统启动</td>
+<td>Docker Desktop 设置里开启「开机自启」，或重新 <code>docker start open-webui</code></td>
+</tr>
+<tr>
+<td>中文显示为方块</td>
+<td>浏览器/系统字体问题</td>
+<td>换现代浏览器（Chrome/Edge），正常不会出现</td>
+</tr>
+<tr>
+<td>登录后一直转圈</td>
+<td>Ollama 负载过高</td>
+<td>换更小模型或减少并发（见第 9 篇 <code>content/性能调优：并发、批处理与显存优化.md</code>）</td>
+</tr>
+<tr>
+<td>忘记管理员密码</td>
+<td>凭据丢失</td>
+<td>通过 Docker 数据卷找回，或用 <code>docker exec</code> 重置用户</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8">8. 关于安全，多说两句</h2>
+<p>Open WebUI 默认要求注册登录，已经挡掉了大部分风险。但本地部署不等于「绝对安全」，请记住几条底线：</p>
+<ol>
+<li><strong>别把端口直接暴露到公网</strong>。默认 <code>-p 3000:8080</code> 只监听本机，是安全的；不要手滑改成 <code>0.0.0.0:3000:8080</code> 或做公网端口映射；</li>
+<li><strong>局域网使用也要设强密码</strong>，别用默认账号名和弱口令；</li>
+<li><strong>确实需要外网访问时</strong>，优先用 Tailscale、frp 这类加密隧道方案，而不是裸奔的端口转发；</li>
+<li><strong>重要数据记得备份</strong>：执行 <code>docker cp open-webui:/app/backend/data ./backup</code> 可以把对话记录、知识库备份到本机目录。</li>
+</ol>
+<p>安全这件事，多花五分钟设置，能避免未来很多麻烦。</p>
+<h2 id="9">9. 本章小结</h2>
+<ol>
+<li><strong>架构</strong>：Open WebUI 是「前台」，Ollama 是「后厨」，两者通过本地 HTTP 接口协作；</li>
+<li><strong>部署</strong>：Docker 一行命令搞定（<code>docker run -d -p 3000:8080 ...</code>），没有 Docker 就用 <code>pip install open-webui</code>；</li>
+<li><strong>连接</strong>：Ollama 地址填 <code>http://host.docker.internal:11434</code>（容器）或 <code>http://localhost:11434</code>（本地进程）；</li>
+<li><strong>进阶</strong>：多模型切换、联网搜索、文件上传、知识库 RAG、多用户——本地也能享受「全家桶」。</li>
+</ol>
+<p>现在你的模型有了「脸面」。但你可能还想：<strong>能不能让我自己写的程序也来调用它？</strong> 下一篇，把模型「服务化」成标准接口。</p>
+<p><strong>下一站：<code>content/API 服务化：把本地模型变成接口.md</code></strong>。</p></body></html>

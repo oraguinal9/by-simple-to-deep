@@ -1,0 +1,181 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第十章 动手实践与进阶路线 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="_1">第十章 动手实践与进阶路线</h1>
+<p>十章走完，你已经从"什么是微调"一路摸到了"怎么部署上线"。这一章给你<strong>能直接跑的最小实践路径</strong>，以及通往更高级玩法的路线图。</p>
+<h2 id="_2">最小可跑实践（消费级显卡版）</h2>
+<p>如果你有一张 24GB 及以下的显卡，想亲手训一个 7B 模型，推荐这条最省心的路：</p>
+<pre class="codehilite"><code>1. 选底座：一个开源 7B 指令模型（如 Llama-3-8B-Instruct / Qwen2.5-7B-Instruct 等）
+2. 备数据：按第四章格式，准备 300~1000 条「指令—输入—输出」配对
+3. 上 QLoRA：4-bit NF4 底座 + LoRA(r=16, alpha=32)，学习率 2e-4
+4. 训几轮：epochs=3，开 warmup + 梯度累积（batch 不够时）
+5. 看曲线：盯 train/eval loss，eval 回升就早停
+6. 评估：抽 50 条真实问题人工打分 + 自动指标
+7. 量化部署：llama.cpp / vLLM 加载底座+LoRA，起 OpenAI 兼容 API
+</code></pre>
+
+<blockquote>
+<p>全程工具链成熟（HuggingFace <code>transformers</code> + <code>peft</code> + <code>bitsandbytes</code> 做 QLoRA，<code>trl</code> 提供高层训练器）。新手不必从零写训练循环，调参数即可。</p>
+</blockquote>
+<h2 id="_3">一段最小代码骨架（示意）</h2>
+<pre class="codehilite"><code class="language-python">from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import LoraConfig, get_peft_model
+
+# 1) 4-bit 量化底座（QLoRA 关键）
+bnb = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type=&quot;nf4&quot;)
+model = AutoModelForCausalLM.from_pretrained(&quot;基座模型名&quot;, quantization_config=bnb)
+tok = AutoTokenizer.from_pretrained(&quot;基座模型名&quot;)
+
+# 2) 挂 LoRA 旁路
+lora = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05, task_type=&quot;CAUSAL_LM&quot;)
+model = get_peft_model(model, lora)   # 此时 99% 参数冻结，只训 LoRA
+model.print_trainable_parameters()    # 会看到可训练参数仅约 1%
+</code></pre>
+
+<blockquote>
+<p>这只是骨架，真正训练还需 <code>Trainer</code>/<code>SFTTrainer</code> 配数据、超参、日志。重点是让你看清"QLoRA + LoRA"在代码里就是这么几行关键点。</p>
+</blockquote>
+<h2 id="_4">常见翻车与排查清单</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>可能原因</th>
+<th>对策</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>loss 变 NaN</td>
+<td>学习率太大 / 有脏样本</td>
+<td>降 LR 一个量级，清洗数据</td>
+</tr>
+<tr>
+<td>eval loss 回升</td>
+<td>过拟合</td>
+<td>早停、加数据、降 rank</td>
+</tr>
+<tr>
+<td>显存爆了</td>
+<td>batch 太大 / 没量化</td>
+<td>开 4-bit、降 batch + 梯度累积</td>
+</tr>
+<tr>
+<td>输出乱码</td>
+<td>数据与底座格式不符</td>
+<td>统一对话模板</td>
+</tr>
+<tr>
+<td>训完没变化</td>
+<td>数据量太少 / LR 太小</td>
+<td>加数据、调大 LR</td>
+</tr>
+<tr>
+<td>部署巨慢</td>
+<td>引擎没优化</td>
+<td>换 vLLM/llama.cpp</td>
+</tr>
+</tbody>
+</table>
+<h2 id="l1l5">进阶路线（学完 L1–L5 之后）</h2>
+<ul>
+<li><strong>L6 RLHF</strong>：用"人类反馈强化学习"让模型更对齐人类偏好（比 SFT 更上层）。本系列下一阶。</li>
+<li><strong>更小/更大模型</strong>：试 3B（边缘部署）与 70B+（需多卡/量化）的权衡。</li>
+<li><strong>多 LoRA 路由</strong>：一个底座按场景动态加载不同适配。</li>
+<li><strong>评测体系化</strong>：建自己的 benchmark，持续回归。</li>
+<li><strong>Agent 化微调</strong>：让模型既懂知识，又会用工具（结合 L4）。</li>
+</ul>
+<h2 id="_5">全系列路线回顾</h2>
+<table>
+<thead>
+<tr>
+<th>阶</th>
+<th>站点</th>
+<th>主题</th>
+<th>你学到了</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L1</td>
+<td>ai101.zbjh.top</td>
+<td>AI 入门</td>
+<td>什么是人工智能/机器学习</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>llm.zbjh.top</td>
+<td>大模型原理</td>
+<td>Transformer/预训练/提示词</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>dl.zbjh.top</td>
+<td>深度学习基础</td>
+<td>梯度下降/反向传播/CNN/注意力</td>
+</tr>
+<tr>
+<td>L4</td>
+<td>rag.zbjh.top</td>
+<td>RAG 与 Agent</td>
+<td>检索增强/工具调用/ReAct</td>
+</tr>
+<tr>
+<td><strong>L5</strong></td>
+<td><strong>finetune.zbjh.top</strong></td>
+<td><strong>微调与部署</strong></td>
+<td><strong>LoRA/QLoRA/量化/上线</strong></td>
+</tr>
+<tr>
+<td>L6</td>
+<td>(待建)</td>
+<td>RLHF</td>
+<td>人类反馈对齐</td>
+</tr>
+<tr>
+<td>L7</td>
+<td>(待建)</td>
+<td>AIGC</td>
+<td>图文生成</td>
+</tr>
+<tr>
+<td>L8</td>
+<td>(待建)</td>
+<td>多模态/MCP</td>
+<td>跨模态/工具协议</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_6">本章小结</h2>
+<ul>
+<li>最小实践路：<strong>开源 7B + 数百条数据 + QLoRA + 看曲线 + 量化部署</strong>。</li>
+<li>代码骨架看清了 QLoRA+LoRA 的关键几行。</li>
+<li>翻车有表可查，进阶有路可循（L6 RLHF 在下一阶）。</li>
+</ul>
+<h2 id="_7">小练习</h2>
+<ol>
+<li>用本章的最小路径，给"宠物养猫顾问"列一份数据 + 超参的起步计划。</li>
+<li>你训完发现 eval loss 在第 2 个 epoch 就回升了，按第六章该怎么做？</li>
+</ol>
+<hr />
+<p><em>恭喜走完 L5！下一步可前往 L6（RLHF 人类反馈对齐），继续把模型"调教"得更懂人。</em></p></body></html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>多模态 AI 是什么：从文字到图像与视频 | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="ai">多模态 AI 是什么：从文字到图像与视频</h1>
+<p>你好！欢迎来到「由简入深」AI 学习站的第十二阶：<strong>多模态本地部署与 ComfyUI 实战</strong>。这一阶，我们会从一个只会在对话框里打字的 AI，一路升级到一个住在你自己电脑里的「多模态创作工作室」——它能画图、修图、做视频，甚至生成配音和音乐。</p>
+<p>在动手之前，这一篇先把「多模态」这三个字彻底讲明白。我们会用生活里的比喻，从「什么是模态」讲起，再到主流产品、开源工具，最后说说为什么要在自己电脑上（本地）跑多模态模型。不急着装软件，先把地图看清楚，后面的路才好走。</p>
+<h2 id="ai_1">一、从一个「只会打字」的 AI 说起</h2>
+<p>如果你用过 ChatGPT、文心一言这类对话助手，你会有这样的体验：你输入文字，它回你文字。你让它「写一首关于秋天的诗」，它给你一首诗；你让它「解释一下相对论」，它给你一大段话。这套能力在专业上叫<strong>单模态</strong>——「模态」这个词听着唬人，其实就是一个「信息形式」：文字、图片、声音、视频，都是一种模态。</p>
+<p>单模态的 AI，只处理文字这一个模态。它天生就「看不见」画面，「听不见」声音。你没法让一个纯文字模型直接给你画一张图，它最多用文字描述一下「秋天的落叶是金黄色、铺满小径」——至于真的画出来，那是另一个系统的事。</p>
+<p>而<strong>多模态</strong>（Multi-modal），就是让 AI 同时理解、处理、生成多种信息形式。想象一个全能助理：</p>
+<ul>
+<li>你看了一张照片发给它，它能告诉你照片里是猫还是狗（图生文）；</li>
+<li>你说「帮我画一只戴着草帽的橘猫坐在海边」，它给你一张真像样的图（文生图）；</li>
+<li>你给它一句「一只猫从沙发跳到茶几上」，它给你一段几秒钟的视频（文生视频）；</li>
+<li>你给它一段歌词，它给你唱出来（文生音频）。</li>
+</ul>
+<p>一个能听、能看、能说、能画、能演的 AI，就是「多模态 AI」。它不是多了几样功能，而是从「读写文字」跃迁成了「像人一样感知和表达世界」。</p>
+<h2 id="_1">二、模态：理解这个比喻，你就懂了一半</h2>
+<p>「模态」这个词，我们再用一个更生活化的比喻。你可以把 AI 想象成一个「开饭店的大厨」：</p>
+<ul>
+<li><strong>单模态 AI 是只会看菜谱的大厨</strong>。他脑子里存了成千上万道菜的文字做法，你给他菜名，他给你背做法。但他没见过真正的菜，也没尝过味道。</li>
+<li><strong>多模态 AI 是既会看菜谱、又亲自下过厨的大厨</strong>。他看过食材长什么样，闻过葱姜蒜，颠过勺，甚至能根据「我想要一盘红的、辣的、冒热气的菜」这样的描述，当场给你炒一盘出来。</li>
+</ul>
+<p>换句话说，「模态」就是大厨接收信息的那扇门：文字是菜单，图片是成品照，声音是锅铲碰撞声，视频是整个过程。门越多，大厨越接近真人。</p>
+<p>技术上的对应关系是这样的：</p>
+<table>
+<thead>
+<tr>
+<th>模态</th>
+<th>输入示例</th>
+<th>输出示例</th>
+<th>通俗叫法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文字</td>
+<td>一句话</td>
+<td>一篇文章</td>
+<td>纯文本聊天</td>
+</tr>
+<tr>
+<td>图像</td>
+<td>一张照片</td>
+<td>一张新图</td>
+<td>文生图 / 图生图</td>
+</tr>
+<tr>
+<td>声音</td>
+<td>一句语音</td>
+<td>一段音乐</td>
+<td>语音合成 / 文生音乐</td>
+</tr>
+<tr>
+<td>视频</td>
+<td>一段文字</td>
+<td>一段短片</td>
+<td>文生视频</td>
+</tr>
+<tr>
+<td>多模态混合</td>
+<td>图片 + 文字提问</td>
+<td>图文回答</td>
+<td>视觉问答（VQA）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>一句话记住：<strong>单模态=只读一种「书」，多模态=眼耳口鼻手全开</strong>。</p>
+</blockquote>
+<h2 id="ai_2">三、多模态 AI 的四门看家本领</h2>
+<p>市面上所有多模态产品，拆开来看，基本就是下面四种能力的不同组合。把这四种能力记住，你以后看任何「AI 创作工具」都不会眼花。</p>
+<h3 id="31-text-to-image">3.1 文生图（Text-to-Image）</h3>
+<p>你输入一句描述，AI 生成一张图片。这是目前最成熟、门槛最低、也最实用的多模态能力。代表产品：Midjourney（付费、云端）、Stable Diffusion（免费、可本地跑）、国产的可图和通义万相。</p>
+<p>一条典型的提示词长这样：</p>
+<pre class="codehilite"><code class="language-text">一只橘色虎斑猫，头戴草帽，坐在海边的礁石上，日落，暖色调，高清，电影感
+</code></pre>
+
+<p>后面几篇我们会手把手教你写这类「提示词」。</p>
+<h3 id="32-image-to-text">3.2 图生文（Image-to-Text）与视觉理解</h3>
+<p>你给它一张图，它告诉你图里有什么、发生了什么。苹果手机相册里「看图识物」、淘宝「拍照搜同款」，背后都是它。进阶一点，还能对着截图问问题：「这张销售报表，哪个月增长最快？」这就是「视觉问答」。</p>
+<h3 id="33-text-to-video">3.3 文生视频（Text-to-Video）</h3>
+<p>你写一句话，AI 生成一段连贯的小视频。这是目前最热门也最烧钱的赛道：OpenAI 的 Sora 一出世就震惊世界，国产的「可灵」也相当能打。视频为什么难？因为它不仅要画面漂亮，还要<strong>前后帧连贯</strong>——猫在第三秒跳起来了，前两秒就得有「起跳」的预备动作，否则看起来就像幻灯片乱跳。这一点在第 7 篇会展开讲。</p>
+<h3 id="34-text-to-audio">3.4 文生音频（Text-to-Audio）</h3>
+<p>你给歌词，AI 唱歌；你给一句「请播报天气」，AI 用自然嗓音说话；你给一段脚本，AI 念成配音。代表产品：Suno（音乐）、ElevenLabs（配音）、开源的有 AudioCraft。</p>
+<blockquote>
+<p>这四门本领的「画图」一门，正是本阶的重头戏；「视频」「音频」我们在第 7 篇给出本地方案。它们共用一套底层技术，学会画图，再往上走会轻松很多。</p>
+</blockquote>
+<h2 id="_2">四、云端产品与本地开源：两条路线</h2>
+<p>说到这，你可能已经用过不少多模态产品了。它们大致分两类：<strong>云端产品</strong>和<strong>本地开源工具</strong>。这两条路线各有各的脾气，搞清楚区别，才知道自己该选哪条。</p>
+<h3 id="41">4.1 云端产品：拿来就用</h3>
+<p>像 Midjourney、Sora、可灵、Suno 这类，背后是厂商的超级服务器，你在网页或 App 里点一下，几分钟后结果出来。优点是<strong>零安装、零门槛、效果好</strong>；缺点是<strong>要花钱、要联网、要排队</strong>，而且你生成的东西多少要经过厂商的服务器——隐私和「定制自由度」都会受限。</p>
+<h3 id="42">4.2 本地开源工具：自己动手</h3>
+<p>Stable Diffusion、ComfyUI 这类，是<strong>完全免费、开源</strong>的。你可以把它们整个下载到自己电脑里，断网也能跑。优点三个：</p>
+<ol>
+<li><strong>隐私</strong>：图片、提示词全部留在自己机器里，不上传任何人；</li>
+<li><strong>免费</strong>：软件不要钱，模型不要钱（注意遵守各模型的许可协议），只有电费和显卡磨损；</li>
+<li><strong>可定制</strong>：云端产品「只能点它给的按钮」，本地工具是一堆可以随意搭积木的节点，想怎么改怎么改，想自动化批量出图也行。</li>
+</ol>
+<p>缺点也明显：<strong>需要一台配置还行的电脑（尤其显卡显存）</strong>，并且从安装到跑通要自己折腾。不过别怕——这正是本阶 10 篇教程存在的意义，我们会一步步把你扶上马。</p>
+<p>下面这张表帮你快速对号入座：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>云端产品（Midjourney / Sora / 可灵）</th>
+<th>本地开源（SD / ComfyUI）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>花费</td>
+<td>月费订阅或按次收费</td>
+<td>免费，电费自付</td>
+</tr>
+<tr>
+<td>安装</td>
+<td>无需安装</td>
+<td>需要安装配置</td>
+</tr>
+<tr>
+<td>硬件要求</td>
+<td>无（厂商负责）</td>
+<td>需要较好显卡</td>
+</tr>
+<tr>
+<td>隐私</td>
+<td>内容经厂商服务器</td>
+<td>全在本机</td>
+</tr>
+<tr>
+<td>可控与自动化</td>
+<td>有限</td>
+<td>极高</td>
+</tr>
+<tr>
+<td>适合人群</td>
+<td>想快速出效果</td>
+<td>想省钱、想要自由、想学习原理</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>现实的用法往往是「两条腿走路」：日常快速出图用云端，深入研究、批量生产、私密内容用本地。本阶的教学目标是把你训练成能独立驾驭<strong>本地路线</strong>的人。</p>
+</blockquote>
+<h2 id="sdcomfyui">五、开源生态一瞥：SD、ComfyUI 和朋友们</h2>
+<p>在正式进入操作之前，先认识一下本地多模态生态圈里的几位「关键人物」。以后你会天天和它们打交道。</p>
+<ul>
+<li><strong>Stable Diffusion（简称 SD）</strong>：本地文生图的「主力引擎」，由英国创业公司 Stability AI 发起、社区持续共建。它负责真正「画图」。常见版本从 SD 1.5、SDXL 到 SD 3.5，各有优劣，第 2 篇详细对比。</li>
+<li><strong>ComfyUI</strong>：一个基于「节点」的可视化工具，相当于<strong>给 SD 引擎做的「遥控器 + 驾驶舱」</strong>。它把画图过程拆成一堆可拖拽的小积木，串联起来就是一条流水线。这个工具是本阶绝对的主角，从第 3 篇开始专章讲解。</li>
+<li><strong>ControlNet</strong>：给 SD 装上的「方向盘」，可以用边缘线、人体骨架、深度图来精确控制构图。第 5 篇专讲。</li>
+<li><strong>LoRA</strong>：给模型「换皮肤」的小插件，可以让模型学会某个画风、某个人物而不必重训大模型。同样在第 5 篇讲。</li>
+<li><strong>AnimateDiff / Wan 2.1 / CogVideo</strong>：把「单张画图」扩展成「多帧视频」的本地方案，第 7 篇讲。</li>
+<li><strong>Hugging Face（抱抱脸）与 Civitai（西维塔）</strong>：全球最大的两个模型「仓库」，成千上万个别人训练好的模型都可以下载。第 8 篇教你怎么挑、怎么下。</li>
+</ul>
+<blockquote>
+<p>你可以把 ComfyUI 想象成乐高，SD 是乐高底板上那块「发动机」，ControlNet 是方向盘，LoRA 是车身贴纸。我们后面所有动手环节，都是在一辆辆自己组装的「乐高车」上做文章。</p>
+</blockquote>
+<h2 id="_3">六、为什么现在值得学本地多模态？</h2>
+<p>最后，回答一个很现实的问题：云端产品已经这么好用了，我为什么还要费劲学本地？</p>
+<p>理由有三个，而且都挺硬：</p>
+<p><strong>第一，省钱是长久的。</strong> 订阅制产品长期看并不便宜，而本地跑图的成本几乎为零。你一旦学会，等于拥有了一台「永不退订」的创作机。</p>
+<p><strong>第二，可控性与批量。</strong> 做自媒体封面、电商图、头像、插画草稿的人最懂：你需要稳定复现同一风格、批量出几十上百张、或者对着同一张底图反复调整。云端产品要么限次数，要么排队，要么风格不可控。本地工具可以完全自动化（第 9 篇讲），一次搭好流水线，睡觉时电脑自己跑。</p>
+<p><strong>第三，学原理就是学未来。</strong> 本地部署强制你理解「模型、采样器、显存、工作流」这些底层概念。等你理解了，再看任何新产品（包括 Sora 级别的视频模型）都不会再被黑话唬住——因为它们万变不离其宗。</p>
+<h2 id="_4">七、本阶学习路线图</h2>
+<p>在开跑之前，把接下来 9 篇的地图给你，心里有数：</p>
+<ol>
+<li><strong>第 2 篇</strong> 本地图像生成基础：扩散模型是什么、SD/SDXL 怎么选、硬件要求（本阶的地基）；</li>
+<li><strong>第 3 篇</strong> ComfyUI 入门：安装、界面、节点式思维（本阶的操作平台）；</li>
+<li><strong>第 4 篇</strong> 文生图工作流：从一句提示词到一张图（第一次完整跑通）；</li>
+<li><strong>第 5 篇</strong> 图生图与 ControlNet：精确控制构图与风格（从「能出图」到「出我要的图」）；</li>
+<li><strong>第 6 篇</strong> 高清放大与局部重绘：后期处理与瑕疵修复（出图的「精修环节」）；</li>
+<li><strong>第 7 篇</strong> 本地视频与音频生成：多模态全家桶（进阶玩法）；</li>
+<li><strong>第 8 篇</strong> 模型管理：下载、换装、显存优化（工具房的「收纳与维护」）；</li>
+<li><strong>第 9 篇</strong> 批量生成与自动化：让工作流自己跑（解放双手）；</li>
+<li><strong>第 10 篇</strong> 实战路线：搭建你自己的本地多模态创作台（收尾总纲）。</li>
+</ol>
+<blockquote>
+<p>相关篇章：想知道「扩散模型为什么能画画」的原理版，可回看本系列第 7 阶 AIGC 原理篇；想看「提示词怎么组织」，第 4 篇有完整示范；想直接装工具，从 <a href="content/ComfyUI 入门：节点式工作流.html">第 3 篇</a> 开始。</p>
+</blockquote>
+<p>建议阅读节奏：每天一篇，边读边动手。读到第 4 篇时，你应该已经在自己电脑上跑出第一张图了——那会是你未来很多「能画图」的朋友都做不到的事。</p>
+<h2 id="_5">八、给这一篇收个尾</h2>
+<p>我们快速复盘一下这篇的核心：</p>
+<ul>
+<li><strong>模态</strong>就是信息的「形式」，文字、图像、声音、视频各是一种模态；</li>
+<li><strong>多模态 AI</strong> 能同时处理和生成多种模态的信息，是单模态 AI 的全面升级；</li>
+<li>多模态的四大能力：<strong>文生图、图生文、文生视频、文生音频</strong>；</li>
+<li>实现多模态有<strong>云端</strong>和<strong>本地开源</strong>两条路线，本地路线免费、私密、可控，但需要显卡和动手能力；</li>
+<li>本地生态的关键角色：<strong>SD（引擎）、ComfyUI（驾驶舱）、ControlNet（方向盘）、LoRA（皮肤）、Hugging Face / Civitai（仓库）</strong>；</li>
+<li>本阶剩下的 9 篇，将带你从零搭建起自己的本地多模态创作台。</li>
+</ul>
+<p>从下一篇开始，我们就要正式「进场」了。第一件事，是先搞清楚那个能画出惊艳图片的 Stable Diffusion，到底是怎么工作的——别担心，我们会用「从一团马赛克逐渐变清楚」的比喻，让你完全听得懂。</p>
+<p>我们下一篇见。</p></body></html>

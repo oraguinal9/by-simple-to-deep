@@ -1,0 +1,59 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><title>第六章 幻觉与安全风险</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.8;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0ea5e9;padding-bottom:8px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 10px;text-align:left;}
+  th{background:#e0f2fe;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #7dd3fc;background:#f0f9ff;margin:12px 0;padding:8px 14px;color:#374151;}
+  a{color:#0ea5e9;}
+  .topbar{position:sticky;top:0;background:#0ea5e9;color:#fff;padding:8px 14px;margin:-28px -22px 22px;border-radius:0;}
+  .topbar a{color:#fff;font-weight:700;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回学习路线图</a></div><h1 id="_1">第六章 幻觉与安全风险</h1>
+<p>学 AI 不学「风险」，等于开车不学刹车。这一章讲两个最该知道的坑：<strong>幻觉</strong>和<strong>常见安全陷阱</strong>。</p>
+<h2 id="61-hallucination">6.1 什么是「幻觉」（Hallucination）</h2>
+<p><strong>幻觉 = 模型生成了看起来合理、但其实错误/编造的内容。</strong></p>
+<p>例子：
+- 你问「《红楼梦》第 120 回讲了什么」，它流利地编出一段根本不存在的情节。
+- 你问「某篇论文的结论」，它报出一个不存在的引用和作者。</p>
+<h2 id="62">6.2 为什么会幻觉</h2>
+<p>回到第一章的核心：模型是「预测下一个词」，不是在「查数据库」。当它对某个事实「记忆模糊」时，它会<strong>编造一个听起来最顺的版本</strong>——因为对它来说，「编得通顺」比「编得正确」优先级更高。它自己并不知道自己在撒谎。</p>
+<h2 id="63-4">6.3 怎么减少幻觉（实用 4 招）</h2>
+<ol>
+<li><strong>给它资料，别让它凭空答</strong>
+   用「基于以下内容回答：……」把事实喂给它，并要求「只依据资料，不要编造」。</li>
+<li><strong>要求它标注来源 / 不确定就说不知道</strong>
+   例如：「如果资料里没有，请直接说『无法确定』。」</li>
+<li><strong>关键事实你亲自核对</strong>
+   人名、数据、法规、引用——拿去搜索引擎或官方渠道验证一遍。</li>
+<li><strong>拆细问题、逐步确认</strong>
+   大问题容易飘；拆成小问题，每一步都对一下，再继续。</li>
+</ol>
+<blockquote>
+<p>记住：<strong>流畅 ≠ 正确</strong>。越像真的，越要警惕。</p>
+</blockquote>
+<h2 id="64">6.4 其他常见安全陷阱</h2>
+<ul>
+<li><strong>隐私泄露</strong>：别把身份证号、密码、公司内部机密直接贴进对话。</li>
+<li><strong>盲目照做</strong>：AI 给的代码、命令、建议，先理解再执行，尤其是涉及删除、付费、联网的操作。</li>
+<li><strong>被「带节奏」</strong>：它很会迎合你。你 preconceived（先入为主）地问，它可能顺着你说，未必客观。</li>
+<li><strong>版权与合规</strong>：商用 AI 生成内容，注意平台条款与当地法规。</li>
+</ul>
+<h2 id="65-ai">6.5 一个安全用 AI 的小清单</h2>
+<ul>
+<li>☑ 敏感信息不上传</li>
+<li>☑ 关键事实自己查</li>
+<li>☑ 高代价决定不盲从</li>
+<li>☑ 拿不准就多问几个角度交叉验证</li>
+</ul>
+<h2 id="66">6.6 衔接</h2>
+<p>你已经从「什么是 AI」走到了「安全使用 AI」。最后一章，我们<strong>动手练一练</strong>，并给你指出继续深入的下一站。</p>
+<blockquote>
+<p>✅ 自测：如果你让 AI 写一段「公司财报分析」发到群里，至少要加哪两道防护？</p>
+</blockquote></body></html>

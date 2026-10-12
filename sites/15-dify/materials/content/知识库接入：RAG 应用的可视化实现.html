@@ -1,0 +1,183 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>知识库接入：RAG 应用的可视化实现 | AI 应用开发平台 L15</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L15 学习路线图</a><span class='r'>AI 应用开发平台 · dify.zbjh.top</span></div><h1 id="rag">知识库接入：RAG 应用的可视化实现</h1>
+<p>你在 L4 和 L13 已经深入学过 RAG 的原理（检索 → 增强 → 生成）。这一章看它在 Dify 里怎么落地——<strong>不用写一行检索代码，上传文档就能让应用「开卷考试」</strong>。</p>
+<h2 id="dify">Dify 知识库是什么</h2>
+<p>Dify 的<strong>知识库（Knowledge）</strong>就是把 RAG 的完整链路产品化：</p>
+<pre class="codehilite"><code>上传文档 → 自动切片 → 向量化 → 存储
+                    ↓
+用户提问 → 检索相关片段 → 拼进上下文 → 模型回答
+</code></pre>
+
+<p>你只需要负责「上传文档」，后面的切片、向量化、检索、拼上下文，平台全包了。</p>
+<h2 id="_1">创建知识库：三步走</h2>
+<h3 id="_2">第一步：上传文档</h3>
+<p>支持格式：TXT、Markdown、PDF、Word、HTML 等常见格式。可以一次传多个文件，也可以从 Notion、网站等同步。</p>
+<h3 id="_3">第二步：配置切片与索引</h3>
+<p>上传后进入「分段设置」：</p>
+<ul>
+<li><strong>分段方式</strong>：按固定长度切 / 按段落切（推荐按段落，语义更完整）；</li>
+<li><strong>分块长度</strong>：比如 500~800 字符，块太大检索不准，太小语义割裂；</li>
+<li><strong>重叠</strong>：相邻块保留少量重叠，防止答案被切断。</li>
+</ul>
+<blockquote>
+<p>这些参数就是 L13 讲过的「分块策略」，在平台里只是几个下拉框——但你得懂原理才知道怎么调。</p>
+</blockquote>
+<h3 id="_4">第三步：索引与向量化</h3>
+<p>选一个 Embedding 模型（Dify 里配置好模型供应商后可选），点击「索引」，平台把每块文本转成向量存起来。完成后知识库就绪。</p>
+<h2 id="_5">把知识库挂到应用上</h2>
+<p>知识库建好后，在应用的编排界面：</p>
+<ol>
+<li><strong>聊天助手</strong>：右侧面板打开「知识库」开关，选择你的知识库；</li>
+<li><strong>工作流</strong>：拖一个「知识检索」节点，选择知识库。</li>
+</ol>
+<p>保存后试跑：问一个知识库里的问题，回答会基于文档内容，并附上<strong>引用来源</strong>（哪份文档、哪一段），用户可以点开核对。</p>
+<h2 id="_6">检索参数：控制「怎么找」</h2>
+<p>Dify 的检索设置有几个关键参数：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>作用</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TopK</td>
+<td>返回几段资料</td>
+<td>3~5 段即可</td>
+</tr>
+<tr>
+<td>Score 阈值</td>
+<td>低于此相似度的片段不要</td>
+<td>0.4~0.6，视模型而定</td>
+</tr>
+<tr>
+<td>检索方式</td>
+<td>向量检索 / 全文检索 / 混合检索</td>
+<td>混合检索效果最好</td>
+</tr>
+<tr>
+<td>Rerank</td>
+<td>重排序模型</td>
+<td>有就开，精度明显提升</td>
+</tr>
+</tbody>
+</table>
+<p>这些参数的原理你都在 L13 学过：TopK 对应「召回数量」、阈值对应「过滤噪声」、混合检索是「BM25 + 向量」、Rerank 是「精排」。</p>
+<p><strong>调试方法</strong>：试跑后点开「引用来源」，看检索到的片段是不是相关的——如果不相关，调 TopK/阈值；如果相关但回答差，那是提示词或模型问题。</p>
+<h2 id="_7">知识库的进阶能力</h2>
+<p>Dify 知识库不止「上传-检索」这么简单：</p>
+<ul>
+<li><strong>多知识库组合</strong>：一个应用可以挂多个知识库（不同业务域），检索时一起查；</li>
+<li><strong>知识库权限</strong>：不同用户/团队可建独立知识库，数据隔离；</li>
+<li><strong>手动维护</strong>：文档更新后重新上传/重新索引即可，不用改应用；</li>
+<li><strong>问答模式</strong>：知识库里可以带「问题-答案」对，命中问题直接给标准答案，更精确。</li>
+</ul>
+<h2 id="_8">知识库应用避坑指南</h2>
+<p>常见问题与对策：</p>
+<p><strong>Q：问什么都答「不知道」？</strong>
+A：可能检索没命中。调大 TopK、降低 Score 阈值、检查文档是否索引成功。</p>
+<p><strong>Q：答非所问、引用来源是无关片段？</strong>
+A：检索噪声大。检查分块是否合理、是否开了混合检索/Rerank。</p>
+<p><strong>Q：回答有幻觉、不照资料说？</strong>
+A：这是生成环节问题。在系统提示词里强调「只能根据提供的资料回答，资料中没有就说不知道」。</p>
+<p><strong>Q：知识库更新了但回答还是旧内容？</strong>
+A：更新文档后要<strong>重新索引</strong>，旧向量不会自动失效。</p>
+<h2 id="_9">一个完整的知识库问答应用</h2>
+<p>串联本章内容，做一个「公司制度问答助手」：</p>
+<pre class="codehilite"><code>1. 上传《员工手册》《报销制度》等文档
+2. 按段落切分、索引
+3. 创建聊天助手，挂上知识库
+4. 系统提示词：「你是公司制度问答助手，只能依据资料回答」
+5. 试跑：「报销流程是什么？」→ 得到带引用来源的回答
+6. 调检索参数直到满意
+7. 发布（第 9 章）
+</code></pre>
+
+<p><strong>这就是 L13 学的「企业级 RAG 知识库」在平台上的落地版</strong>——平台把技术细节藏起来了，但背后的原理你全懂，所以你能把它调得比别人好。</p>
+<h2 id="rag_1">检索原理速查：平台里的 RAG 对照表</h2>
+<p>把 L13 学的知识和 Dify 的界面控件对应起来，你就知道每个按钮在干什么：</p>
+<table>
+<thead>
+<tr>
+<th>L13 概念</th>
+<th>Dify 里的对应设置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分块策略</td>
+<td>「分段设置」的分块长度/重叠</td>
+</tr>
+<tr>
+<td>Embedding 向量化</td>
+<td>「索引」时选的向量模型</td>
+</tr>
+<tr>
+<td>向量检索</td>
+<td>检索方式选「向量检索」</td>
+</tr>
+<tr>
+<td>BM25 关键词检索</td>
+<td>检索方式选「全文检索」</td>
+</tr>
+<tr>
+<td>混合检索</td>
+<td>检索方式选「混合检索」</td>
+</tr>
+<tr>
+<td>Rerank 重排序</td>
+<td>打开「Rerank」开关并选模型</td>
+</tr>
+<tr>
+<td>TopK 召回数量</td>
+<td>「TopK」参数</td>
+</tr>
+<tr>
+<td>相关度阈值</td>
+<td>「Score 阈值」参数</td>
+</tr>
+</tbody>
+</table>
+<p><strong>学会这张表，你调参就不是瞎试</strong>——你知道每个参数背后对应哪个环节，出了问题能定位到环节。</p>
+<h2 id="_10">知识库的维护与更新：别建完不管</h2>
+<p>知识库是「活物」，要持续维护：</p>
+<ul>
+<li><strong>文档更新</strong>：制度/文档变更时，更新源文件并<strong>重新上传/重新索引</strong>；</li>
+<li><strong>内容质检</strong>：定期抽查检索质量，把「答非所问」的文档段落重新切片或改写；</li>
+<li><strong>问答对维护</strong>：高频问题沉淀成「问题-答案」模式，命中直接给标准答案；</li>
+<li><strong>版本管理</strong>：重要文档保留旧版本对比，避免「新版把关键条款删了」造成事故。</li>
+</ul>
+<p><strong>给团队的提醒</strong>：知识库是「另一个数据库」，要有负责人、更新频率和质检流程，否则会慢慢腐化。</p>
+<h2 id="_11">小练习</h2>
+<ol>
+<li>建一个知识库，上传 3 份你手头的文档（或随便找的文本），按段落切分并索引。</li>
+<li>把它挂到一个聊天助手，问 3 个文档里的问题，检查引用来源是否准确。</li>
+<li>调小 TopK（比如 1）再问一次，感受召回不足的影响；调大阈值再试，感受过滤太狠的影响。</li>
+<li>进阶：在系统提示词里加「只能依据资料回答」，对比加之前后的幻觉情况。</li>
+<li>进阶：把同一份文档用「段落切分」和「固定长度切分」各建一个知识库，对比同一问题的检索效果。</li>
+</ol>
+<p>知识库让应用「有依据」了。下一章，让应用学会「自己干活」——<strong>Agent 模式</strong>。</p></body></html>

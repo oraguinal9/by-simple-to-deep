@@ -1,0 +1,104 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>什么是 AI Agent：从聊天机器人到自主智能体 | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="ai-agent">什么是 AI Agent：从聊天机器人到自主智能体</h1>
+<p>想象你第一次用 ChatGPT：问它问题，它给出漂亮的回答。再想想一个真正「会办事」的助手：你说「帮我订下周去杭州的机票，顺便把酒店也订了，预算三千以内」，它自己打开订票系统、对比航班、下单、把行程单发到你邮箱——整个过程不用你一步步指挥。</p>
+<p>这两者的差距，就是「聊天机器人」和「AI Agent（智能体）」的差距。</p>
+<h2 id="vs">聊天机器人 vs 智能体：差在哪</h2>
+<p>聊天机器人（Chatbot）只做一件事：<strong>想</strong>。它接收你的文字，预测下一个词，把答案吐出来。它不会打开任何软件，不会查任何数据库，不会真的下单——它只是「说」。</p>
+<p>智能体（Agent）则是一个<strong>完整闭环</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>聊天机器人</th>
+<th>AI Agent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>理解问题</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>生成回答</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>调用工具（查天气/发邮件/订票）</td>
+<td>❌ 只能嘴上说</td>
+<td>✅ 真的执行</td>
+</tr>
+<tr>
+<td>记住多轮对话和长期偏好</td>
+<td>只记当前对话</td>
+<td>✅ 可调长期记忆</td>
+</tr>
+<tr>
+<td>自己规划步骤、拆任务</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>从执行结果中学习、修正</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<p>一句话总结：<strong>聊天机器人是「嘴上说说」，Agent 是「说到做到」。</strong></p>
+<h2 id="agent">Agent 的四个零件</h2>
+<p>一个典型的 AI Agent，可以拆成四个零件：</p>
+<ol>
+<li><strong>大脑（大模型）</strong>：负责理解、推理、决策。它就是那个会「想」的核心。</li>
+<li><strong>工具（Tools）</strong>：让大脑能「动手」的接口——搜索引擎、天气 API、数据库、计算器、发邮件、操作浏览器……没有工具，大脑再聪明也只能空谈。</li>
+<li><strong>记忆（Memory）</strong>：短期记忆（当前任务的上下文）和长期记忆（跨任务的偏好、历史，通常存在向量数据库里）。</li>
+<li><strong>规划循环（Planning Loop）</strong>：把大目标拆成小步骤，执行一步、看结果、再决定下一步——这就是后面章节要讲的 ReAct 循环。</li>
+</ol>
+<blockquote>
+<p>打个比方：大模型像一个学识渊博但手不能提的顾问，工具是给他配的手脚，记忆是他的笔记本，规划循环是他的工作方法论。四者合体，才是一个能独立干活的 Agent。</p>
+</blockquote>
+<h2 id="_1">一个生活化的例子</h2>
+<p>假设你让一个 Agent 完成「周末去杭州玩两天」：</p>
+<pre class="codehilite"><code>第 1 步 理解：用户想去杭州玩两天，需要一个周末的行程。
+第 2 步 规划：① 查杭州天气 → ② 找高铁/机票 → ③ 找酒店 → ④ 排景点 → ⑤ 汇总行程单。
+第 3 步 执行①：调用 get_weather(城市=杭州) → 返回「周六小雨 18°C，周日多云 22°C」。
+第 4 步 调整：下雨，多安排室内景点（博物馆、商场）。
+第 5 步 执行②③：调用 search_flight / search_hotel ……
+第 6 步 汇总：把完整行程单发给用户，并问「要不要直接订」。
+</code></pre>
+
+<p>注意第 4 步：Agent 会<strong>根据执行结果动态调整计划</strong>——这是它和「写死脚本」的本质区别。传统程序是「遇到下雨也照原计划走」，Agent 是「看到下雨，自己改变方案」。</p>
+<h2 id="_2">为什么现在才火起来</h2>
+<p>其实「智能体」这个概念很老（可以追溯到几十年前的 Agent 理论）。过去不火，是因为<strong>大脑不够聪明</strong>：以前的小模型理解不了复杂指令、规划总出错，做出来的 Agent 像个笨手笨脚的新员工。</p>
+<p>现在大模型（GPT、Claude、DeepSeek、Qwen 等）推理能力大幅提升，能读懂工具说明、能分步思考、能自己修正错误——「大脑」终于配得上「手脚」了。于是 Agent 从一个研究概念，变成了 2026 年最热的工程方向：OpenClaw、AutoGPT、Claude Code、OpenManus 等开源项目动辄几十万星标，全是冲着「让 AI 自己干活」去的。</p>
+<h2 id="_3">本章小结</h2>
+<ul>
+<li>聊天机器人只「说」，Agent 会「做」。</li>
+<li>Agent = 大模型（大脑）+ 工具（手脚）+ 记忆（笔记本）+ 规划循环（方法论）。</li>
+<li>Agent 的核心价值：能根据执行结果动态调整计划，像人一样闭环做事。</li>
+<li>大模型能力升级，是 Agent 在 2026 年爆发的根本原因。</li>
+</ul>
+<p>下一章，我们看最关键的一环——<strong>大模型到底是怎么「调用工具」的</strong>（Function Calling 的原理），这是 Agent 能动手的起点。</p></body></html>

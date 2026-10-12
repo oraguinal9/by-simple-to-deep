@@ -1,0 +1,155 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>评测推理模型：从准确率到推理过程 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="_1">评测推理模型：从准确率到推理过程</h1>
+<p>「这个推理模型到底行不行？」——上一章算了钱，这一章算「质」：怎么科学地评测推理模型。普通模型的评测方法（L14 第 9 章）在推理场景要升级，因为多了「推理过程」这个维度。</p>
+<h2 id="_2">评测推理模型的两个维度</h2>
+<p>推理模型的输出有两部分，评测也要看两部分：</p>
+<pre class="codehilite"><code>1. 结果维度：最终答案对不对？（准确率）
+2. 过程维度：推理过程好不好？（质量）
+</code></pre>
+
+<p><strong>只看结果会漏信息</strong>：答案对了可能是蒙的，答案错了可能过程很有价值（或过程本身就离谱）。</p>
+<h2 id="_3">维度一：结果评测——准确率是核心</h2>
+<p>对「有标准答案」的任务（数学、代码、选择题），准确率是最硬核的指标：</p>
+<p><strong>评测集</strong>：一批带标准答案的问题（如 GSM8K 数学题、HumanEval 代码题、MATH 竞赛题等公开基准）。</p>
+<p><strong>做法</strong>：模型对每道题作答，程序自动比对答案是否正确，统计准确率。</p>
+<pre class="codehilite"><code>问题集：100 道数学题
+模型答对：92 道
+准确率：92%
+</code></pre>
+
+<p><strong>关键</strong>：推理模型评测要「多次采样取多数」吗？——<strong>要</strong>。推理模型单次有随机性，同一题跑 3~5 次取多数答案再判对错，更能反映「真实能力」（这就是自洽性的评测版用法）。</p>
+<h2 id="_4">维度二：过程评测——推理质量怎么评</h2>
+<p>答案对了，推理过程就一定好？不一定。过程维度看几个点：</p>
+<p><strong>1. 推理合法性</strong>：每一步推导是否站得住脚？（可能「答案对、过程错」——比如蒙对的）
+<strong>2. 步骤完整性</strong>：是否覆盖了所有必要步骤？有没有跳步？
+<strong>3. 冗余度</strong>：有没有绕远路、说废话？
+<strong>4. 可理解性</strong>：人类能看懂吗？格式清晰吗？</p>
+<p><strong>评测方法</strong>：
+- <strong>人工审阅</strong>：抽样看推理过程，打分（最可靠）；
+- <strong>LLM 裁判</strong>：让强模型评价推理过程（快，但裁判也有限）；
+- <strong>可验证性指标</strong>：代码题直接跑测试（过程对不对由测试说了算）。</p>
+<h2 id="vs">推理模型 vs 普通模型的对比评测</h2>
+<p>推理模型的「价值」要通过对比体现：</p>
+<pre class="codehilite"><code>同一套评测题：
+  普通模型准确率：68%
+  推理模型准确率：93%
+  提升：+25 个百分点（但成本 10 倍）
+
+怎么解读？
+  → 如果任务「错不起」，这 25 个点值 10 倍成本
+  → 如果任务「错了无所谓」，不值
+</code></pre>
+
+<p><strong>评测的意义不只是「打分」，更是「决策依据」</strong>——评测数字要放进「成本/收益」框架里解读（第 8 章）。</p>
+<h2 id="_5">公开基准：站在巨人的肩膀上</h2>
+<p>推理模型圈有成熟的公开评测基准，直接用：</p>
+<table>
+<thead>
+<tr>
+<th>基准</th>
+<th>测什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GSM8K</td>
+<td>小学数学应用题</td>
+</tr>
+<tr>
+<td>MATH</td>
+<td>竞赛数学（更难）</td>
+</tr>
+<tr>
+<td>HumanEval / MBPP</td>
+<td>代码生成（跑测试判对错）</td>
+</tr>
+<tr>
+<td>AIME</td>
+<td>美国数学邀请赛题</td>
+</tr>
+<tr>
+<td>MMLU</td>
+<td>综合知识（含推理部分）</td>
+</tr>
+<tr>
+<td>GPQA</td>
+<td>研究生级科学问题</td>
+</tr>
+</tbody>
+</table>
+<p><strong>使用建议</strong>：不用全跑，按你的场景选 1~2 个。做数学助手测 GSM8K/MATH，做代码助手测 HumanEval。</p>
+<h2 id="_6">建立自己的评测集</h2>
+<p>公开基准不够贴近业务？建自己的：</p>
+<pre class="codehilite"><code>1. 收集 50~100 道「你实际会遇到」的难题（训练数据之外）
+2. 每题准备标准答案（人工核验）
+3. 用脚本批量跑模型、自动判分
+4. 记录分数变化（版本对比、模型对比）
+5. 定期扩充题目（防「背题」）
+</code></pre>
+
+<p><strong>工程要点</strong>：评测集和训练/调优数据要隔离，否则测的是「背题」不是「能力」（L14 讲过，这里同样适用）。</p>
+<h2 id="_7">评测的进阶玩法</h2>
+<p><strong>1. 难度分级评测</strong>：按题难度拆开统计准确率。你会发现推理模型在「中等题」提升最大，「送分题」无差别，「地狱级」仍然很难——这帮你定位「模型的天花板在哪」。</p>
+<p><strong>2. 失败案例分析</strong>：把答错的题挑出来分类——是「理解错题意」「计算错」「逻辑断点」还是「思考不够久」？对症下药（换模型/调 effort/加工具验证）。</p>
+<p><strong>3. 思考长度 vs 准确率曲线</strong>：评测「思考预算」和准确率的关系——多少思考 token 是「够用」的？这直接指导成本优化（第 8 章）。</p>
+<h2 id="_8">一个完整的评测脚本框架</h2>
+<pre class="codehilite"><code class="language-python">EVAL = load(&quot;my_eval_100.json&quot;)  # [{q, answer}]
+def judge(model, q):
+    r = call(model, q)
+    return extract_answer(r)      # 提取最终答案（跳过思考过程）
+acc = sum(judge(m, q) == a for q, a in EVAL) / len(EVAL)
+print(f&quot;普通模型准确率: {acc_plain:.1%}&quot;)
+print(f&quot;推理模型准确率: {acc_reason:.1%}&quot;)
+</code></pre>
+
+<p><strong>注意</strong>：提取答案时要跳过思考过程（reasoner 的 <code>content</code> 是最终答案，或解析标记），否则把「草稿」当答案判分会错。</p>
+<h2 id="_9">评测的常见误区</h2>
+<p><strong>误区 1：只看「答对几题」，不看「答错怎么错」</strong>
+准确率是「总分」，但优化需要「错因」。把错题分类（理解错/算错/逻辑断/思考不够），才知道该换模型还是调 effort 还是加工具。</p>
+<p><strong>误区 2：评测集和调优数据不隔离</strong>
+用调优时见过的题评测，测的是「背题」。评测集必须独立、固定、长期不变（换题要重新标定基线）。</p>
+<p><strong>误区 3：只测一次就下结论</strong>
+推理模型有随机性，单次评测波动大。同一评测跑 3 次取平均，或多次采样再判分，结果才可靠。</p>
+<p><strong>误区 4：忽略「过程质量」</strong>
+答案全对但推理过程狗屁不通的模型，教育/解释场景不能用。<strong>结果和过程都要评</strong>。</p>
+<h2 id="_10">评测结果的「决策解读」</h2>
+<p>评测分数出来后，关键是怎么用：</p>
+<pre class="codehilite"><code>准确率 95%+ → 模型够用，把精力放成本优化
+准确率 80~95% → 看错因分布，针对性优化
+准确率 &lt;80% → 换更强模型 / 加自洽性 / 加工具验证
+
+过程质量差（答案对但推理烂）→ 换「解释型」模型或调提示词
+</code></pre>
+
+<p><strong>核心</strong>：评测不是「打分交差」，是「决策输入」——每个数字都要能驱动一个优化动作。</p>
+<h2 id="_11">小练习</h2>
+<ol>
+<li>用公开基准（GSM8K 或 MATH）分别测普通模型和推理模型，对比准确率。</li>
+<li>抽样 10 道题人工审阅推理过程，按「合法性/完整性/冗余度」打分，找 2 个「答案对过程差」的案例。</li>
+<li>建一个 20 题的业务评测集，跑通「自动判分」流程。</li>
+<li>进阶：测「思考长度 vs 准确率」，画曲线找「性价比思考量」。</li>
+<li>进阶：把答错的题按「错因」分类，针对最大的一类设计一个优化动作（改提示词/加工具/调 effort），并验证是否有效。</li>
+</ol>
+<p>评测会了，最后把它用起来——<strong>实战路线：用推理模型解决复杂问题</strong>。</p></body></html>

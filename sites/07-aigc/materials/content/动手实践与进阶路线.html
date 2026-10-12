@@ -1,0 +1,90 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>动手实践与进阶路线 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="_1">第十章 动手实践与进阶路线</h1>
+<p>走到这一章，你已经从「AIGC 是什么」一路拆到了「扩散模型、CLIP、Stable Diffusion、提示词、采样器、ControlNet、文生视频」的原理。最后这一章给你一张<strong>能落地的行动地图</strong>：用什么工具上手、怎么进阶、以及创作者必须面对的伦理与版权问题。</p>
+<h2 id="101">10.1 新手第一步：选一个入口</h2>
+<p>按「零安装 → 轻量本地 → 完全本地」三个档位：</p>
+<ul>
+<li><strong>在线平台（零安装）</strong>：Midjourney、即梦、可灵、通义万相等，注册即用，适合先建立手感。</li>
+<li><strong>WebUI 类（轻量本地）</strong>：Stable Diffusion WebUI、ComfyUI。后者用「节点连线」搭工作流，灵活度极高，强烈推荐想深入的人学。</li>
+<li><strong>代码级（完全本地）</strong>：用 diffusers 库（Hugging Face）直接调用 SD/XL/视频模型，可编程、可批量。</li>
+</ul>
+<p>建议路径：先在在线平台玩熟提示词 → 再装 ComfyUI 理解工作流 → 最后用代码做自动化。</p>
+<h2 id="102">10.2 本地部署的最小硬件认知</h2>
+<p>如果你打算本地跑 SD 1.5 / SDXL：</p>
+<ul>
+<li><strong>显存</strong>：SD 1.5 约需 4–6 GB 显存；SDXL 约需 8–12 GB；视频模型更高。</li>
+<li><strong>模型文件</strong>：从几百 MB（SD 1.5）到数 GB（SDXL、视频模型）不等。</li>
+<li><strong>加速</strong>：fp16 半精度、xFormers、量化等手段能显著降低显存。</li>
+</ul>
+<p>不必一步到位，先用小模型建立全链路认知，再上大模型。</p>
+<h2 id="103">10.3 进阶路线：从「用」到「改」</h2>
+<p>当你不满足于调参数，可以往这些方向深入：</p>
+<ol>
+<li><strong>LoRA 微调</strong>：用几十张自己的图，训练一个小插件，让模型学会特定角色/画风（见 L5 微调篇的原理）。</li>
+<li><strong>模型合并（Merge）</strong>：把多个模型的权重融合，取各家之长。</li>
+<li><strong>ControlNet 组合</strong>：Pose + Depth + Lineart 多控叠加，做精准分镜。</li>
+<li><strong>视频工作流</strong>：图生视频做镜头、用时序控制做转场，拼成短片。</li>
+<li><strong>自动化管线</strong>：用代码把「提示词 → 批量出图 → 筛选 → 后处理」串成流水线。</li>
+</ol>
+<h2 id="104">10.4 提示词模板库：建立自己的「词表」</h2>
+<p>高手不是每次重写，而是维护一套<strong>可复用提示词碎片</strong>：</p>
+<ul>
+<li>光线词库：柔光、轮廓光、体积雾、霓虹……</li>
+<li>风格词库：吉卜力、赛博朋克、胶片、低多边形……</li>
+<li>质量词库：8k、超细节、大师作品、景深……</li>
+<li>负面词库：模糊、畸形、水印、多余手指……</li>
+</ul>
+<p>把碎片像积木一样组合，效率和一致性都会飙升。</p>
+<h2 id="105">10.5 伦理与版权：创作者不能回避的事</h2>
+<p>AIGC 降低了创作门槛，也带来真实的责任问题，务必心里有数：</p>
+<ul>
+<li><strong>训练数据版权</strong>：现有模型多在海量互联网图上训练，其中含受版权保护作品，相关诉讼仍在进行。商用前了解你所用平台的条款。</li>
+<li><strong>生成内容标识</strong>：越来越多的平台与法规要求对 AI 生成内容做标识，避免误导。</li>
+<li><strong>肖像与隐私</strong>：不要用他人肖像生成不当内容，尊重个人权利。</li>
+<li><strong>不实信息</strong>：逼真的生成图/视频可能被用于诈骗、虚假新闻，使用需守底线。</li>
+<li><strong>署名与透明</strong>：在作品里说明「含 AI 生成部分」，是对观众的诚实。</li>
+</ul>
+<p>技术越强，使用者的判断越重要。把 AIGC 当「画笔」而非「枪」，它才是放大器而非风险源。</p>
+<h2 id="106">10.6 把八阶串起来看</h2>
+<p>回顾整个「由简入深」系列：</p>
+<ul>
+<li>L1–L2 建立 AI 通识与语言模型直觉；</li>
+<li>L3–L5 深入模型怎么学、怎么检索、怎么微调；</li>
+<li><strong>L6 讲怎么用人类反馈让模型「对齐」你的意图</strong>；</li>
+<li><strong>L7（本篇）讲怎么让模型「创造」图像与视频</strong>。</li>
+</ul>
+<p>你会发现：扩散模型的「从噪声到结构」、RLHF 的「从反馈到偏好」、微调的「从通用到专属」——它们底层都是「用数据塑造模型的分布」。打通这条线，你对整个生成式 AI 就有了一张统一地图。</p>
+<h2 id="107">10.7 本章小结</h2>
+<ul>
+<li>上手三档：在线平台 → ComfyUI → 代码（diffusers），由浅入深。</li>
+<li>本地跑 SD 主要看显存（4–12 GB 起）；先小模型建认知再上大模型。</li>
+<li>进阶：LoRA 微调、模型合并、ControlNet 组合、视频工作流、自动化管线。</li>
+<li>维护自己的提示词碎片词库，提升效率与一致性。</li>
+<li>必须正视训练版权、内容标识、肖像隐私、防不实信息——技术是画笔不是枪。</li>
+<li>L7 与 L1–L6 同属「用数据塑造分布」的统一框架，打通即见全貌。</li>
+</ul>
+<blockquote>
+<p><strong>恭喜走完 L7！</strong> 打开本站的三个演示（扩散去噪可视化 / CLIP 文本-图像匹配 / 提示词风格对比），把原理变成你能亲手玩的东西。下一步，L8 会带你进入 MCP 与多模态的协作世界。</p>
+</blockquote></body></html>

@@ -1,0 +1,183 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>模型接入与管理：多模型路由与成本控制 | AI 应用开发平台 L15</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L15 学习路线图</a><span class='r'>AI 应用开发平台 · dify.zbjh.top</span></div><h1 id="_1">模型接入与管理：多模型路由与成本控制</h1>
+<p>做 AI 应用绕不开「模型」这个核心成本。Dify 的价值之一是<strong>统一管理多个模型</strong>：接一个模型能跑，接十个模型也能管。这一章讲模型的接入、路由与成本控制。</p>
+<h2 id="dify">Dify 的模型管理架构</h2>
+<p>Dify 的「模型供应商（Model Provider）」概念：</p>
+<pre class="codehilite"><code>模型供应商（OpenAI / DeepSeek / 通义 / Ollama / 本地模型……）
+  ├─ 大语言模型（LLM）：对话、生成
+  ├─ 文本向量模型（Embedding）：知识库索引
+  ├─ 重排序模型（Rerank）：检索精排
+  └─ 其他（图像、语音……）
+</code></pre>
+
+<p>一个供应商可配置多个模型实例（如 DeepSeek 下配 chat 和 reasoner）。应用可以<strong>随时切换</strong>用哪个模型，不用改代码。</p>
+<h2 id="_2">接入流程：三步</h2>
+<ol>
+<li><strong>设置 → 模型供应商 → 添加</strong>：选择供应商（OpenAI、DeepSeek、通义、智谱、Ollama、硅基流动等）；</li>
+<li><strong>填写凭证</strong>：API Key（云端）或本地服务地址（Ollama）；</li>
+<li><strong>验证</strong>：点「测试」，显示成功即可用。</li>
+</ol>
+<p><strong>推荐组合</strong>（学习用）：
+- 主对话模型：DeepSeek（便宜）或通义/智谱（国产稳定）；
+- Embedding 模型：同供应商的向量模型；
+- Rerank 模型：BAAI/bge-reranker 等（经 API 或本地）。</p>
+<h2 id="_3">应用里的模型配置</h2>
+<p>每个应用可以配置「自己的模型」，不强制全局统一：</p>
+<ul>
+<li><strong>编排界面右侧</strong>：选择应用用的模型和参数（温度、max tokens）；</li>
+<li><strong>按节点配置</strong>：工作流里每个 LLM 节点可以独立选模型——<strong>比如分类用便宜小模型，生成用贵的大模型</strong>；</li>
+<li><strong>Agent 模式</strong>：选一个主模型负责思考和工具调用。</li>
+</ul>
+<p><strong>这是多模型路由的基础</strong>：不同任务用不同模型，成本和质量都能兼顾。</p>
+<h2 id="_4">成本控制：精打细算的艺术</h2>
+<p>模型调用是按 token 计费的，Dify 提供多个省钱手段：</p>
+<h3 id="1-">1. 任务-模型匹配</h3>
+<table>
+<thead>
+<tr>
+<th>任务</th>
+<th>推荐模型</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>简单分类</td>
+<td>小模型（如 DeepSeek chat）</td>
+<td>便宜够用</td>
+</tr>
+<tr>
+<td>复杂推理</td>
+<td>大模型（如推理模型）</td>
+<td>能力要求高</td>
+</tr>
+<tr>
+<td>检索向量化</td>
+<td>专用 Embedding 模型</td>
+<td>便宜稳定</td>
+</tr>
+<tr>
+<td>精排</td>
+<td>Rerank 模型</td>
+<td>一次几百 token，开销小</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2">2. 控制输入长度</h3>
+<ul>
+<li><strong>上下文裁剪</strong>：工作流里只传必要的字段，别把无关内容塞给模型；</li>
+<li><strong>历史压缩</strong>：长对话用总结代替原始历史（第 7 章讲过）；</li>
+<li><strong>检索限制</strong>：知识库 TopK 不要贪多（3~5 段够用），每段都是钱。</li>
+</ul>
+<h3 id="3">3. 缓存与复用</h3>
+<ul>
+<li>相同问题的答案可以缓存（Dify 支持缓存节点），减少重复调用；</li>
+<li>高频问题用「知识库问答模式」直接命中标准答案，不走 LLM。</li>
+</ul>
+<h3 id="4">4. 监控成本</h3>
+<p>Dify 的日志/统计面板能看到每次调用的 token 数和费用。<strong>每周看一次成本报表</strong>，找出「又贵又没用」的调用优化掉。</p>
+<h2 id="_5">模型能力对比与选择</h2>
+<p>选模型前先明确三个维度：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>能力</td>
+<td>复杂推理用强模型，简单任务用小模型</td>
+</tr>
+<tr>
+<td>速度</td>
+<td>生产环境注意响应延迟，小模型更快</td>
+</tr>
+<tr>
+<td>价格</td>
+<td>成本敏感场景优先性价比模型</td>
+</tr>
+</tbody>
+</table>
+<p><strong>给新手的建议</strong>：先默认用一款性价比模型（如 DeepSeek）跑通，遇到「能力不够」的具体问题再针对性换强模型——<strong>别一开始就上最贵的</strong>。</p>
+<h2 id="_6">本地模型：省钱与隐私的选项</h2>
+<p>如果数据敏感或想省 API 费，可以在 Dify 接本地模型（Ollama，L10 讲过）：</p>
+<pre class="codehilite"><code>设置 → 模型供应商 → Ollama
+Base URL：http://host.docker.internal:11434
+模型名：qwen2.5:7b 等
+</code></pre>
+
+<p><strong>优点</strong>：免费、离线、数据不出内网。
+<strong>代价</strong>：需要 GPU 才快，效果通常不如云端大模型。</p>
+<p><strong>推荐策略</strong>：<strong>简单任务用本地小模型，复杂任务用云端大模型</strong>——两者在 Dify 里可以同时接入，按节点/应用自由切换。</p>
+<h2 id="_7">模型出问题怎么办：排障清单</h2>
+<p><strong>Q：应用报「模型不存在/未配置」？</strong>
+A：检查应用编排界面右侧的模型选择和供应商凭证是否有效。</p>
+<p><strong>Q：回答速度很慢？</strong>
+A：模型太大/太远，或输入太长。换小模型、裁剪上下文、换更近的服务商。</p>
+<p><strong>Q：某供应商偶尔超时？</strong>
+A：Dify 支持「模型冗余」——配两个供应商，主用失败自动切换（部分版本支持）。也可以手动在节点间切。</p>
+<p><strong>Q：知识库向量化失败？</strong>
+A：Embedding 模型没配或额度不够。确认供应商的「文本向量模型」已配置。</p>
+<h2 id="_8">模型选型决策清单</h2>
+<p>面对「用哪个模型」的纠结，用这张清单快速决策：</p>
+<pre class="codehilite"><code>1. 任务需要多强的推理能力？
+   简单分类/抽取 → 小模型（省 90% 成本）
+   复杂推理/长文 → 大模型或推理模型
+
+2. 数据能出内网吗？
+   能 → 云端 API 最省事
+   不能（合规/机密） → 本地模型（Ollama/vLLM）
+
+3. 对延迟的要求？
+   秒级响应 → 小模型 / 就近服务商
+   可接受慢 → 大模型
+
+4. 预算敏感吗？
+   敏感 → 性价比模型起步，跑通再升级
+   不敏感 → 直接上好模型
+</code></pre>
+
+<p><strong>铁律</strong>：永远「够用就好」——先用便宜的跑通，遇到具体问题再升级。别一上来就选最贵最强的。</p>
+<h2 id="_9">成本优化的进阶技巧</h2>
+<p>除了「任务匹配模型」，还有几个进阶省钱法：</p>
+<p><strong>1. 缓存高频答案</strong>
+相同问题的回答可以走缓存节点，第二次起不调模型。适合 FAQ 型应用，成本接近零。</p>
+<p><strong>2. 知识库问答模式代替 LLM</strong>
+命中「问题-答案」对时直接返回标准答案，不经过生成模型。这是「最省」的路径。</p>
+<p><strong>3. 提示词压缩</strong>
+系统提示词精简、few-shot 示例精选（3 个够用别放 10 个）、工具描述控制长度——每条输入都在烧钱。</p>
+<p><strong>4. 用量预警</strong>
+Dify 的统计面板设周/月目标，超了就告警。<strong>成本失控往往发生在「没人看」的时候。</strong></p>
+<h2 id="_10">小练习</h2>
+<ol>
+<li>在 Dify 里接入 2 个不同的模型供应商（如 DeepSeek + 通义，或云端 + 本地 Ollama）。</li>
+<li>给同一个应用切换不同模型，对比回答质量和速度差异。</li>
+<li>在工作流里实现「简单问题用便宜模型，复杂问题用贵模型」的路由（用条件分支）。</li>
+<li>进阶：跑一轮完整对话后，去日志面板统计 token 消耗，算一算如果每天 1000 次调用，月成本是多少。</li>
+<li>进阶：给应用开「缓存节点」，对同一个问题连续问两次，对比第二次是否省了模型调用。</li>
+</ol>
+<p>模型管理好了，成本可控了。下一章，把应用真正「发出去」——<strong>应用发布：API、嵌入与分享</strong>。</p></body></html>

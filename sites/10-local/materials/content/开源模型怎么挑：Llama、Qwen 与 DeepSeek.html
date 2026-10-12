@@ -1,0 +1,278 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>开源模型怎么挑：Llama、Qwen 与 DeepSeek | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="llamaqwen-deepseek">开源模型怎么挑：Llama、Qwen 与 DeepSeek</h1>
+<p>你现在已经能跑模型了（第 3 篇），也懂了量化（第 4 篇）。但 Ollama 的模型库里有几百个模型，<strong>到底该选哪个？</strong></p>
+<p>这一篇做一件事：把主流开源模型家族挨个介绍一遍，给你一套「按任务选模型」的傻瓜流程，最后给一张选型建议表。读完你就能自信地决定：自己的场景该下哪个模型。</p>
+<h2 id="1">1. 先建立一个直觉：开源模型像「各大菜系的餐馆」</h2>
+<p>开源模型的世界，就像一座美食城，每家都有自己的招牌菜：</p>
+<ul>
+<li><strong>Llama</strong>（Meta 出品）：综合实力强的「家常菜馆」，菜系全面、声誉最好，但「中文菜」要碰运气；</li>
+<li><strong>Qwen</strong>（阿里巴巴通义千问）：精通<strong>中文</strong>的「本帮菜馆」，中文菜做得最地道；</li>
+<li><strong>DeepSeek</strong>（深度求索）：<strong>性价比</strong>惊人的「平价快炒店」，在数学、推理上常常爆冷门；</li>
+<li><strong>Mistral</strong>（法国团队）：高效小巧的「法餐小店」，小体积、大能量，英语世界粉丝多；</li>
+<li><strong>Gemma</strong>（Google 出品）：轻量灵活的「西式快餐」，入门友好、生态好。</li>
+</ul>
+<p>怎么选？看你的「客人和菜」：你是天天吃中文菜，还是偶尔吃西餐？</p>
+<h2 id="2">2. 主流模型家族一句话定位</h2>
+<h3 id="21-meta-llama">2.1 Meta Llama 系列——开源的「老大哥」</h3>
+<ul>
+<li>定位：<strong>综合通用</strong>，开源大模型的开路先锋。</li>
+<li>代表作：Llama 3、Llama 3.1、Llama 3.2（含视觉版 <code>llama3.2-vision</code>）。</li>
+<li>特点：生态最成熟（工具、教程、微调案例最多），推理/写作能力均衡。</li>
+<li>注意：<strong>中文不是它的强项</strong>——它主要用英文训练，中文只能说「还行」，偶尔会出现中英文混杂或语感生硬。</li>
+</ul>
+<h3 id="22-qwen">2.2 阿里 Qwen（通义千问）——中文用户的首选</h3>
+<ul>
+<li>定位：<strong>中文最强、全能型</strong>。</li>
+<li>代表作：Qwen2.5 系列（有 0.5B / 1.5B / 3B / 7B / 14B / 32B / 72B 等一整套规格）。</li>
+<li>特点：<strong>中文分词、中文语感、中文知识储备全面领先</strong>；数学、代码能力也相当能打；规格选择极多，从小到大海陆空全覆盖。</li>
+<li>适合：绝大多数中国用户、中文任务、需要「靠谱」通用能力的场景。</li>
+</ul>
+<h3 id="23-deepseek">2.3 DeepSeek 系列——推理黑马、极致性价比</h3>
+<ul>
+<li>定位：<strong>数学 / 代码 / 逻辑推理特长生</strong>。</li>
+<li>代表作：DeepSeek-R1（推理特化，会「思考后作答」）、DeepSeek-V3（通用）。</li>
+<li>特点：在数学、代码、复杂推理任务上表现<strong>极其惊艳</strong>，甚至有和顶级闭源模型掰手腕的能力；且模型蒸馏版（R1-Distill）体积小、效果猛。</li>
+<li>注意：追求「稳妥中文日常对话」时，Qwen 可能更顺手；但问「这道题怎么解」「这段代码为什么报错」，DeepSeek 常有惊喜。</li>
+</ul>
+<h3 id="24-mistral">2.4 Mistral 系列——小身材大能量</h3>
+<ul>
+<li>定位：<strong>高效、轻量</strong>。</li>
+<li>代表作：Mistral 7B、Mistral Small、Mixtral（专家混合架构）。</li>
+<li>特点：用更少的参数达到不错的水平，在欧洲/英语社区极受欢迎；<strong>中文一般</strong>。</li>
+<li>适合：硬件有限、以英文为主、或者想研究「高效架构」的进阶玩家。</li>
+</ul>
+<h3 id="25-google-gemma">2.5 Google Gemma 系列——轻量入门</h3>
+<ul>
+<li>定位：<strong>轻量、生态友好</strong>（背靠 Google 的 JAX/Keras 生态）。</li>
+<li>代表作：Gemma 2、Gemma 3。</li>
+<li>特点：体积小、容易部署，社区工具多。</li>
+<li>适合：入门实验、嵌入式/边缘设备场景；中文同样不是强项。</li>
+</ul>
+<h2 id="3">3. 按「任务类型」选模型：一张需求画像</h2>
+<p>把「你要做什么」和「选哪家」对齐：</p>
+<table>
+<thead>
+<tr>
+<th>你的主要任务</th>
+<th>推荐方向</th>
+<th>具体示例（Ollama 模型名）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>中文日常对话、写中文文案</td>
+<td><strong>Qwen</strong></td>
+<td><code>qwen2.5:7b</code>、<code>qwen2.5:14b</code></td>
+</tr>
+<tr>
+<td>通用助手、中英混合、写代码</td>
+<td>Qwen / Llama</td>
+<td><code>qwen2.5:7b</code>、<code>llama3.1:8b</code></td>
+</tr>
+<tr>
+<td>数学、逻辑推理、刷题</td>
+<td><strong>DeepSeek</strong></td>
+<td><code>deepseek-r1:7b</code>、<code>deepseek-r1:14b</code></td>
+</tr>
+<tr>
+<td>写代码、修 bug</td>
+<td>DeepSeek / Qwen</td>
+<td><code>deepseek-coder-v2</code>、<code>qwen2.5-coder:7b</code></td>
+</tr>
+<tr>
+<td>英文内容创作、翻译</td>
+<td>Llama / Mistral</td>
+<td><code>llama3.1:8b</code>、<code>mistral:7b</code></td>
+</tr>
+<tr>
+<td>轻量、低配硬件</td>
+<td>Qwen 小规格 / Gemma</td>
+<td><code>qwen2.5:1.5b</code>、<code>gemma2:2b</code></td>
+</tr>
+<tr>
+<td>视觉理解（看图）</td>
+<td>Llama 视觉版 / Qwen-VL</td>
+<td><code>llama3.2-vision</code>、<code>qwen2.5-vl</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>读表要点：<strong>「中文」两个字出现的地方，优先 Qwen</strong>。这不是偏见，而是训练数据决定的客观差距——Qwen 的中文语料占比远高于 Llama/Mistral。</p>
+</blockquote>
+<h2 id="4">4. 按「规模 + 显存」定参数：三条主流路线</h2>
+<p>选好「家族」后，还要选「规格」。规格（7B / 14B / 32B…）与你的硬件直接挂钩。这里给三条最主流路线：</p>
+<h3 id="a4gb-cpu-15b3b">路线 A：低配路线（4GB 显存 / 纯 CPU）—— 1.5B～3B</h3>
+<ul>
+<li>模型：<code>qwen2.5:1.5b</code>、<code>qwen2.5:3b</code>、<code>gemma2:2b</code>；</li>
+<li>体验：反应快、体积小（1～2GB），能力有限，适合轻量问答、文本分类、简单改写；</li>
+<li>用途：作为「常驻背景助手」、给 API 当免费的批量处理引擎。</li>
+</ul>
+<h3 id="b8gb-16gb-7b14b">路线 B：甜点路线（8GB 显存 / 16GB+ 内存）—— 7B～14B（强烈推荐）</h3>
+<ul>
+<li>模型：<code>qwen2.5:7b</code>、<code>qwen2.5:14b</code>、<code>deepseek-r1:7b</code>、<code>llama3.1:8b</code>；</li>
+<li>体验：<strong>能力与硬件的黄金平衡点</strong>。写文案、总结、翻译、简单代码都够用，速度流畅；</li>
+<li>用途：绝大多数普通用户的目标配置，本阶课程默认带你跑通的就是这条线。</li>
+</ul>
+<h3 id="c12gb-32gb-32b70b">路线 C：高配路线（12GB+ 显存 / 32GB+ 内存）—— 32B～70B</h3>
+<ul>
+<li>模型：<code>qwen2.5:32b</code>、<code>qwen2.5:72b</code>（量化后约 20～40GB）、<code>deepseek-r1:32b</code>；</li>
+<li>体验：明显更聪明，复杂任务、长文档、深度创作都能胜任，但速度依赖硬件；</li>
+<li>用途：认真当生产力工具、长期高强度使用。</li>
+</ul>
+<h2 id="5">5. 选型决策流程：四步走</h2>
+<p>不废话，直接给流程：</p>
+<pre class="codehilite"><code>第一步：你的主要任务是什么？
+   ├─ 中文 / 中文写作 → 选 Qwen
+   ├─ 数学 / 逻辑 / 代码 → 选 DeepSeek
+   └─ 英文 / 通用 → 选 Llama 或 Mistral
+第二步：你有多少显存 / 内存？
+   ├─ 显存 &lt; 6GB 或纯 CPU → 1.5B ~ 3B
+   ├─ 显存 6~10GB → 7B（Q4 量化）
+   └─ 显存 12GB+ → 14B ~ 32B
+第三步：用 Ollama 拉下来跑
+   ollama run qwen2.5:7b
+第四步：跑通后按效果微调
+   满意 → 保持；想要更好 → 升规模 / 升量化（Q6/Q8）
+   太慢 → 降规模 / 降量化（Q4）；答非所问 → 换家族（如 DeepSeek）
+</code></pre>
+
+<h2 id="6">6. 进阶：看看排行榜再下决定</h2>
+<p>不想看文字推荐，想看实时数据？两个公开参考：</p>
+<ul>
+<li><strong>Open LLM Leaderboard</strong>（Hugging Face 上的开源模型能力榜）：按常识、推理、数学、代码等维度打分排名；</li>
+<li><strong>各模型官方评测（MMLU / HumanEval / GSM8K）</strong>：MMLU 测常识、HumanEval 测代码、GSM8K 测数学——查对应指标即可。</li>
+</ul>
+<p>看榜的注意点：</p>
+<ol>
+<li><strong>别只看总分</strong>，看它在你关注维度（比如中文、代码）上的单项分；</li>
+<li><strong>对比同参数量</strong>：7B 和 72B 比不公平，同规格才有意义；</li>
+<li><strong>量化后分数会略降</strong>：榜单多用未量化版本评测，本地 Q4 跑分会有小幅折扣。</li>
+</ol>
+<h3 id="61">6.1 排行榜具体怎么查？</h3>
+<p>打开浏览器，访问 Hugging Face（<code>huggingface.co</code>），在搜索框输入 <code>Open LLM Leaderboard</code>。进入后是一个巨大的排行榜表格，按综合评分排序。</p>
+<p>想让结果更贴近你的需求，用页面侧边的筛选器：</p>
+<ol>
+<li>只看中文强的模型 → 勾选含 <code>Chinese</code> 的标签；</li>
+<li>只看你能跑动的规模 → 按参数量（如 7B、8B）筛掉大模型；</li>
+<li>按代码/数学单项排序 → 点击对应列的表头。</li>
+</ol>
+<blockquote>
+<p>提示：排行榜数据会频繁更新，记住「查最新」比「背结论」更可靠。2025 年之后中文开源模型基本是 Qwen 和 DeepSeek 两强争霸，榜单变化不会太大。</p>
+</blockquote>
+<h2 id="7">7. 常见选型误区</h2>
+<h3 id="71">7.1 「模型越大越好」</h3>
+<p>错。模型越大越占显存、越慢；如果硬件带不动，反而体验崩坏。<strong>「带得动的最大模型」才最好。</strong></p>
+<h3 id="72">7.2 「最新的一定最好」</h3>
+<p>不完全对。新版本通常更强，但个别版本可能有退步或兼容问题。<strong>先看社区口碑再升级</strong>，稳定优先。</p>
+<h3 id="73">7.3 「开源 = 免费 = 随便商用」</h3>
+<p>开源 ≠ 无限制。注意各家的开源协议（如 Llama 协议对月活超一定量级的大企业有额外条款；Qwen 的 Apache 2.0 协议较宽松）。个人使用基本无忧，商用前务必查协议。</p>
+<h3 id="74-qwen">7.4 「Qwen 只适合中文」</h3>
+<p>不是。Qwen 的英文能力同样优秀，只是中文是它的「超强项」。英文场景它一样能打。</p>
+<h3 id="74-qwen_1">7.4 「Qwen 只适合中文」</h3>
+<p>不是。Qwen 的英文能力同样优秀，只是中文是它的「超强项」。英文场景它一样能打。</p>
+<h3 id="75">7.5 「本地模型不会「思考」」</h3>
+<p>这是常见的误解。像 DeepSeek-R1 这类「思考型」模型，在本地同样能跑——它们会在正式回答前先输出一段内部的「推理过程」（也就是思维链），把题目拆解、验证后再作答。想要「会推理的助手」，可以选 <code>deepseek-r1</code> 的蒸馏小版本（如 7B / 14B），效果远超同规模普通模型。这类模型在第 9 篇 <code>content/性能调优：并发、批处理与显存优化.md</code> 里也会有相关参数说明。</p>
+<h2 id="8-qwen257b">8. 读懂模型名字：<code>qwen2.5:7b</code> 里藏着什么？</h2>
+<p>当你在 Ollama 或模型仓库里看到各种名字，别懵——拆开看规律很清晰：</p>
+<pre class="codehilite"><code>家族 + 版本 + 规格 + (可选后缀)
+</code></pre>
+
+<ul>
+<li><code>qwen2.5:7b</code> → 家族 qwen、版本 2.5、规格 7b；</li>
+<li><code>llama3.1:8b</code> → Meta Llama 第 3.1 代、8B 参数；</li>
+<li><code>deepseek-r1:14b</code> → DeepSeek R1 推理模型、14B；</li>
+<li><code>qwen2.5-coder:7b</code> → 专为编程优化的 Qwen；</li>
+<li><code>qwen2.5-vl:7b</code> → 支持视觉（看图）的 Qwen。</li>
+</ul>
+<p>常见后缀一览：</p>
+<table>
+<thead>
+<tr>
+<th>后缀</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-coder</code></td>
+<td>代码特化版</td>
+</tr>
+<tr>
+<td><code>-vl</code></td>
+<td>视觉语言模型，支持图片输入</td>
+</tr>
+<tr>
+<td><code>-instruct</code> / <code>-chat</code></td>
+<td>对话微调版（日常使用就是这类）</td>
+</tr>
+<tr>
+<td><code>-fp16</code></td>
+<td>未量化、体积最大的版本</td>
+</tr>
+</tbody>
+</table>
+<p>这里有个概念值得记住：模型分「基础版」和「对话版」。<strong>基础版只会续写文字</strong>（像「接话机器」），<strong>对话版（Instruct/Chat）才学会按指令回答问题</strong>。我们日常下载的都是 Instruct 或 Chat 版本，基础版不在本地部署的讨论范围内。</p>
+<h2 id="9">9. 五分钟快速评测：怎么判断「它行不行」？</h2>
+<p>下载完不确定好不好用？用一套「标准考卷」快速评测，别凭感觉下结论。把下面几道题发给模型：</p>
+<pre class="codehilite"><code class="language-text">1. 中文写作：写一段 100 字的欢迎新员工的致辞
+2. 逻辑推理：三个苹果分给两个人，每人至少一个，有几种分法？
+3. 代码能力：用 Python 写一个计算斐波那契数列的函数
+4. 翻译：把「今天天气很好，适合去公园散步」翻译成英文
+5. 常识：为什么天空是蓝色的？用一句话解释
+</code></pre>
+
+<p>然后从三个维度打分：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>看什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>正确性</td>
+<td>关键事实、逻辑有没有错</td>
+</tr>
+<tr>
+<td>中文流畅度</td>
+<td>有没有「机翻味」、中英混杂、语序生硬</td>
+</tr>
+<tr>
+<td>遵纪守规</td>
+<td>是否严格按要求做（让写 100 字就别写 500 字）</td>
+</tr>
+</tbody>
+</table>
+<p>把两三个候选模型都「考」一遍，对比答案，你会有非常直观的判断。<strong>这个评测方法在第 10 篇 <code>content/实战路线：从零搭一个本地 AI 助手.md</code> 里会继续用到</strong>——好习惯要留着。</p>
+<h2 id="10">10. 本章小结</h2>
+<p>选模型其实就三句话：</p>
+<ol>
+<li><strong>按任务选家族</strong>：中文选 Qwen，推理/代码选 DeepSeek，英文通用选 Llama/Mistral；</li>
+<li><strong>按硬件定规格</strong>：显存决定你能跑多大，跑得动的前提下越大越好；</li>
+<li><strong>用 Ollama 试</strong>：模型可以随意拉取、删除、对比，多试几次就知道哪个顺手。</li>
+</ol>
+<p>你现在已经有「模型」了。下一步，是给它穿上漂亮的「衣服」——网页界面。</p>
+<p><strong>下一站：<code>content/推理引擎对比：llama.cpp、vLLM 与 Ollama.md</code></strong>（先弄清背后引擎，再套界面），或者直接跳 <code>content/Open WebUI：给本地模型装上网页界面.md</code>。</p></body></html>

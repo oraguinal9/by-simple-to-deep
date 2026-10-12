@@ -1,0 +1,107 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第九章 ReAct：让 Agent 边想边做 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="react-agent">第九章 ReAct：让 Agent 边想边做</h1>
+<p>前两章讲了 Agent 有工具（第七章）、以及工具怎么被调用（第八章 Function Calling）。但还有一个核心问题没解决：</p>
+<blockquote>
+<p>面对"订北京的高铁，再订接机车，最后发短信告诉我"这种<strong>多步骤目标</strong>，模型怎么知道<strong>先干啥、后干啥、中途结果怎么用</strong>？</p>
+</blockquote>
+<p>本章介绍 Agent 领域最经典的一种"做事方法"——<strong>ReAct</strong>。</p>
+<h2 id="react">一、什么是 ReAct</h2>
+<p>ReAct = <strong>Re</strong>asoning（推理） + <strong>Act</strong>ing（行动）。它的核心思想极其朴素：</p>
+<blockquote>
+<p><strong>让模型把"心里话"说出来，再据此行动，再看结果，再想下一步——想和做交替进行。</strong></p>
+</blockquote>
+<p>具体每一步，Agent 会产生三种东西：</p>
+<ul>
+<li><strong>Thought（思考）</strong>：模型自己嘀咕"我现在该干嘛、为什么"。比如"我得先查北京天气，才能决定带不带伞"。</li>
+<li><strong>Action（行动）</strong>：基于思考，决定调哪个工具、传什么参数（就是上一章的 Function Calling）。</li>
+<li><strong>Observation（观察）</strong>：工具返回的结果。比如"北京 28℃ 晴"。</li>
+</ul>
+<p>然后拿着 Observation，进入下一轮 Thought → Action → Observation……直到 Thought 判断"事办完了"，输出最终答案。</p>
+<h2 id="_1">二、一个具体推演</h2>
+<p>任务："北京今天适合穿啥？顺便看看要不要带伞。"</p>
+<pre class="codehilite"><code>Thought:   用户想知道穿着建议，得先知道北京今天天气。
+Action:    get_weather(city=北京, date=今天)
+Observation: { temp: 28, cond: &quot;晴&quot; }
+Thought:   28℃ 晴天，偏热，不需要厚衣也不需要伞；可以推荐轻薄透气的衣服。
+Action:    search_products(category=&quot;夏装&quot;, city=&quot;北京&quot;)
+Observation: [T恤, 短裤, 凉鞋 ...]
+Thought:   信息足够了，可以综合天气和商品给建议。
+Answer:    北京今天 28℃ 晴，建议穿 T 恤短裤等夏装，不用带伞；给您找到了几款……
+</code></pre>
+
+<p>看见了吗？模型不是"一口气答完"，而是<strong>每步先想清楚再动手，手上的结果又喂给下一步的思考</strong>。这就是"边想边做"。</p>
+<h2 id="react_1">三、为什么 ReAct 这么好用</h2>
+<h3 id="1">1. 把"推理"显式化，可追踪可纠错</h3>
+<p>模型把 Thought 写出来了，你就能看到它<strong>为什么</strong>这么决策。哪步想歪了，你能定位、能干预。对比"黑箱一口气给答案"，ReAct 透明得多。</p>
+<h3 id="2">2. 把"长任务"拆成"短决策"</h3>
+<p>复杂任务不用一次想透，而是走一步看一步。每步只解决"当下该调哪个工具"，压力小、不易错。</p>
+<h3 id="3">3. 观察结果能纠正偏差</h3>
+<p>如果 Action 返回"查无此城市"，下一轮 Thought 就能意识到"是不是城市名写错了"，换成正确写法。<strong>错误在循环中被自然消化</strong>，而不是一错到底。</p>
+<h2 id="react-function-calling">四、ReAct 和 Function Calling 是什么关系</h2>
+<p>容易混淆，其实层次不同：</p>
+<ul>
+<li><strong>Function Calling</strong> 是"<strong>怎么调一个函数</strong>"的机制（第八章）；</li>
+<li><strong>ReAct</strong> 是"<strong>按什么节奏组织多步任务</strong>"的方法（本章）。</li>
+</ul>
+<p>ReAct 的每一个 Action，底层就是一次 Function Calling。换句话说：<strong>ReAct 是上层思维框架，Function Calling 是它调动工具的具体手段。</strong> 两者是"战略"与"战术"的关系。</p>
+<h2 id="plan-and-execute">五、进阶：Plan-and-Execute（先计划再执行）</h2>
+<p>ReAct 是"走一步看一步"，适合步骤不长的任务。但当任务很长（比如"调研一个行业并写报告"），纯 ReAct 容易在中途"迷失方向"。</p>
+<p>进阶做法是 <strong>Plan-and-Execute</strong>：
+1. <strong>先规划（Plan）</strong>：模型先一次性列出大致步骤清单（如：①搜行业规模 ②搜头部公司 ③搜政策 ④汇总）；
+2. <strong>再逐步执行（Execute）</strong>：每一步用 ReAct 式的小循环去完成。</p>
+<p>好处是<strong>有全局蓝图</strong>，不会走岔。许多成熟 Agent 框架会混合这两种思路。</p>
+<h2 id="memory-agent">六、记忆（Memory）：让 Agent 跨步骤"记事"</h2>
+<p>多步任务里，Agent 常需要"记住前面发生过什么"。比如第一步查到的天气，第三步还要用。这就需要<strong>记忆机制</strong>：</p>
+<ul>
+<li><strong>短期记忆</strong>：把本轮对话历史（包括之前的 Thought/Action/Observation）保留在上下文里，模型自然能看到；</li>
+<li><strong>长期记忆</strong>：跨多轮、跨会话记住用户信息（常借助我们前面学的 <strong>RAG</strong>——把历史存进知识库，需要时检索）。</li>
+</ul>
+<p>所以你又会看到：<strong>Agent 的记忆，常常也是靠 RAG 实现的</strong>。RAG 和 Agent 在这条线上再次交汇。</p>
+<h2 id="react_2">七、ReAct 的风险与对策</h2>
+<p>ReAct 强大，但也有典型毛病：</p>
+<ul>
+<li><strong>死循环</strong>：Thought 反复横跳，Action 一直重复（比如不停查天气）。对策：设<strong>最大步数上限</strong>，超了就停并回报。</li>
+<li><strong>幻觉式 Action</strong>：模型编造一个根本没登记过的函数名。对策：执行前<strong>校验函数名是否在工具清单内</strong>，不在就驳回。</li>
+<li><strong>步数爆炸烧钱</strong>：每步都要调一次模型。对策：简单任务别上 ReAct；或用 Plan-and-Execute 减少无效试探。</li>
+</ul>
+<h2 id="_2">八、本章小结</h2>
+<ul>
+<li><strong>ReAct = 推理 + 行动</strong>，让模型交替产生 Thought（思考）→ Action（调用工具）→ Observation（看结果），循环到任务完成。</li>
+<li>价值：推理<strong>显式化可追踪</strong>、长任务<strong>拆成短决策</strong>、Observation 能<strong>自然纠错</strong>。</li>
+<li>ReAct 是"战略"（组织多步），Function Calling 是"战术"（调单个函数）；ReAct 的每个 Action 底层就是一次 FC。</li>
+<li>进阶 <strong>Plan-and-Execute</strong>：先列全局步骤，再逐步 ReAct 执行，防长任务迷失。</li>
+<li><strong>记忆</strong>靠保留对话历史（短期）+ RAG 检索（长期）；Agent 记忆常与 RAG 交汇。</li>
+<li>风险：死循环（设步数上限）、幻觉函数名（校验清单）、烧钱（简单任务不上 ReAct）。</li>
+</ul>
+<h2 id="_3">九、小练习</h2>
+<ol>
+<li>下面哪一段更符合 ReAct 的风格？</li>
+<li>A. 模型直接输出"北京今天 28℃ 晴，建议穿夏装"。</li>
+<li>B. 模型先写 Thought"需查天气"，Action 调 get_weather，看到 Observation 后再写 Thought 决定推荐。</li>
+<li>ReAct 和 Function Calling，哪个是"怎么调一个函数"，哪个是"怎么组织多步任务"？</li>
+<li>你的 ReAct Agent 卡在"不停调 get_weather"的死循环里。你会加什么机制来止血？</li>
+</ol>
+<hr />
+<p><em>RAG 和 Agent 两条线都讲完了。最后一章，我们把知识落地：亲手看一个最小可行的 RAG 与一个最小 Agent 的代码骨架，并给出全系列的进阶路线。</em></p></body></html>

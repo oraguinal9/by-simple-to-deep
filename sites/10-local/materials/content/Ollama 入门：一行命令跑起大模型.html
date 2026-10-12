@@ -1,0 +1,323 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Ollama 入门：一行命令跑起大模型 | 本地部署大模型 L10</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#052e16;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#15803d;line-height:1.35;}
+  h1{border-bottom:3px solid #16a34a;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #22c55e;padding-left:11px;}
+  code{background:#f0fdf4;padding:2px 6px;border-radius:5px;font-size:90%;color:#15803d;}
+  pre{background:#052e16;color:#86efac;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #bbf7d0;padding:8px 11px;text-align:left;}
+  th{background:#dcfce7;color:#15803d;}
+  tr:nth-child(even){background:#f0fdf4;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22c55e;background:#f0fdf4;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#16a34a;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #bbf7d0;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#16a34a;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L10 学习路线图</a><span class='r'>本地部署大模型 · local.zbjh.top</span></div><h1 id="ollama">Ollama 入门：一行命令跑起大模型</h1>
+<p>前面两篇我们讲了「为什么本地部署」和「硬件怎么选」，你可能已经跃跃欲试。这一篇，我们来一场<strong>十分钟的魔法</strong>：用一行命令，把一个大模型在你自己的电脑上跑起来。</p>
+<p>这一篇的主角叫 <strong>Ollama</strong>。它是当前「在本地跑大模型」这件事里，最简单、最适合新手的工具，没有之一。</p>
+<h2 id="1-ollama">1. Ollama 是什么？——一个「模型管家」</h2>
+<p>先建立一个直觉。</p>
+<p>假如大模型是一本书，那么「运行大模型」这件事，原本需要你：</p>
+<ol>
+<li>下载模型文件（往往几十 GB）；</li>
+<li>自己写代码把模型加载进内存/显存；</li>
+<li>处理显卡兼容、参数配置、内存溢出等一堆问题；</li>
+<li>自己想办法跟模型「对话」。</li>
+</ol>
+<p>Ollama 把这些全部打包了。它像一个<strong>管家</strong>：</p>
+<ul>
+<li>你只需要说一句「把这本书拿来」（<code>ollama pull 模型名</code>）；</li>
+<li>管家负责取书、翻书、甚至帮你读出来（<code>ollama run 模型名</code>）；</li>
+<li>你不舒服时，管家还会帮你「换一本更薄的书」（换量化版本，见第 4 篇 <code>content/模型格式与量化：GGUF 与 Q4/Q8.md</code>）。</li>
+</ul>
+<p>技术上说：<strong>Ollama 底层封装了 llama.cpp（一个高性能的 C++ 推理引擎）</strong>，并在此基础上加了一层极其友好的命令行界面、模型仓库管理和内置的 API 服务。你不需要知道任何细节，Ollama 全替你搞定。（第 6 篇 <code>content/推理引擎对比：llama.cpp、vLLM 与 Ollama.md</code> 会拆开讲这层关系。）</p>
+<h2 id="2-ollama">2. 安装 Ollama：三平台一步到位</h2>
+<h3 id="21">2.1 安装前的小准备</h3>
+<ul>
+<li>确认电脑<strong>磁盘剩余空间</strong>至少 10GB（模型要下载到本地）；</li>
+<li>不用提前装 Python、显卡驱动（Ollama 一般会自动处理核心依赖）；</li>
+<li>Windows 用户建议关闭会「吃内存」的大型软件，内存留给模型。</li>
+</ul>
+<h3 id="22-windows">2.2 Windows 安装</h3>
+<ol>
+<li>打开浏览器，访问 Ollama 官网 <code>ollama.com</code>；</li>
+<li>点击大大的 <strong>Download</strong> 按钮，选择 <strong>Windows</strong>；</li>
+<li>下载得到一个 <code>OllamaSetup.exe</code>，双击运行，一路点「下一步」即可；</li>
+<li>安装完成后，打开「命令提示符」或 PowerShell，输入：</li>
+</ol>
+<pre class="codehilite"><code class="language-bash">ollama --version
+</code></pre>
+
+<p>如果能看到版本号（比如 <code>ollama version 0.5.0</code>），说明安装成功。</p>
+<blockquote>
+<p>Windows 用户注意：Ollama 安装后会在右下角托盘常驻一个小图标，这代表服务已经在后台运行。如果你看到它，说明 Ollama 已经「待命」了。</p>
+</blockquote>
+<h3 id="23-macos">2.3 macOS 安装</h3>
+<ol>
+<li>同样访问 <code>ollama.com</code>，下载 macOS 版本的安装包（<code>Ollama-darwin.zip</code>）；</li>
+<li>解压后把 Ollama 拖进「应用程序」文件夹，双击打开；</li>
+<li>打开「终端」，输入：</li>
+</ol>
+<pre class="codehilite"><code class="language-bash">ollama --version
+</code></pre>
+
+<blockquote>
+<p>Apple Silicon（M 系列）的 Mac 是 Ollama 的最佳拍档——得益于统一内存，它能把大模型装进内存跑得飞快。16GB 内存跑 7B 模型毫无压力。</p>
+</blockquote>
+<h3 id="24-linux">2.4 Linux 安装</h3>
+<p>Linux 用一行命令搞定（安装脚本会帮你处理依赖）：</p>
+<pre class="codehilite"><code class="language-bash">curl -fsSL https://ollama.com/install.sh | sh
+</code></pre>
+
+<p>安装完成后同样验证：</p>
+<pre class="codehilite"><code class="language-bash">ollama --version
+</code></pre>
+
+<h2 id="3">3. 见证奇迹：一行命令跑起大模型</h2>
+<h3 id="31">3.1 第一次运行</h3>
+<p>打开终端（Windows 是命令提示符/PowerShell，macOS/Linux 是终端），输入：</p>
+<pre class="codehilite"><code class="language-bash">ollama run qwen2.5:7b
+</code></pre>
+
+<p>然后，等待。第一次运行会自动下载模型文件（大约 4～5GB，取决于网络速度），下载完成后你会看到这样的界面：</p>
+<pre class="codehilite"><code>&gt;&gt;&gt; 你好，你是谁？
+</code></pre>
+
+<p>就像打开了一个聊天框。你输入一句话，回车，模型就开始回答。<strong>到这一步，你已经在自己的电脑上成功运行了一个大模型。</strong></p>
+<p>试试这些输入，感受一下它的能力：</p>
+<pre class="codehilite"><code>&gt;&gt;&gt; 用三句话介绍一下你自己
+&gt;&gt;&gt; 帮我写一首关于夏天的五言绝句
+&gt;&gt;&gt; 1+1 为什么等于 2？
+&gt;&gt;&gt; /bye   （退出对话）
+</code></pre>
+
+<blockquote>
+<p>为什么推荐 <code>qwen2.5:7b</code>？因为 Qwen（通义千问）系列是当前<strong>中文能力最强、最平衡</strong>的开源模型之一，7B 这个规模对普通硬件最友好。第 5 篇 <code>content/开源模型怎么挑：Llama、Qwen 与 DeepSeek.md</code> 会教你怎么按任务挑模型。</p>
+</blockquote>
+<h3 id="32">3.2 看懂这行命令的结构</h3>
+<p><code>ollama run qwen2.5:7b</code> 拆开看：</p>
+<ul>
+<li><code>ollama</code>：调用 Ollama 这个程序；</li>
+<li><code>run</code>：告诉它「我要运行/进入对话」；</li>
+<li><code>qwen2.5</code>：模型的名字（这是阿里通义千问 2.5 系列）；</li>
+<li><code>:7b</code>：模型的规格标签（这是 70 亿参数版本）。</li>
+</ul>
+<p>在终端里，模型内部的斜杠命令还有几个：</p>
+<pre class="codehilite"><code class="language-text">/bye       退出对话
+/help      查看帮助
+/?         查看当前会话信息
+/clear     清空当前对话上下文
+</code></pre>
+
+<h2 id="4">4. 常用命令速查：把模型「管」起来</h2>
+<p>对话只是入门，Ollama 真正强大的是它简洁的命令体系。下面这些命令，建议都亲手敲一遍：</p>
+<h3 id="41">4.1 列出已安装的模型</h3>
+<pre class="codehilite"><code class="language-bash">ollama list
+</code></pre>
+
+<p>输出会告诉你：你下载了哪些模型、各占多大空间。这个命令你会经常用。</p>
+<h3 id="42">4.2 下载指定模型（不进入对话）</h3>
+<p>有时候只想下载，不想立刻用：</p>
+<pre class="codehilite"><code class="language-bash">ollama pull qwen2.5:7b
+</code></pre>
+
+<p><code>pull</code> 的意思是「拉取」，等价于下载。<code>ollama run</code> 会自动先 pull 再 run，所以平时直接用 run 即可。</p>
+<h3 id="43">4.3 换一个模型试试</h3>
+<p>不需要退出再重新输命令，直接：</p>
+<pre class="codehilite"><code class="language-bash">ollama run llama3.2:3b
+</code></pre>
+
+<p>Ollama 会自动下载这个新模型并进入对话。<strong>想换就换</strong>，这是本地部署最大的自由——云端你只能被动等厂商更新。</p>
+<h3 id="44">4.4 查看模型信息</h3>
+<pre class="codehilite"><code class="language-bash">ollama show qwen2.5:7b
+</code></pre>
+
+<p>会显示这个模型的架构、参数量、上下文长度等元信息，适合进阶玩家查看。</p>
+<h3 id="45">4.5 删除不用的模型（释放硬盘）</h3>
+<pre class="codehilite"><code class="language-bash">ollama rm qwen2.5:7b
+</code></pre>
+
+<p>模型动辄几 GB，删掉不用的能救回不少硬盘空间。</p>
+<h3 id="46-ollama">4.6 让 Ollama 作为服务常驻（重要！）</h3>
+<p>Ollama 安装后其实<strong>默认就在后台运行一个本地服务</strong>，监听在 <code>127.0.0.1:11434</code>。也就是说，它不只是个命令行玩具，还是一个 API 服务器。查看状态：</p>
+<pre class="codehilite"><code class="language-bash">ollama serve
+</code></pre>
+
+<blockquote>
+<p>这个 <code>serve</code> 命令很重要：后续章节（Open WebUI、API 服务化）都要依赖这个本地服务。正常安装后它已经自动在跑，如果你手动折腾过，用这条命令重启服务即可。它默认监听 <code>http://localhost:11434</code>，这就是你电脑上的「AI 服务器」地址。</p>
+</blockquote>
+<h2 id="5">5. 停止与排障：遇到问题别慌</h2>
+<h3 id="51">5.1 退出对话 / 停止服务</h3>
+<ul>
+<li>退出当前对话：在对话框输入 <code>/bye</code>；</li>
+<li>停止后台服务：</li>
+<li>Windows：任务栏右下角 Ollama 图标，右键 → 退出；</li>
+<li>macOS：菜单栏 Ollama 图标 → 退出；</li>
+<li>Linux：<code>systemctl stop ollama</code>（或用 <code>pkill ollama</code>）。</li>
+</ul>
+<h3 id="52">5.2 常见问题快修</h3>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>原因</th>
+<th>解决办法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>提示 <code>manifest not found</code></td>
+<td>模型名打错了</td>
+<td>用 <code>ollama list</code> 看已装模型，复制准确名字</td>
+</tr>
+<tr>
+<td>下载很慢/中断</td>
+<td>网络问题</td>
+<td>重跑一次 <code>ollama pull</code>，支持断点续传</td>
+</tr>
+<tr>
+<td>报显存不足（CUDA out of memory）</td>
+<td>模型太大 / 精度太高</td>
+<td>换更小模型或量化版（见第 4 篇）</td>
+</tr>
+<tr>
+<td>回答乱码</td>
+<td>终端编码问题</td>
+<td>换 Windows Terminal，或设置 <code>chcp 65001</code> 切到 UTF-8</td>
+</tr>
+<tr>
+<td>运行时很卡、风扇狂转</td>
+<td>硬件吃不消</td>
+<td>减少同时开的大程序；换更小模型</td>
+</tr>
+<tr>
+<td>模型答非所问</td>
+<td>上下文太长被截断</td>
+<td>用 <code>/clear</code> 清空历史再问</td>
+</tr>
+</tbody>
+</table>
+<h3 id="53">5.3 两个容易被忽略的小问题</h3>
+<p><strong>问题一：Windows 上命令找不到了？</strong></p>
+<p>明明装好了，但新开的终端里输入 <code>ollama</code> 却说「不是内部或外部命令」。多半是<strong>环境变量没刷新</strong>——Ollama 安装时会把自身加入 PATH，但已打开的终端窗口不会自动感知。解法：关掉当前终端，重新开一个；或者干脆重启一次电脑，保证万无一失。</p>
+<p><strong>问题二：下载到一半断了，要重新下载吗？</strong></p>
+<p>不用。Ollama 的模型下载支持<strong>断点续传</strong>，网络恢复后重跑一次 <code>ollama pull qwen2.5:7b</code>，它会从上次中断的地方继续，不会从头开始。耐心等它跑完即可，不要反复重试同一条命令造成干扰。</p>
+<h2 id="6">6. 跑通之后：五个有趣的小实验</h2>
+<p>第一次成功对话，值得好好庆祝。但别停下来，用下面五个小实验巩固手感：</p>
+<p><strong>实验一：连续对话，看它记不记得你说了什么</strong></p>
+<pre class="codehilite"><code>&gt;&gt;&gt; 我的名字叫小明
+&gt;&gt;&gt; 我叫什么名字？
+</code></pre>
+
+<p>如果它回答「小明」，说明它记住了上下文。本地模型的好玩之处就在这里——<strong>对话内容只存在你的电脑里</strong>。</p>
+<p><strong>实验二：让它角色扮演</strong></p>
+<pre class="codehilite"><code>&gt;&gt;&gt; 请你扮演一个幽默的历史老师，用三句话讲秦朝
+</code></pre>
+
+<p>系统会给它设定「人设」，回答风格完全不同。这是未来做「专属助手」的基础。</p>
+<p><strong>实验三：换一个不同规模的模型对比</strong></p>
+<pre class="codehilite"><code class="language-bash">ollama run qwen2.5:1.5b
+</code></pre>
+
+<p>问同样的问题，对比 1.5B 和 7B 的回答质量差异。<strong>你会亲眼看到「参数越多越聪明」这句话的意思</strong>——这也是本地部署最直观的「实验课」。</p>
+<p><strong>实验四：让它处理一段长文本</strong></p>
+<p>粘贴一段 500 字的文章，然后问「用三句话总结」。注意观察：模型要「读完」再「总结」，中间会停顿——这就是它在读取上下文。</p>
+<p><strong>实验五：用 <code>ollama ps</code> 偷看后台</strong></p>
+<pre class="codehilite"><code class="language-bash">ollama ps
+</code></pre>
+
+<p>对话的同时打开另一个终端运行这条命令，能看到模型占用了多少显存/内存。<strong>你正在用「上帝视角」观察一个大模型在你电脑里的运行状态</strong>——这在云端永远看不到。</p>
+<h2 id="7-modelfile">7. Modelfile：给模型「调口味」的配方文件</h2>
+<p>当你玩熟了基础操作，Ollama 还提供一个深度定制的入口——<strong>Modelfile</strong>。它是一份「配方」，可以自定义模型的默认行为。</p>
+<p>最简单的用法是写一个 <code>Modelfile</code> 文件：</p>
+<pre class="codehilite"><code class="language-bash"># Modelfile 内容
+FROM qwen2.5:7b
+
+# 设置系统提示词，让模型每次默认带这个人设
+SYSTEM 你是一位耐心的中文写作教练，回答要简洁、口语化
+
+# 调整默认参数
+PARAMETER temperature 0.7
+PARAMETER num_ctx 8192
+</code></pre>
+
+<p>然后在终端构建并运行：</p>
+<pre class="codehilite"><code class="language-bash">ollama create my-coach -f Modelfile
+ollama run my-coach
+</code></pre>
+
+<p>现在每次对话，模型都默认带着你设定的「人设」和参数。这个能力在后续章节（如第 9 篇 <code>content/性能调优：并发、批处理与显存优化.md</code>）会反复用到，先知道有这回事即可。</p>
+<h2 id="8-chatgpt-vs">8. 和 ChatGPT 的体验对比：本地 vs 云端</h2>
+<p>跑通之后，你可能想问：这和 ChatGPT 有什么区别？</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>ChatGPT（云端）</th>
+<th>Ollama 本地</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>隐私</td>
+<td>数据上云</td>
+<td>数据不出本机</td>
+</tr>
+<tr>
+<td>费用</td>
+<td>会员/按量收费</td>
+<td>免费，只花电费</td>
+</tr>
+<tr>
+<td>联网</td>
+<td>必须联网</td>
+<td>完全离线可用</td>
+</tr>
+<tr>
+<td>速度</td>
+<td>受网络和服务器影响</td>
+<td>取决于你硬件，本地加载更快</td>
+</tr>
+<tr>
+<td>能力上限</td>
+<td>极高（几百 B 参数）</td>
+<td>取决于你能跑多大的模型</td>
+</tr>
+<tr>
+<td>换模型</td>
+<td>只能等厂商</td>
+<td>一行命令随意换</td>
+</tr>
+<tr>
+<td>多模态</td>
+<td>官方支持图片等</td>
+<td>需选支持多模态的模型（如 <code>llama3.2-vision</code>）</td>
+</tr>
+</tbody>
+</table>
+<p>体验上最直观的差别是：<strong>本地模型「秒回」还是「慢慢打字」取决于你的硬件</strong>；而云端模型受网络波动影响。对一个 7B 量化模型来说，在稍好一点的显卡上，<strong>打字速度（生成速度）可以接近甚至超过人阅读的速度</strong>，体验已经相当不错。</p>
+<h2 id="9-ollama">9. 进阶预告：Ollama 不只是「聊天」</h2>
+<p>你现在学会的 <code>ollama run</code>，只是 Ollama 能力的冰山一角。实际上：</p>
+<ul>
+<li>它内置了 <strong>OpenAI 兼容 API</strong>（第 8 篇 <code>content/API 服务化：把本地模型变成接口.md</code>）——你可以在 <code>http://localhost:11434/v1</code> 上用现成的代码库调用本地模型；</li>
+<li>它可以被 <strong>Open WebUI</strong> 无缝接入，变成像 ChatGPT 一样的图形化网页（第 7 篇 <code>content/Open WebUI：给本地模型装上网页界面.md</code>）；</li>
+<li>它支持 <code>Modelfile</code> 自定义模型参数（温度、上下文长度、系统提示词），等你熟悉后可以深度定制。</li>
+</ul>
+<h2 id="10">10. 本章小结</h2>
+<p>这一篇你收获了三样东西：</p>
+<ol>
+<li><strong>安装方法</strong>：Windows / macOS / Linux 三步装好 Ollama；</li>
+<li><strong>核心命令</strong>：<code>run</code> 运行、<code>pull</code> 下载、<code>list</code> 查看、<code>show</code> 详情、<code>rm</code> 删除、<code>serve</code> 起服务；</li>
+<li><strong>一条铁律</strong>：<code>ollama run qwen2.5:7b</code>——你已经在本地跑起了大模型。</li>
+</ol>
+<p>跑通的那一刻，你已经完成了「本地部署」这条路上最难的心理跨越：<strong>原来这事真的这么简单</strong>。接下来，我们开始往深处走——理解你下载的那些模型文件到底是什么格式、为什么有大有小。</p>
+<p><strong>下一站：<code>content/模型格式与量化：GGUF 与 Q4/Q8.md</code></strong>。</p></body></html>

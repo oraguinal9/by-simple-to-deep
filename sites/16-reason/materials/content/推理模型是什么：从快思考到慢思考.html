@@ -1,0 +1,190 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>推理模型是什么：从快思考到慢思考 | 推理模型与思维链 L16</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L16 学习路线图</a><span class='r'>推理模型与思维链 · reason.zbjh.top</span></div><h1 id="_1">推理模型是什么：从快思考到慢思考</h1>
+<h2 id="_2">这一阶段要回答的问题</h2>
+<p>2024 年底到 2026 年，AI 领域最震撼的变化不是模型「更会说话了」，而是模型「<strong>会思考了</strong>」。OpenAI 的 o1、DeepSeek 的 R1、以及各大厂商的「推理模型」，让模型在面对难题时不再急着开口，而是<strong>先想一段时间再回答</strong>。</p>
+<p>这一阶段（L16，系列最后一阶）我们彻底搞懂这件事：</p>
+<ul>
+<li>什么是「推理模型」？它和普通模型到底差在哪？</li>
+<li>思维链（CoT）为什么能让模型答对难题？</li>
+<li>o1 / R1 这类推理模型是怎么训练出来的？</li>
+<li>什么时候该用推理模型、什么时候不该用？成本怎么算？</li>
+</ul>
+<p>这一章先建立总认知——用心理学里「快思考 / 慢思考」的框架理解这场变革。</p>
+<h2 id="_3">快思考与慢思考：大脑的两套系统</h2>
+<p>诺贝尔奖得主丹尼尔·卡尼曼在《思考，快与慢》里提出，人的思维有两套系统：</p>
+<ul>
+<li><strong>系统 1（快思考）</strong>：直觉、自动、几乎不费力。比如「1+1=2」、看到猫立刻认出猫；</li>
+<li><strong>系统 2（慢思考）</strong>：理性、费力、需要注意力。比如「17×23=？」、做复杂的逻辑推理。</li>
+</ul>
+<p><strong>关键洞察</strong>：慢思考虽然慢，但能解决快思考搞不定的问题——因为它在「逐步推理、验证每一步」。</p>
+<p><strong>大模型的世界正在重演这个过程</strong>：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>快思考（普通模型）</th>
+<th>慢思考（推理模型）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>行为</td>
+<td>直接生成答案</td>
+<td>先输出一段推理过程再回答</td>
+</tr>
+<tr>
+<td>速度</td>
+<td>快（秒级）</td>
+<td>慢（几秒到几十秒）</td>
+</tr>
+<tr>
+<td>擅长</td>
+<td>聊天、翻译、摘要</td>
+<td>数学、代码、逻辑、规划</td>
+</tr>
+<tr>
+<td>代表</td>
+<td>GPT-4o、Qwen 系列</td>
+<td>o1、DeepSeek-R1、o3</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">为什么「直接答」会出错</h2>
+<p>普通大模型是「下一个 token 预测器」：看到问题，凭训练中学到的模式，直接续写最可能的回答。这个机制对「常识问答」很有效，但对「需要多步推理」的题很容易翻车——因为它<strong>跳过了中间步骤，直接猜结果</strong>。</p>
+<p>看这个例子：</p>
+<pre class="codehilite"><code>问：小明有 10 元，买了 3 个苹果每个 2 元，又买了 1 个香蕉 1.5 元，还剩多少？
+
+普通模型：还剩 3 元。（它漏算了香蕉——因为「直接答」时注意力容易漏掉细节）
+
+推理模型：
+  步骤 1：苹果 3×2=6 元
+  步骤 2：香蕉 1.5 元
+  步骤 3：总花费 6+1.5=7.5 元
+  步骤 4：10-7.5=2.5 元
+  答案：2.5 元
+</code></pre>
+
+<p><strong>差别不是「聪明」vs「笨」，而是「有没有把步骤走完」</strong>。推理模型把每一步写出来、验证过，所以多步题更稳。</p>
+<h2 id="_5">推理模型的本质：把「思考过程」变成输出</h2>
+<p>推理模型（Reasoning Model）的核心机制其实很朴素：</p>
+<blockquote>
+<p><strong>让模型在给出最终答案之前，先输出一段「思维链」（Chain of Thought）——一步一步的推理过程，然后基于这段过程给出结论。</strong></p>
+</blockquote>
+<p>这就像做数学题要写「解题过程」：写过程不仅让老师看到思路，更关键的是——<strong>写下每一步本身就在帮助模型避免跳步和漏算</strong>。</p>
+<p>你可能会问：这不就是「提示词里加一句『请一步一步想』」吗？——对了一半，但推理模型更进一步：</p>
+<ol>
+<li><strong>训练上</strong>：专门用「带推理过程的问答」训练，让「先推理再回答」成为模型的本能，而不是靠提示词碰运气；</li>
+<li><strong>结构上</strong>：把推理过程当作「内部思考」，可以隐藏（o1 的隐藏思考）也可以展示（R1 的可见思考）；</li>
+<li><strong>能力上</strong>：配合强化学习，让模型学会「自我纠正」——发现思路不对就重来。</li>
+</ol>
+<p>这些内容后面几章会逐个展开，这一章先记住框架。</p>
+<h2 id="_6">推理模型不是什么</h2>
+<p>澄清几个常见误解：</p>
+<ul>
+<li><strong>不是「更聪明的模型」</strong>：推理模型的基础能力和同代普通模型相近，它强在「把已有能力用在多步问题上」；</li>
+<li><strong>不是「所有问题都更强」</strong>：简单问题上推理模型没有优势，还更慢更贵；</li>
+<li><strong>不是「一定会对」</strong>：它只是「更不容易错」，复杂题仍可能推理到错误结论；</li>
+<li><strong>不是「推理过程一定正确」</strong>：模型可能「一本正经地推理到错误答案」，思考过程不保证有效。</li>
+</ul>
+<p><strong>一句话</strong>：推理模型 = 用时间和 token 换「多步问题的准确率」。</p>
+<h2 id="_7">推理模型的适用场景</h2>
+<p>哪些问题值得用推理模型？给一个初步判断：</p>
+<table>
+<thead>
+<tr>
+<th>问题类型</th>
+<th>适合推理模型？</th>
+<th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数学与计算</td>
+<td>✅ 强烈推荐</td>
+<td>应用题、概率、代数</td>
+</tr>
+<tr>
+<td>代码编写与调试</td>
+<td>✅ 推荐</td>
+<td>算法题、找 bug</td>
+</tr>
+<tr>
+<td>逻辑推理</td>
+<td>✅ 推荐</td>
+<td>谜题、条件推理、因果分析</td>
+</tr>
+<tr>
+<td>规划与决策</td>
+<td>✅ 推荐</td>
+<td>任务拆解、方案对比</td>
+</tr>
+<tr>
+<td>常识问答</td>
+<td>❌ 不必</td>
+<td>「首都是哪」「什么是 RAG」</td>
+</tr>
+<tr>
+<td>聊天创作</td>
+<td>❌ 不必</td>
+<td>闲聊、写文案、翻译</td>
+</tr>
+<tr>
+<td>检索问答</td>
+<td>⚠️ 视情况</td>
+<td>有明确知识源时普通模型够用</td>
+</tr>
+</tbody>
+</table>
+<p>判断口诀：<strong>题目越「需要一步步推」越值得用；越「凭知识/直觉就能答」越没必要。</strong></p>
+<h2 id="_8">常见误解澄清</h2>
+<p>学习推理模型，先把这几个误区清掉：</p>
+<ul>
+<li><strong>「推理模型 = 换了个更聪明的底座」</strong>：错。推理模型和普通模型常常同源同底座，差别在「推理时先想再答」的机制与训练；</li>
+<li><strong>「推理模型所有题都更强」</strong>：错。简单题上没优势，反而更慢更贵；</li>
+<li><strong>「思考过程 = 模型真在思考」</strong>：不准确。所谓思考过程是模型被训练出的「先输出推理再输出答案」的行为模式，不是「意识」；</li>
+<li><strong>「推理模型永远不会错」</strong>：错。它只是「更不容易错」，复杂题仍可能推理到错误结论。</li>
+</ul>
+<h2 id="_9">这一阶段的地图</h2>
+<p>给这一阶段的 10 章画个路线，方便你带着全局学：</p>
+<pre class="codehilite"><code>第1章 总认知：快思考 vs 慢思考（本章）
+第2章 机制：思维链 CoT 是什么
+第3章 提示词：怎么用提示词触发思维链
+第4章 训练：推理模型怎么训练出来
+第5章 案例：DeepSeek-R1 深度解析
+第6章 部署：怎么调用/部署推理模型
+第7章 取舍：什么时候该用、什么时候不该用
+第8章 成本：慢思考的代价与控制
+第9章 评测：怎么科学评价推理模型
+第10章 实战：完整做一个推理应用
+</code></pre>
+
+<h2 id="_10">小练习</h2>
+<ol>
+<li>用自己的话说：快思考模型和慢思考模型的核心差别是什么？</li>
+<li>上面「还剩多少钱」的例子，你试着模拟「普通模型直接答」和「推理模型逐步答」，对比结果。</li>
+<li>判断题：下面哪些场景更适合用推理模型？（A 写一首诗 B 解三元一次方程 C 把中文翻译成英文 D 设计一个旅行路线并权衡预算）</li>
+<li>进阶：找 2 个你日常用 AI 的场景，判断它们是「快思考」还是「慢思考」型任务。</li>
+</ol>
+<p>下一章，走进思维链本身——<strong>思维链 CoT：让模型一步一步想</strong>。</p></body></html>

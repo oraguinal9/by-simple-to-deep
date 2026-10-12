@@ -1,0 +1,272 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>重排序 Rerank：把最相关的排前面 | 企业级RAG知识库 L13</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L13 学习路线图</a><span class='r'>企业级RAG知识库 · ragpro.zbjh.top</span></div><h1 id="rerank">重排序 Rerank：把最相关的排前面</h1>
+<p>上一篇我们把混合检索跑通了，用户问"年假几天"，系统召回 50 个块，其中确实有正确的那块——但它排在<strong>第 17 位</strong>。如果直接把这 50 块都塞给大模型，模型会迷失；如果只取前 5 块，正确的可能被漏掉。怎么把"对的"从第 17 位挪到第 1 位？这就是<strong>重排序（Rerank）</strong>要解决的问题。</p>
+<h2 id="61">6.1 一个直觉：初筛要宽，精排要严</h2>
+<p>想象你在参加一个海选面试。海选（初筛）阶段，评委（便宜的快速模型）在 1000 个人里快速挑出 50 个"看着有潜力"的，标准宽松、速度飞快——<strong>宁可多放进几个，也别漏掉一个</strong>。到了复试（精排）阶段，评委换成最严格的专家（更贵但更准的模型），对着这 50 个人仔细考察，挑出最终要录取的 5 个。</p>
+<p>RAG 的检索流程完全复刻了这个逻辑：</p>
+<pre class="codehilite"><code class="language-text">第一阶段（召回）         第二阶段（精排）
+全库 10 万块                 候选 50 块
+   │                          │
+   ▼                          ▼
+粗筛出 Top-50               精排出 Top-5
+工具：向量检索/BM25         工具：Rerank 模型
+特点：快，宁多勿漏         特点：准，逐对细比
+</code></pre>
+
+<p>这就是<strong>两阶段检索（Two-stage Retrieval）</strong>。它解决的核心矛盾是：<strong>又快又准不可兼得</strong>。召回阶段的模型为了速度，只能做"粗糙的近似匹配"；而精排阶段只处理 50 个候选，可以用更精细的模型慢慢比。</p>
+<h2 id="62">6.2 为什么召回模型做不了精排的活？</h2>
+<p>很多人会问：向量检索不是已经能算相似度了吗？让它精排不行吗？答案是：<strong>召回模型和重排模型，天生分工不同</strong>。</p>
+<p>召回模型（Embedding 模型）的工作方式：把查询和文档<strong>各自</strong>压缩成一个向量，再算两个向量的相似度。问题在于——<strong>"各自压缩"这一步会丢信息</strong>。想象两个人分别把各自的高中生活浓缩成一段自我介绍，再对比两段介绍判断"他们是不是校友"，你大概率判不准。真正的校友判断，需要<strong>把两份材料放一起逐条比对</strong>。</p>
+<p>重排模型（Cross-encoder 交叉编码器）就是这么干的：<strong>把查询和文档拼接成一个整体</strong>，一起送进模型，让模型"对着看"到底相不相关。信息不丢，但代价是慢——所以它只能处理少量候选。</p>
+<blockquote>
+<p>一句话记住分工：<strong>Embedding 是"分别编码再比方向"，快但粗；Rerank 是"放在一起细细看"，准但慢。</strong> 一个负责海选，一个负责终审。</p>
+</blockquote>
+<h2 id="63-rerank">6.3 Rerank 模型原理：一句话版本</h2>
+<p>以开源社区最常用的 <strong>BGE-reranker</strong>（如 <code>BAAI/bge-reranker-v2-m3</code>）为例，它的原理可以浓缩成一句话：</p>
+<blockquote>
+<p><strong>把查询和候选文档拼成一个句子对，作为一个整体喂进一个能输出"相关程度分数"的模型，模型直接给出 0–1 的相关分。</strong></p>
+</blockquote>
+<p>和 Embedding 模型最大的区别就一个：<strong>查询和文档永远"同框出现"</strong>。正因为同框，模型能捕捉到"这个词在查询里是重点、在文档里恰好也重"这类精细关系，精度自然高出一截。</p>
+<p>使用示例（<code>sentence-transformers</code> 一行代码能跑）：</p>
+<pre class="codehilite"><code class="language-python">from sentence_transformers import CrossEncoder
+
+# 加载中文 rerank 模型
+reranker = CrossEncoder(&quot;BAAI/bge-reranker-v2-m3&quot;)
+
+# 候选：混合检索召回的前 50 个块
+candidates = [&quot;员工每年可休 5-15 天年假……&quot;, &quot;员工福利包括体检、班车……&quot;, ...]
+query = &quot;年假有几天？&quot;
+
+# 逐对打分：模型对每个 (查询, 文档) 对输出一个相关分
+pairs = [[query, doc] for doc in candidates]
+scores = reranker.predict(pairs)
+
+# 按分数从高到低排序
+ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
+for i, (doc, score) in enumerate(ranked[:5], start=1):
+    print(f&quot;第 {i} 名 分数 {score:.3f}：{doc[:30]}...&quot;)
+</code></pre>
+
+<p>注意：rerank 的输入是<strong>查询和每个候选块的"配对"</strong>，所以 50 个候选就要做 50 次配对打分。这就是它"慢"的原因——也解释了为什么它只能处理小候选集。</p>
+<h2 id="64">6.4 完整的两阶段流程</h2>
+<p>把前几篇串起来，一个标准的"先召回后重排"流程长这样：</p>
+<pre class="codehilite"><code class="language-text">① 用户问题：&quot;年假有几天？&quot;
+② 召回：混合检索（向量 + BM25）从 10 万块里捞出 50 个候选块
+③ 精排：bge-reranker 对 50 个 (问题, 块) 对打分
+④ 截断：保留 Top-5（得分高于阈值的那几个）
+⑤ 使用：把 Top-5 拼进上下文，交给大模型生成答案
+</code></pre>
+
+<p>第 ④ 步有两个工程细节值得展开：</p>
+<p><strong>细节一：为什么是 50 → 5？</strong> 50 是"宁多勿漏"的召回量，5 是"足够回答问题"的上下文量。数字可以调，但逻辑要守住：<strong>召回的候选数应远大于最终使用的块数</strong>。如果召回 5 个直接就用，等于没给精排留机会。</p>
+<p><strong>细节二：要不要设分数阈值？</strong> 如果某个问题检索质量很差，50 个候选的 rerank 分数普遍低于 0.2，说明<strong>库里可能根本没有答案</strong>。这时应该启动"承认不知道"机制，而不是硬塞一个最差的块给模型编。这个机制的具体实现，第 7 篇会讲。</p>
+<p><strong>细节三：rerank 分数的解读。</strong> 要注意，不同 rerank 模型的分数分布不一样：有的集中在 0.5–0.9，有的偏紧、普遍只有 0.1–0.3。所以阈值不能照抄网上的数值，要<strong>先跑一批已知好坏的问题，看分数分布再定阈值</strong>。比如跑 20 个问题，发现"正确答案"最低也有 0.45，而"错误候选"最高到 0.3，那阈值设在 0.35–0.4 之间比较合理。<strong>阈值是测出来的，不是猜出来的。</strong></p>
+<p><strong>细节四：候选块的"新鲜度"问题。</strong> rerank 打分只看文本本身，不知道文档的新旧。如果库里同时有 2021 版和 2024 版制度，rerank 可能把旧版排在前面。解决思路：在元数据里带上"版本号/生效日期"，在合并阶段做<strong>加权偏置</strong>（旧版块分数 × 0.9，新版 × 1.1），或直接过滤掉已废止版本。别指望 rerank 自己知道哪个版本有效。</p>
+<h2 id="65">6.5 一个示例：重排前后的差距</h2>
+<p>用一个直观的例子看差距。假设候选里有两个块：</p>
+<pre class="codehilite"><code class="language-text">块 X：公司年假按工龄计算，满 1 年 5 天，满 3 年 10 天，满 5 年 15 天。
+块 Y：年假未休完的部分，可以顺延到次年 3 月底，逾期作废。
+</code></pre>
+
+<p>用户问："年假可以顺延吗？"</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>块 X 的排名</th>
+<th>块 Y 的排名</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>向量召回（初排）</td>
+<td>第 2 名（因为都提到"年假"）</td>
+<td>第 4 名</td>
+</tr>
+<tr>
+<td>BM25 召回</td>
+<td>第 6 名</td>
+<td>第 3 名</td>
+</tr>
+<tr>
+<td>混合融合后</td>
+<td>第 2 名</td>
+<td>第 3 名</td>
+</tr>
+<tr>
+<td><strong>Rerank 精排后</strong></td>
+<td><strong>第 9 名（掉出 Top-5）</strong></td>
+<td><strong>第 1 名（正确，胜出）</strong></td>
+</tr>
+</tbody>
+</table>
+<p>看到区别了吗？向量检索看到"年假"就兴奋，把块 X 抬得老高；但用户真正问的是"顺延"，只有 rerank 能识别出<strong>"顺延"这个意图只有在块 Y 里才被正面回答</strong>。重排的价值，就是把"字面上相关"和"实际上相关"区分开。</p>
+<blockquote>
+<p>这就是为什么企业级 RAG 一定要加 rerank 这一层：它能显著减少"答非所问"，让大模型拿到的上下文是"真相关"而不是"表面相关"。</p>
+</blockquote>
+<h2 id="66">6.6 重排的开销与取舍</h2>
+<p>诚实地讲，rerank 不是没有代价的。三个取舍要点：</p>
+<ol>
+<li><strong>计算开销</strong>：50 次配对打分，一次问答大约额外花 0.1–0.5 秒。对绝大多数企业内部问答（对延迟不敏感）完全可接受；如果做高并发，可以缩小召回数（比如 30）或用更小的 rerank 模型。</li>
+<li><strong>模型选择</strong>：<code>bge-reranker-v2-m3</code> 是当下中文开源标杆，需要兼顾英文可加 <code>m3</code> 版本；对部署资源紧张的小团队，<code>bge-reranker-base</code> 更轻。<strong>闭源 API 选择</strong>：如果允许上云，<code>Cohere Rerank</code>、<code>Voyage rerank</code> 效果也很好，但要注意数据合规。</li>
+<li><strong>什么时候可以不加</strong>：如果你的知识库只有几百条问答对、问题类型极其固定，向量检索可能就够用了。<strong>rerank 是"质量放大器"，不是"必需件"</strong>——数据量大、问题开放、错误代价高时，它才必须上场。</li>
+</ol>
+<h2 id="67-rerank">6.7 Rerank 模型对比与选型</h2>
+<p>除了 BGE-reranker，市面上还有几个主流选择，这里列一张对比表，方便你按预算和场景挑：</p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>类型</th>
+<th>中文效果</th>
+<th>部署方式</th>
+<th>一句话评价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BAAI/bge-reranker-base</code></td>
+<td>开源，本地</td>
+<td>良</td>
+<td>本地，轻量</td>
+<td>资源紧张团队的入门选择</td>
+</tr>
+<tr>
+<td><code>BAAI/bge-reranker-v2-m3</code></td>
+<td>开源，本地</td>
+<td><strong>优</strong></td>
+<td>本地</td>
+<td><strong>中文场景综合首选</strong></td>
+</tr>
+<tr>
+<td><code>jina-reranker-v2</code></td>
+<td>开源，本地</td>
+<td>良</td>
+<td>本地</td>
+<td>多语种，性能不错</td>
+</tr>
+<tr>
+<td><code>Cohere Rerank 3</code></td>
+<td>闭源 API</td>
+<td>优</td>
+<td>云端 API</td>
+<td>效果一流，注意数据出境合规</td>
+</tr>
+<tr>
+<td><code>Voyage rerank-2</code></td>
+<td>闭源 API</td>
+<td>优</td>
+<td>云端 API</td>
+<td>同上，需权衡合规与成本</td>
+</tr>
+</tbody>
+</table>
+<p>选型的三条实用标准：</p>
+<ol>
+<li><strong>数据敏感就先看开源</strong>：法务、薪酬、客户资料，一律本地部署 bge-reranker-v2-m3，别为了一点精度把数据送出去。</li>
+<li><strong>以实测为准</strong>：拿第 9 篇的评测集，把候选模型各自跑一遍，对比 MRR（平均倒数排名）。多花半天实测，好过纠结三个月参数表。</li>
+<li><strong>别忽视速度</strong>：rerank 模型的大小直接决定响应时间。并发高、要求秒回的场景，选 base 级；内部工具、能接受 2–3 秒的，选 v2-m3 级。</li>
+</ol>
+<h2 id="68-llm">6.8 重排的替代方案：让 LLM 自己排？</h2>
+<p>你可能听说过另一种做法：<strong>不训练 rerank 模型，而是让大模型直接对候选块排序</strong>。把 50 个块编号列出来，问大模型"哪些最相关？按相关度排序"。这种做法在某些场景下效果不错，但它有两个硬伤：</p>
+<pre class="codehilite"><code class="language-text">LLM 排序的代价：
+① 慢且贵：50 个块全塞进一次调用，输入 token 暴增，成本和延迟都上去了
+② 不稳定：大模型排序的&quot;心智&quot;不如专门训练过的 rerank 模型稳，
+   偶尔会把不相关的块排到前面，难以复现和评测
+</code></pre>
+
+<p>相比之下，bge-reranker 是<strong>专门为"给文本对打分"训练的模型</strong>，速度比 LLM 快一个数量级，打分行为可预期。所以业界的主流共识是：<strong>常规场景用专门 rerank 模型；LLM 排序只作为没有合适 rerank 模型时的保底方案</strong>。省下的推理成本，拿去调别的环节收益更大。</p>
+<h2 id="69">6.9 重排环节的调优清单</h2>
+<p>如果你的系统加了 rerank 但效果不明显，按这个清单逐项排查：</p>
+<table>
+<thead>
+<tr>
+<th>排查项</th>
+<th>怎么做</th>
+<th>常见问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>候选集够不够</td>
+<td>确认召回是 Top-50，不是 Top-5</td>
+<td>召回太少，精排没有发挥空间</td>
+</tr>
+<tr>
+<td>查询是否改写</td>
+<td>用了第 7 篇的问题改写吗</td>
+<td>口语问题直接进 rerank，打分失真</td>
+</tr>
+<tr>
+<td>分数阈值</td>
+<td>是否按 Top-1 分数做"无答案"判断</td>
+<td>阈值太高误杀、太低漏编</td>
+</tr>
+<tr>
+<td>块内容质量</td>
+<td>抽查候选块本身干净吗</td>
+<td>解析坏掉的块，再排也是垃圾</td>
+</tr>
+<tr>
+<td>模型版本</td>
+<td>是否用了 bge-reranker-v2-m3</td>
+<td>base 级在难问题上略吃力</td>
+</tr>
+<tr>
+<td>分数分布</td>
+<td>打印一批问题的 rerank 分数分布</td>
+<td>全部挤在 0.5 附近说明区分度差</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一个反直觉的提醒</strong>：rerank 不是加得越多越好。如果你们的用户问题高度同质、知识库很小，rerank 的提升可能只有一两个百分点，而它带来的延迟却是实打实的。<strong>先用评测集验证"加 rerank 前后 MRR 的差距"，差距大就加，差距小就先不加</strong>——一切以数据为准。</p>
+<h2 id="610-rerank">6.10 Rerank 的部署与成本实操</h2>
+<p>如果你决定上 rerank（多数企业知识库最终都会上），这里给一份务实的部署参考：</p>
+<p><strong>部署形态。</strong> bge-reranker 可以通过 <code>sentence-transformers</code> 或 <code>FlagEmbedding</code> 库直接加载运行。生产上建议用独立的推理服务（例如 Flask 包一个 HTTP 接口），和主链路解耦——rerank 挂了不至于拖垮整个问答：</p>
+<pre class="codehilite"><code class="language-python"># rerank 服务（简版）
+from flask import Flask, request, jsonify
+from sentence_transformers import CrossEncoder
+
+app = Flask(__name__)
+model = CrossEncoder(&quot;BAAI/bge-reranker-v2-m3&quot;)
+
+@app.post(&quot;/rerank&quot;)
+def rerank():
+    data = request.get_json()
+    query, docs = data[&quot;query&quot;], data[&quot;docs&quot;]
+    scores = model.predict([[query, d] for d in docs])
+    return jsonify({&quot;scores&quot;: scores.tolist()})
+</code></pre>
+
+<p><strong>批量预排序。</strong> 如果你的知识库有大量"标准问题"（如 FAQ 库），可以<strong>提前把"每个标准问题 × 相关块"的分数算好缓存</strong>，用户问到时直接查缓存。这能把 rerank 的在线开销降到接近零——代价是需要维护缓存与文档的同步。</p>
+<p><strong>成本估算。</strong> 50 个候选的 rerank 一次调用，在普通 CPU 上大约 0.2–0.8 秒，在 GPU 上更快。如果每天问答量在几千次，这个开销完全可以接受；如果每天几十万次，就需要考虑缓存、缩小候选集或换小模型了。<strong>先按需上线，再按量优化</strong>，别提前为不存在的并发买单。</p>
+<h2 id="611">6.11 本篇小结</h2>
+<ul>
+<li>检索分两阶段：<strong>召回（快、宽、Top-50）→ 重排（准、严、Top-5）</strong>。</li>
+<li>Embedding 是"分别编码再比方向"，Rerank 是"<strong>同框细比</strong>"——精度更高但更慢，所以只精排小候选集。</li>
+<li>中文场景首选 <strong>bge-reranker-v2-m3</strong>，开源、可本地部署。</li>
+<li>重排分数太低时，说明库里没答案，要触发"承认不知道"机制。</li>
+</ul>
+<p>现在，检索这条链路全部打通了。下一步，把这些环节组装成一个完整的问答系统，处理"问题怎么改、上下文怎么拼、答案怎么给引用"——这就是<a href="content/RAG 问答链路：从检索到回答的完整流程.html">第 7 篇《RAG 问答链路》</a>。</p></body></html>

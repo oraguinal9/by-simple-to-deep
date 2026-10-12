@@ -1,0 +1,350 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第十章 动手实践与进阶路线 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="_1">第十章 动手实践与进阶路线</h1>
+<blockquote>
+<p>本章目标：把前九章的知识拼成<strong>一个能真正跑起来的完整项目</strong>，掌握调试深度学习代码的实用清单，并看清楚接下来该往哪走。</p>
+</blockquote>
+<hr />
+<h2 id="101-10">10.1 环境准备（10 分钟）</h2>
+<p>不用买显卡，也不用配环境，有两条零成本的路：</p>
+<p><strong>方案 A：在线笔记本（推荐新手）</strong></p>
+<table>
+<thead>
+<tr>
+<th>平台</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Kaggle Notebook</strong></td>
+<td>每周免费 30 小时 GPU，国内可访问，注册需手机验证</td>
+</tr>
+<tr>
+<td><strong>阿里云 PAI-DSW</strong></td>
+<td>有免费额度，国内速度快</td>
+</tr>
+<tr>
+<td><strong>百度 AI Studio</strong></td>
+<td>完全免费的 GPU 额度，中文界面，对新手最友好</td>
+</tr>
+</tbody>
+</table>
+<p><strong>方案 B：本地安装</strong></p>
+<pre class="codehilite"><code class="language-bash"># 1) 装 Python（建议 3.10+），然后建一个干净环境
+python -m venv dl-env
+dl-env\Scripts\activate          # Windows
+# source dl-env/bin/activate     # macOS / Linux
+
+# 2) 装 PyTorch（CPU 版就够跑本章例子）
+pip install torch torchvision matplotlib -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 3) 验证
+python -c &quot;import torch; print(torch.__version__, torch.cuda.is_available())&quot;
+</code></pre>
+
+<blockquote>
+<p>💡 国内装包务必加清华镜像 <code>-i https://pypi.tuna.tsinghua.edu.cn/simple</code>，否则会很慢或超时。</p>
+</blockquote>
+<hr />
+<h2 id="102-mnist">10.2 完整项目：手写数字识别（MNIST）</h2>
+<p>这是深度学习的"Hello World"。<strong>下面这份代码用到了本课程 1~7 章的全部知识</strong>，可以直接复制运行，CPU 上大约 3~5 分钟跑完。</p>
+<pre class="codehilite"><code class="language-python">import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+
+# ========== ① 数据 ==========
+tf = transforms.Compose([
+    transforms.ToTensor(),                       # 转成张量，像素缩放到 0~1
+    transforms.Normalize((0.1307,), (0.3081,)),  # 标准化（第七章）
+])
+train_set = datasets.MNIST('./data', train=True,  download=True, transform=tf)
+test_set  = datasets.MNIST('./data', train=False, download=True, transform=tf)
+
+train_loader = DataLoader(train_set, batch_size=64, shuffle=True)   # 小批量（第三章）
+test_loader  = DataLoader(test_set,  batch_size=256)
+
+# ========== ② 模型（第四、五、七章）==========
+model = nn.Sequential(
+    nn.Flatten(),                    # 28×28 图 → 784 维向量
+    nn.Linear(784, 256), nn.ReLU(),  # 全连接 + 激活
+    nn.Dropout(0.2),                 # 防过拟合
+    nn.Linear(256, 64),  nn.ReLU(),
+    nn.Linear(64, 10),               # 10 类，不加 Softmax（损失函数内置）
+)
+
+# ========== ③ 损失与优化器（第二、三章）==========
+loss_fn   = nn.CrossEntropyLoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
+
+# ========== ④ 训练循环（第三、六章的五步）==========
+def evaluate():
+    model.eval()                                 # 关闭 Dropout！（第七章的坑）
+    correct = 0
+    with torch.no_grad():                        # 推理不需要计算图，省内存
+        for x, y in test_loader:
+            correct += (model(x).argmax(1) == y).sum().item()
+    return correct / len(test_set)
+
+for epoch in range(1, 4):
+    model.train()                                # 开启 Dropout
+    for i, (x, y) in enumerate(train_loader):
+        pred = model(x)                          # ① 前向
+        loss = loss_fn(pred, y)                  # ② 损失
+        optimizer.zero_grad()                    # ③ 清梯度
+        loss.backward()                          # ④ 反向
+        optimizer.step()                         # ⑤ 更新
+        if i % 300 == 0:
+            print(f&quot;epoch {epoch}  step {i:4d}  loss {loss.item():.4f}&quot;)
+    print(f&quot;&gt;&gt;&gt; 第 {epoch} 轮结束，测试集准确率：{evaluate()*100:.2f}%\n&quot;)
+
+torch.save(model.state_dict(), &quot;mnist_mlp.pt&quot;)
+print(&quot;模型已保存到 mnist_mlp.pt&quot;)
+</code></pre>
+
+<p><strong>预期结果</strong>：3 轮后测试准确率约 <strong>97%</strong>。</p>
+<h3 id="_2">进阶挑战（做完你就真的懂了）</h3>
+<ol>
+<li>把 Dropout 去掉，观察训练/测试准确率的差距变化 → 亲眼看到过拟合</li>
+<li>把学习率改成 <code>1.0</code>，看损失怎么炸掉 → 亲眼看到学习率的重要性</li>
+<li>把中间两层删掉只留 <code>Linear(784,10)</code>，看准确率掉到多少 → 理解深度的价值</li>
+<li>把网络换成第八章的 CNN（<code>Conv2d</code>），准确率能到 <strong>99%+</strong> → 理解 CNN 对图像的优势</li>
+<li>把 ReLU 换成 Sigmoid，看收敛速度变化 → 理解激活函数的影响</li>
+</ol>
+<hr />
+<h2 id="103-work">10.3 调试清单：模型不 work 怎么办</h2>
+<p>这份清单来自实战，按顺序排查能解决 90% 的问题。</p>
+<h3 id="nan">症状：损失变成 NaN</h3>
+<ul>
+<li>[ ] 学习率太大 → 降 10 倍试试</li>
+<li>[ ] 数据里有 NaN 或 inf → <code>print(x.isnan().any())</code> 检查</li>
+<li>[ ] 除以了 0 或对 0 取 log → 加 <code>eps=1e-8</code></li>
+<li>[ ] 梯度爆炸 → 加梯度裁剪 <code>clip_grad_norm_(params, 1.0)</code></li>
+</ul>
+<h3 id="_3">症状：损失完全不下降</h3>
+<ul>
+<li>[ ] <strong>忘了 <code>optimizer.zero_grad()</code></strong> 或 <code>loss.backward()</code>（头号 bug）</li>
+<li>[ ] 学习率太小 → 提高 10 倍</li>
+<li>[ ] 数据没归一化 → 像素值 0~255 直接喂进去很难训</li>
+<li>[ ] 标签和数据对错位了 → 打印几条人工核对</li>
+<li>[ ] 模型太简单，欠拟合 → 加大网络</li>
+</ul>
+<h3 id="_4">症状：训练集好、测试集差</h3>
+<ul>
+<li>[ ] 典型过拟合 → 回看第七章六种武器</li>
+<li>[ ] 数据泄漏：测试集信息混进了训练集</li>
+<li>[ ] <strong>忘了 <code>model.eval()</code></strong> → Dropout/BatchNorm 在推理时行为不对</li>
+</ul>
+<h3 id="_5">症状：训练极慢</h3>
+<ul>
+<li>[ ] 没用 GPU → <code>model.to('cuda')</code>，数据也要 <code>.to('cuda')</code></li>
+<li>[ ] batch size 太小 → 加大到显存允许的上限</li>
+<li>[ ] DataLoader 是瓶颈 → 设 <code>num_workers=4</code></li>
+</ul>
+<h3 id="5-0">万能第一步：<strong>先用 5 条数据训练，看模型能否过拟合到损失≈0</strong></h3>
+<p>如果连 5 条数据都记不住，一定是<strong>代码有 bug</strong>，而不是模型不够强。这个技巧能帮你省下无数小时。</p>
+<hr />
+<h2 id="104">10.4 十章知识地图</h2>
+<pre class="codehilite"><code>第1章  模型 = 参数化的规则              ŷ = wx + b
+   ↓
+第2章  损失 = 打分尺子                  MSE / 交叉熵 / Softmax
+   ↓
+第3章  梯度下降 = 蒙眼下山              w ← w − η·∂L/∂w
+   ↓
+第4章  激活函数 = 打破线性              ReLU / GELU / Sigmoid
+   ↓
+第5章  多层网络 = 层级特征抽象          前向传播、残差连接
+   ↓
+第6章  反向传播 = 责任追溯              链式法则、自动微分
+   ↓
+第7章  正则化 = 别死记硬背              Dropout / 早停 / 权重衰减
+   ↓
+第8章  CNN = 局部性 + 权重共享          卷积、池化、ResNet
+   ↓
+第9章  注意力 = 直接看原文              Q/K/V、自注意力、Transformer
+   ↓
+第10章 动手 + 进阶
+</code></pre>
+
+<p><strong>如果只让你记住五句话：</strong></p>
+<ol>
+<li>模型是带参数的函数，参数靠数据学出来</li>
+<li>损失函数定义了模型的"人生目标"</li>
+<li>训练 = 沿负梯度方向反复微调参数</li>
+<li>深度的价值在于层级特征抽象</li>
+<li>目标永远是<strong>泛化</strong>，不是在训练集上刷分</li>
+</ol>
+<hr />
+<h2 id="105">10.5 由简入深 · 全系列路线</h2>
+<p>你现在完成的是 <strong>L3</strong>。整个阶梯：</p>
+<table>
+<thead>
+<tr>
+<th>级别</th>
+<th>主题</th>
+<th>状态</th>
+<th>你会得到什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1</strong></td>
+<td>AI 入门 · 提示词</td>
+<td>✅ 已上线 <code>ai101.zbjh.top</code></td>
+<td>会用 AI，写好提示词</td>
+</tr>
+<tr>
+<td><strong>L2</strong></td>
+<td>大模型原理</td>
+<td>✅ 已上线 <code>llm.zbjh.top</code></td>
+<td>懂 GPT 怎么工作</td>
+</tr>
+<tr>
+<td><strong>L3</strong></td>
+<td><strong>深度学习基础</strong></td>
+<td>✅ <strong>你在这里</strong></td>
+<td>懂神经网络怎么学</td>
+</tr>
+<tr>
+<td>L4</td>
+<td>RAG 与 Agent</td>
+<td>规划中</td>
+<td>让 AI 用上你的私有资料、会调工具</td>
+</tr>
+<tr>
+<td>L5</td>
+<td>微调与部署</td>
+<td>规划中</td>
+<td>LoRA 微调、量化、本地部署</td>
+</tr>
+<tr>
+<td>L6</td>
+<td>RLHF 与对齐</td>
+<td>规划中</td>
+<td>模型为什么"听话"</td>
+</tr>
+<tr>
+<td>L7</td>
+<td>AIGC 与扩散模型</td>
+<td>规划中</td>
+<td>文生图/视频的原理</td>
+</tr>
+<tr>
+<td>L8</td>
+<td>多模态与 MCP</td>
+<td>规划中</td>
+<td>图文音视频统一、智能体协议</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议的学习顺序</strong>：</p>
+<ul>
+<li>如果你<strong>想搞应用</strong>：L3 → <strong>L4（RAG/Agent）</strong> → L5（部署）</li>
+<li>如果你<strong>想搞算法</strong>：L3 → <strong>L2（大模型原理）</strong> → L5 → L6</li>
+<li>如果你<strong>做内容/设计</strong>：L3 → <strong>L7（AIGC）</strong> → L8</li>
+</ul>
+<hr />
+<h2 id="106">10.6 推荐的下一步资源（全中文）</h2>
+<p><strong>动手类</strong></p>
+<ol>
+<li><strong>《动手学深度学习》（d2l.ai）</strong> —— 李沐团队出品，中文版免费在线，PyTorch 代码齐全。<strong>本课程之后最推荐的第一本书</strong>。</li>
+<li><strong>Kaggle 入门赛</strong> —— Titanic（表格）、Digit Recognizer（图像）。有排行榜，有真实反馈。</li>
+<li><strong>复现本课程代码</strong> —— 把第 10.2 的 MNIST 改成 CNN 版本，准确率冲 99%。</li>
+</ol>
+<p><strong>理论类</strong></p>
+<ol>
+<li><strong>《深度学习》（花书）</strong> —— Goodfellow 著，中文版。理论权威，但很硬，建议当字典查。</li>
+<li><strong>李宏毅机器学习课程</strong> —— 台湾大学，中文授课，B 站有全套。讲得极其生动。</li>
+</ol>
+<p><strong>大模型方向</strong></p>
+<ol>
+<li><strong>happy-llm / LLMs-from-scratch 中文版</strong> —— 从零手写一个 GPT，代码级理解。</li>
+<li><strong>本站 L2 课程 <code>llm.zbjh.top</code></strong> —— 承接第九章，直接讲 Transformer 与大模型。</li>
+</ol>
+<hr />
+<h2 id="107">10.7 十天练习安排</h2>
+<table>
+<thead>
+<tr>
+<th>天</th>
+<th>练习</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>手算：<code>ŷ=2x</code>，<code>x=3,y=8</code>，写出 MSE 损失表达式</td>
+</tr>
+<tr>
+<td>2</td>
+<td>用 numpy 实现 MSE 和交叉熵，各测三组数字</td>
+</tr>
+<tr>
+<td>3</td>
+<td>用纯 Python 写梯度下降拟合 <code>y=3x+2</code>，打印每轮 w、b</td>
+</tr>
+<tr>
+<td>4</td>
+<td>画出 Sigmoid/Tanh/ReLU 三条曲线，并各求 z=2 处的导数</td>
+</tr>
+<tr>
+<td>5</td>
+<td>用 numpy 手写三层前向传播（不用框架）</td>
+</tr>
+<tr>
+<td>6</td>
+<td>手算第六章的例子，再用 PyTorch 验证梯度是否一致</td>
+</tr>
+<tr>
+<td>7</td>
+<td>跑 MNIST，分别开/关 Dropout，对比过拟合程度</td>
+</tr>
+<tr>
+<td>8</td>
+<td>把 MNIST 模型改成 CNN，冲 99%</td>
+</tr>
+<tr>
+<td>9</td>
+<td>用 numpy 实现注意力函数，打印权重矩阵并解读</td>
+</tr>
+<tr>
+<td>10</td>
+<td>综合：用一页纸给朋友讲清"神经网络是怎么学习的"</td>
+</tr>
+</tbody>
+</table>
+<p><strong>第 10 天的练习最重要——能讲清楚，才算真懂。</strong></p>
+<hr />
+<h2 id="108">10.8 结语</h2>
+<p>回头看，深度学习其实只有四件事：</p>
+<blockquote>
+<p><strong>① 定义一个带参数的函数 → ② 定义一把衡量错误的尺子 → ③ 用梯度下降调参数 → ④ 想办法让它在没见过的数据上也管用。</strong></p>
+</blockquote>
+<p>从 1 个参数的直线，到 1750 亿参数的 GPT，这四件事从未改变。你已经掌握了它们。</p>
+<p>祝学习顺利，我们 L4 见。</p>
+<hr />
+<blockquote>
+<p><strong>下一站</strong> → L2 大模型原理 <code>llm.zbjh.top</code>（承接第九章）｜ L1 提示词入门 <code>ai101.zbjh.top</code></p>
+</blockquote></body></html>

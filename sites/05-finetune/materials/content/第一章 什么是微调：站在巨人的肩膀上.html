@@ -1,0 +1,89 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第一章 什么是微调：站在巨人的肩膀上 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="_1">第一章 什么是微调：站在巨人的肩膀上</h1>
+<p>你辛辛苦苦训练了一个会聊天的大模型（比如 L2 学过的那些基础模型）。它上知天文下知地理，但你要的是"公司客服机器人"，它却总是一本正经地跟你聊哲学。怎么办？</p>
+<p>两个办法：
+- <strong>提示词工程（Prompt）</strong>：在问题前面加一大段说明，哄着它扮演客服。好处是零成本、立刻能用；坏处是每次都要写很长的提示，且模型"本性难移"，复杂任务容易翻车。
+- <strong>微调（Fine-tuning）</strong>：拿出一小批你自己的数据，让模型<strong>真正改一改自己的参数</strong>，从骨子里学会当客服。</p>
+<blockquote>
+<p>打个比方：提示词像给员工发一份《今日工作须知》贴在工位上；微调则是真的让这位员工<strong>参加了一周培训</strong>，把技能长进了脑子里。</p>
+</blockquote>
+<h2 id="vs">预训练 vs 微调：两次"上学"</h2>
+<p>大模型的一生通常有两段学习：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>学什么</th>
+<th>数据量</th>
+<th>成本</th>
+<th>你能不能做</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预训练（Pre-training）</td>
+<td>从零学语言、学世界知识</td>
+<td>几万亿 token</td>
+<td>几百万到上亿美元</td>
+<td>普通人做不起</td>
+</tr>
+<tr>
+<td>微调（Fine-tuning）</td>
+<td>在已有能力上，学一项具体任务</td>
+<td>几百到几万条</td>
+<td>几百到几万元</td>
+<td><strong>你可以做</strong></td>
+</tr>
+</tbody>
+</table>
+<p>预训练把模型养成了一个"通才"；微调是把它变成某个领域的"专才"。这也是为什么我们说微调是"站在巨人的肩膀上"——你不用从教字母开始，直接站在别人训好的巨人肩膀上往上爬。</p>
+<h2 id="_2">什么时候该微调？</h2>
+<p>不是所有问题都要微调。一个简单的决策顺序：</p>
+<ol>
+<li><strong>先试提示词</strong>：把需求写清楚、给几个例子（这就是 L2 讲的 few-shot）。如果够用，到此为止——最省事。</li>
+<li><strong>试 RAG</strong>（见 L4）：如果问题是"模型不知道你私有的知识"，那给模型接个知识库往往比微调更划算、更不容易出错。</li>
+<li><strong>才考虑微调</strong>：当任务需要<strong>稳定、可复现的特定风格/格式/行为</strong>，且提示词和 RAG 都搞不定时——比如固定的 JSON 输出格式、特定的语气、某个细分领域的术语习惯。</li>
+</ol>
+<blockquote>
+<p>一个经验法则：<strong>能用提示词/RAG 解决的，就不要微调</strong>。微调是"改模型本体"，一旦训歪了要重来，调试成本高于改几句话。</p>
+</blockquote>
+<h2 id="_3">微调能改什么？</h2>
+<p>最常见的微调叫 <strong>SFT（Supervised Fine-Tuning，监督微调）</strong>：给模型一堆"问题—标准回答"的配对，让它学着模仿。例如：</p>
+<pre class="codehilite"><code>问：你们的退货政策是什么？
+答：您好，商品签收后 7 天内无理由退货，运费由买家承担……
+</code></pre>
+
+<p>模型看完几千条这样的例子，再遇到类似问题，就会自动用这种语气和格式回答。</p>
+<h2 id="_4">本章小结</h2>
+<ul>
+<li>微调 = 在预训练好的模型上，用你自己的少量数据<strong>改参数</strong>，让它专攻一项任务。</li>
+<li>它和提示词、RAG 是"递进关系"而非"替代关系"：先试简单便宜的，再上微调。</li>
+<li>微调的门槛已经从"只有大厂能做"降到了"个人用一两张显卡也能玩"，这正是后面几章要教你的。</li>
+</ul>
+<h2 id="_5">小练习</h2>
+<ol>
+<li>你的手机输入法会根据你的用词习惯越用越顺手，这更像是"提示词""RAG"还是"微调"？为什么？</li>
+<li>假设你开了一家宠物店，想让模型当"养猫顾问"。列出至少 3 种你会收集的"问题—回答"数据。</li>
+</ol></body></html>

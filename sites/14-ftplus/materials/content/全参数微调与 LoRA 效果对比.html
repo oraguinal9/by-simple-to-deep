@@ -1,0 +1,180 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>全参数微调与 LoRA 效果对比 | 微调实战进阶 L14</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L14 学习路线图</a><span class='r'>微调实战进阶 · ftplus.zbjh.top</span></div><h1 id="lora">全参数微调与 LoRA 效果对比</h1>
+<p>到这一步，你已经能熟练地用 QLoRA 微调了。但一个老问题始终在问：<strong>全参数微调效果真的更好吗？好多少？我到底什么时候才值得花那份钱和显存去上全参数？</strong> 这一章我们正面回答。</p>
+<h2 id="_1">两种方式的本质差别</h2>
+<p><strong>全参数微调</strong>：更新模型所有权重。模型在「怎么表达」这个层面被全面重塑，理论上表达自由度和效果上限最高。</p>
+<p><strong>LoRA</strong>：只更新几个低秩小矩阵，原权重冻结。模型主体没变，只是「贴了几张便签」改变输出倾向。</p>
+<p>直觉上，全参数能做得更好。但差别有多大？在很多任务上，<strong>差距比你想的小得多</strong>。</p>
+<h2 id="lora-90">实际经验：LoRA 通常能达到全参数的 90%+</h2>
+<p>社区大量实验（包括 HuggingFace、各开源项目的 benchmark）反复得到类似结论：</p>
+<blockquote>
+<p>在<strong>指令跟随、对话质量、特定任务风格</strong>这类「行为调整」型微调上，LoRA 往往能达到全参数 80%~95% 的效果，而成本（显存、时间、算力）只有零头。</p>
+</blockquote>
+<p>尤其在<strong>数据量不大</strong>（几千条）时，LoRA 和全参数的效果差距几乎可以忽略，甚至 LoRA 因为过拟合更轻而<strong>有时表现更好</strong>。</p>
+<h2 id="lora_1">什么时候 LoRA 完全够用</h2>
+<ul>
+<li><strong>做领域助手 / 客服 / 问答</strong>：数据几千条以内 → LoRA 足够；</li>
+<li><strong>改变说话风格、输出格式</strong>：LoRA 轻松胜任；</li>
+<li><strong>在已有开源模型上做小幅适配</strong>：LoRA 是社区默认选择；</li>
+<li><strong>频繁实验、快速迭代</strong>：LoRA 省时省钱，方便多方案对比。</li>
+</ul>
+<p>结论：<strong>绝大多数个人与中小团队场景，LoRA 就是正确答案。</strong></p>
+<h2 id="_2">什么时候才值得上全参数</h2>
+<p>全参数微调的优势要真正体现，通常需要满足：</p>
+<ol>
+<li><strong>数据量很大</strong>（通常几万条以上），需要模型「深度内化」；</li>
+<li><strong>任务需要整体能力提升</strong>，不只是行为微调（比如让模型学会一种新的推理范式）；</li>
+<li><strong>你有充足算力</strong>（多卡集群或云上 A100 级 GPU）；</li>
+<li><strong>LoRA 已经试过，效果确实到顶了</strong>，需要最后一点上限。</li>
+</ol>
+<p>如果这些都不满足，全参数微调大概率是「花大钱买微弱提升」。</p>
+<h2 id="_3">一个直观的权衡表</h2>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>LoRA</th>
+<th>全参数微调</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>可训练参数</td>
+<td>0.1%~1%</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>显存需求（7B）</td>
+<td>6~20GB（QLoRA 更低）</td>
+<td>60GB+</td>
+</tr>
+<tr>
+<td>训练时间</td>
+<td>快</td>
+<td>慢</td>
+</tr>
+<tr>
+<td>效果上限</td>
+<td>略低</td>
+<td>最高</td>
+</tr>
+<tr>
+<td>适合数据量</td>
+<td>小到中</td>
+<td>大</td>
+</tr>
+<tr>
+<td>过拟合风险</td>
+<td>低</td>
+<td>高（数据不足时）</td>
+</tr>
+<tr>
+<td>成本</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>适用人群</td>
+<td>个人、中小团队</td>
+<td>有大算力/大数据的团队</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">如果两者都做，怎么验证谁更好</h2>
+<p>不要拍脑袋。科学的做法是<strong>用同一份数据集分别跑 LoRA 和全参数，再用一套统一的评测指标对比</strong>（评测方法第 9 章会细讲）：</p>
+<ol>
+<li>固定同一份训练集和验证集；</li>
+<li>分别用 LoRA 和全参数训练；</li>
+<li>在验证集上跑同样的评测（如准确率、BLEU、或人工打分）；</li>
+<li>对比指标 + 训练成本。</li>
+</ol>
+<p>只有拿数据说话，你才能确定「多花的钱是否值得」。</p>
+<h2 id="lora_2">混合方案：先 LoRA 后全参数 / 渐进式</h2>
+<p>有些团队会先快速用 LoRA 验证数据好不好、流程对不对，确认可行后再上全参数精调。也有人用「全参数冷启动 + LoRA 收尾」的组合。这些都是工程经验，值得记住的是：</p>
+<blockquote>
+<p><strong>先用便宜的方案把不确定性消掉，再决定要不要上贵的方案。</strong></p>
+</blockquote>
+<h2 id="lora_3">为什么 LoRA 这么「能打」：原理层面再挖一层</h2>
+<p>很多人好奇：只训练 1% 的参数，凭什么能接近全参数的效果？两个层面的解释：</p>
+<p><strong>1. 微调是「轻量重定向」而不是「从头学起」。</strong> 基座模型已经学会了语言的绝大部分规律。微调要做的改变很小——只是把已有的能力「拨」向你的方向。这种小改变，用低秩矩阵就能表达，不需要动全部参数。</p>
+<p><strong>2. 低秩假设在微调场景成立。</strong> 大量研究（包括 LoRA 原始论文）观测到：微调产生的权重变化 ΔW 的「有效秩」很低，大部分信息压缩在少数几个主方向上。所以 A×B 的低秩近似足够表达这个变化，丢失的只是「噪声级」的细节。</p>
+<p>这就是 LoRA 的底气：<strong>它赌的就是「微调的改变本质上是小维度的」</strong>——而实验证明这个赌注几乎总是赢。</p>
+<h2 id="_5">全参数的隐藏优势：你可能没注意到的</h2>
+<p>虽然 LoRA 很能打，全参数仍有几个 LoRA 难以替代的优势：</p>
+<ol>
+<li><strong>改变「深层结构」的能力</strong>：LoRA 的便签只能贴在原结构上；全参数可以重组层与层之间的协作方式。对需要「新推理范式」的任务，全参数的表达空间更大。</li>
+<li><strong>长尾能力的提升</strong>：数据量大时，LoRA 的低秩近似可能漏掉「分布尾部」的细微调整，全参数能覆盖得更完整。</li>
+<li><strong>消除「LoRA 痕迹」</strong>：有些任务上，LoRA 训练过的模型仍会残存「基座的默认倾向」（比如基座爱说英文，LoRA 也压不住），全参数能更彻底地改写。</li>
+</ol>
+<p>这些差异在「数据量大 + 任务重」时才会明显，日常小任务几乎感知不到。</p>
+<h2 id="lora_4">LoRA 内部的调优空间：别只用一个默认值</h2>
+<p>如果你决定用 LoRA，还有几个参数值得调——它们对效果的提升可能比「换不换全参数」更明显：</p>
+<p><strong>1. <code>r</code>（秩）</strong>：8、16、32、64。秩太小学不透，太大失去「低秩」的意义。经验：先 16，效果不够再升 32/64。</p>
+<p><strong>2. <code>lora_alpha</code></strong>：缩放系数。<code>alpha/r</code> 的比值影响 LoRA 的「学习强度」。常用 alpha = r 或 2r。想加强微调影响就调大 alpha。</p>
+<p><strong>3. 挂在哪些层</strong>：只挂注意力层 vs 连 FFN 层一起挂，效果差异明显。全挂（默认建议）更稳。</p>
+<p><strong>4. 作用范围（LoRA 的 target）</strong>：一些实现支持「只对特定层」挂 LoRA（比如只挂前几层或后几层），可以做更精细的实验。</p>
+<p>社区经验：<strong>先调 r 和 alpha，再看层覆盖</strong>——这两步往往能榨出比「纠结全参数」更大的提升。</p>
+<h2 id="_6">一个「决策流程图」</h2>
+<p>把这一章的逻辑浓缩成一张决策流：</p>
+<pre class="codehilite"><code>要微调了
+├─ 数据 &lt; 1 万条？
+│    ├─ 是 → 直接用 LoRA（数据太少，全参数易过拟合）
+│    └─ 否 ↓
+├─ 有充足多卡算力？
+│    ├─ 否 → 用 LoRA（或 QLoRA），先把效果做到位
+│    └─ 是 ↓
+├─ 任务需要「整体能力重构」？
+│    ├─ 否 → LoRA 足够，跑几版对比再说
+│    └─ 是 → 全参数微调（并准备足够的评测来验证值不值）
+└─ 永远记得：先用便宜方案消除不确定性
+</code></pre>
+
+<p>照着走，你基本不会选错。</p>
+<h2 id="_7">实战案例：一个真实项目的选择过程</h2>
+<p>假设你要给公司做一个「法律文书助手」，让模型把口语描述改写成规范的法律文书风格。看看决策怎么走：</p>
+<ol>
+<li><strong>先估数据</strong>：你整理了 3000 条「口语 → 法律文书」改写对。数据 &lt; 1 万条 → 按流程图走 LoRA 路线；</li>
+<li><strong>用 QLoRA + r=16 训练</strong>：8GB 显卡就能跑，一晚出结果；</li>
+<li><strong>评测对比基座</strong>：LoRA 版本在「格式规范性」上远超基座，但偶尔有个别术语不够专业；</li>
+<li><strong>尝试 r=32 + 全挂 FFN 层</strong>：术语问题明显改善，评分再涨一截；</li>
+<li><strong>要不要上全参数？</strong>：算了一笔账——需要租 4×A100，成本高 20 倍，而评测只差 3 分。结论：<strong>不值得</strong>，LoRA 封顶即可。</li>
+</ol>
+<p>这个案例几乎是社区项目的标准剧本：<strong>LoRA 解决 90% 的问题，剩下的 10% 用调参解决，全参数只在极少数情况下才入场。</strong></p>
+<h2 id="lora_5">一个容易忽略的点：LoRA 与全参数可以「接力」</h2>
+<p>很多人把 LoRA 和全参数当成二选一，其实还有一种「接力」玩法：</p>
+<pre class="codehilite"><code>第1棒：全参数微调（或继续预训练）把模型底子调到接近领域
+第2棒：LoRA 收尾，把最后一公里的风格/格式定住
+</code></pre>
+
+<p>为什么有用？全参数先把「领域知识底子」打好（比如让模型真正懂法律术语），LoRA 再低成本地把「说话方式」固定下来。这样比「一步到位全参数」便宜，比「纯 LoRA」上限高。</p>
+<p>不过这是进阶玩法，先把基础路线跑熟再尝试。</p>
+<h2 id="_8">小练习</h2>
+<ol>
+<li>用你自己的数据，分别跑一次 LoRA 和一次全参数（可以用 MiniMind 小模型来省钱），记录各自的显存、时间和效果。</li>
+<li>说出至少两个「LoRA 就够用」的场景，和两个「才值得上全参数」的场景。</li>
+<li>为什么数据量很少时，LoRA 有时反而比全参数效果好？（提示：过拟合）</li>
+<li>进阶：固定其它参数，只改 LoRA 的 r（8/16/32），对比评测分数，画一条「r-效果」曲线，找出你自己的甜蜜点。</li>
+</ol>
+<p>下一章，我们把训练成果收尾——<strong>把 LoRA 合并回基座，导出成能部署的模型</strong>。</p></body></html>

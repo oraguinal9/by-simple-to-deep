@@ -1,0 +1,73 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第七章 模型评估：怎么知道微调有没有用 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="_1">第七章 模型评估：怎么知道微调有没有用</h1>
+<p>训练完，模型文件生成了。但它是真的变强了，还是只是"看起来训过了"？<strong>不评估就上线，等于闭眼开车</strong>。本章讲怎么给微调模型"考试"。</p>
+<h2 id="_2">自动指标：先量化</h2>
+<p>对于"有标准答案"的任务，可以用指标自动打分：</p>
+<ul>
+<li><strong>准确率（Accuracy）</strong>：分类、选择题对了几成。</li>
+<li><strong>精确率/召回率/F1</strong>：信息抽取、检索类任务常用。</li>
+<li><strong>BLEU / ROUGE</strong>：机器翻译、摘要，看生成文本和参考文本的重叠度（注意：重叠高≠说得好，常被吐槽，但仍是常用基线）。</li>
+<li><strong>代码类</strong>：用单元测试通过率（如 HumanEval）。</li>
+</ul>
+<blockquote>
+<p>提醒：这些指标是"代理"，不是"真理"。尤其文本生成，指标好看但读起来烂的情况很常见。</p>
+</blockquote>
+<h2 id="_3">人工评测：最终裁判</h2>
+<p>对开放式问答、对话、写作，目前<strong>人眼仍是最好的裁判</strong>。常见做法：</p>
+<ul>
+<li><strong>抽样打分</strong>：随机抽 50~100 条真实场景问题，人工按"相关性/准确性/格式/语气"打分（如 1~5 分）。</li>
+<li><strong>A/B 对拼</strong>：把"微调前 vs 微调后"（或"你的模型 vs 竞品"）的回答并排，盲评谁更好。</li>
+</ul>
+<blockquote>
+<p>经验：先自动指标筛掉明显翻车的版本，再人工精评最终候选。纯靠自动指标容易自欺。</p>
+</blockquote>
+<h2 id="llm-as-judge">用强模型当评委（LLM-as-Judge）</h2>
+<p>一个越来越流行的招：用 GPT-4 级强模型，按你给的评分标准，批量给候选回答打分。优点是可规模化；缺点是评委本身有偏好、可能偏心某些风格，需抽样人工复核校准。</p>
+<h2 id="_4">评估集从哪来？</h2>
+<ul>
+<li>第四章切出来的那 10% <strong>验证集</strong>；</li>
+<li>另攒一份<strong>模型从没见过</strong>的"真实问题"清单（更贴近上线表现）；</li>
+<li>覆盖边界情况：刁钻问题、乱说话的用户、超长输入。</li>
+</ul>
+<h2 id="_5">一个高频陷阱：评估集泄漏</h2>
+<p>如果你评估用的题，<strong>偷偷出现在了训练数据里</strong>，那分数虚高，上线即翻车。务必保证：评估集 ∩ 训练集 = ∅（不相交）。这也是为什么数据要提前切分、别事后随手拿训练样本当考题。</p>
+<h2 id="_6">该看"相对提升"还是"绝对能力"？</h2>
+<ul>
+<li><strong>相对提升</strong>：相比底座模型，你的任务上好了多少？这证明微调"起作用了"。</li>
+<li><strong>绝对能力</strong>：它到底能不能用？就算比底座好 20%，若绝对水平仍不及格，也不能上线。</li>
+</ul>
+<p>两者要结合：先确认方向对（相对提升为正），再确认底线过（绝对能力达标）。</p>
+<h2 id="_7">本章小结</h2>
+<ul>
+<li>评估分两路：<strong>自动指标</strong>（快、可规模）＋<strong>人工评测</strong>（准、是终裁）。</li>
+<li>可用强模型当评委，但需人工抽样校准。</li>
+<li><strong>评估集必须和训练集不相交</strong>，否则分数虚高。</li>
+<li>既要看相对提升（微调生效），也要看绝对能力（能用）。</li>
+</ul>
+<h2 id="_8">小练习</h2>
+<ol>
+<li>你微调了一个"合同风险点提取"模型。列举你会用哪两个指标 + 一种人工评测方式。</li>
+<li>为什么"用训练样本当考题"会得出虚假的高分？</li>
+</ol></body></html>

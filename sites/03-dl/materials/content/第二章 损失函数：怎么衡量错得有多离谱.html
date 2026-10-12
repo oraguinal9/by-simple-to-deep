@@ -1,0 +1,353 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第二章 损失函数：怎么衡量错得有多离谱 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="_1">第二章 损失函数：怎么衡量"错得有多离谱"</h1>
+<blockquote>
+<p>本章目标：理解<strong>损失函数（Loss Function）</strong>是什么、为什么必须有它、以及常见的两把尺子（MSE 与交叉熵）分别用在哪。</p>
+</blockquote>
+<hr />
+<h2 id="21">2.1 先问一个问题：怎么知道模型好不好？</h2>
+<p>回到上一章的房价模型。假设有两个人给出了不同的参数：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>小明的模型</th>
+<th>小红的模型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>参数</td>
+<td>w=3.1, b=0</td>
+<td>w=2.8, b=25</td>
+</tr>
+</tbody>
+</table>
+<p>哪个更好？光看参数看不出来，得<strong>拿数据试</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>面积</th>
+<th>真实价</th>
+<th>小明预测</th>
+<th>小明误差</th>
+<th>小红预测</th>
+<th>小红误差</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>60</td>
+<td>186</td>
+<td>186</td>
+<td>0</td>
+<td>193</td>
+<td>+7</td>
+</tr>
+<tr>
+<td>90</td>
+<td>281</td>
+<td>279</td>
+<td>−2</td>
+<td>277</td>
+<td>−4</td>
+</tr>
+<tr>
+<td>120</td>
+<td>377</td>
+<td>372</td>
+<td>−5</td>
+<td>361</td>
+<td>−16</td>
+</tr>
+</tbody>
+</table>
+<p>直觉上小明更好。但"直觉"不能写进程序，我们需要一个<strong>具体的数字</strong>来代表"总体错得有多离谱"。</p>
+<p><strong>这个数字就叫损失（Loss）。</strong></p>
+<hr />
+<h2 id="22">2.2 第一次尝试：直接把误差加起来？</h2>
+<p>最朴素的想法：把所有误差加起来。</p>
+<ul>
+<li>小明：0 + (−2) + (−5) = <strong>−7</strong></li>
+<li>小红：7 + (−4) + (−16) = <strong>−13</strong></li>
+</ul>
+<p>看起来能用？不行，有个致命问题：<strong>正负会互相抵消</strong>。</p>
+<p>假设有个模型，一个样本预测高了 100 万，另一个低了 100 万，误差之和 = 0，看起来"完美"，实际上错得离谱。</p>
+<p>所以必须先把误差变成<strong>非负数</strong>。有两个常见做法：</p>
+<ol>
+<li>取绝对值 → 平均绝对误差 <strong>MAE</strong></li>
+<li>取平方 → 均方误差 <strong>MSE</strong> ⭐ 最常用</li>
+</ol>
+<hr />
+<h2 id="23-mse">2.3 MSE：回归问题的标准尺子</h2>
+<p><strong>均方误差（Mean Squared Error）</strong>：</p>
+<pre class="codehilite"><code>MSE = (1/n) × Σ (yᵢ - ŷᵢ)²
+</code></pre>
+
+<p>翻译成人话：<strong>每个样本的误差先平方，再全部加起来，最后除以样本数取平均。</strong></p>
+<p>算一下上面的例子：</p>
+<ul>
+<li>小明：<code>(0² + 2² + 5²) / 3 = (0+4+25)/3 = 9.67</code></li>
+<li>小红：<code>(7² + 4² + 16²) / 3 = (49+16+256)/3 = 107</code></li>
+</ul>
+<p><strong>损失越小越好</strong>，所以小明的模型明显更优。</p>
+<pre class="codehilite"><code class="language-python">import numpy as np
+
+y_true = np.array([186, 281, 377])
+y_ming = np.array([186, 279, 372])
+y_hong = np.array([193, 277, 361])
+
+def mse(y, yhat):
+    return np.mean((y - yhat) ** 2)
+
+print(mse(y_true, y_ming))   # 9.67
+print(mse(y_true, y_hong))   # 107.0
+</code></pre>
+
+<h3 id="_2">为什么用平方而不用绝对值？</h3>
+<p>三个理由，按重要性排序：</p>
+<ol>
+<li><strong>重罚大错</strong>。误差 10 平方后是 100，误差 1 平方后是 1。平方会让"离谱的大错"在损失里占绝对主导，逼着模型优先修正大错。</li>
+<li><strong>处处可导</strong>。绝对值函数在 0 点是个尖角，导数不存在；平方函数光滑可导。<strong>这一点极其重要</strong>——第三章你会看到，整个训练过程都建立在"求导"上。</li>
+<li><strong>数学性质好</strong>。MSE 对应正态分布假设下的最大似然估计，理论上站得住脚。</li>
+</ol>
+<blockquote>
+<p>⚠️ 副作用：MSE 对<strong>异常值（outlier）</strong>特别敏感。数据里有一套凶宅卖了 1 元，MSE 会被这个样本彻底带偏。这时可以改用 MAE 或 Huber Loss。</p>
+</blockquote>
+<hr />
+<h2 id="24-mse">2.4 分类问题：MSE 不好使了</h2>
+<p>上面讲的是<strong>回归</strong>（预测一个连续数字，如房价、温度）。</p>
+<p>但很多任务是<strong>分类</strong>（预测一个类别，如"这是猫还是狗"、"下一个词是哪个"）。分类问题用 MSE 效果很差，需要另一把尺子。</p>
+<h3 id="_3">分类模型输出的是"概率"</h3>
+<p>分类模型不会直接吐出"猫"，而是吐出<strong>每个类别的概率</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>模型输出概率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>猫</td>
+<td>0.7</td>
+</tr>
+<tr>
+<td>狗</td>
+<td>0.2</td>
+</tr>
+<tr>
+<td>兔子</td>
+<td>0.1</td>
+</tr>
+</tbody>
+</table>
+<p>真实答案（标签）写成 <strong>one-hot</strong> 形式，即"正确的那个是 1，其余都是 0"：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>真实标签</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>猫</td>
+<td>1</td>
+</tr>
+<tr>
+<td>狗</td>
+<td>0</td>
+</tr>
+<tr>
+<td>兔子</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_4">交叉熵：只盯着"正确答案的那个概率"</h3>
+<p><strong>交叉熵损失（Cross-Entropy Loss）</strong>：</p>
+<pre class="codehilite"><code>Loss = − Σ yᵢ · log(ŷᵢ)
+</code></pre>
+
+<p>因为 one-hot 标签里只有正确类别是 1，其余是 0，所以这个求和实际上<strong>只剩正确类别那一项</strong>：</p>
+<pre class="codehilite"><code>Loss = − log(正确类别的预测概率)
+</code></pre>
+
+<p>看几组数字就懂了：</p>
+<table>
+<thead>
+<tr>
+<th>模型给正确答案的概率</th>
+<th>−log(p)</th>
+<th>损失大小</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.99</td>
+<td>0.01</td>
+<td>极小</td>
+<td>答对了，很自信，几乎不罚</td>
+</tr>
+<tr>
+<td>0.70</td>
+<td>0.36</td>
+<td>小</td>
+<td>答对了，但不够自信</td>
+</tr>
+<tr>
+<td>0.50</td>
+<td>0.69</td>
+<td>中</td>
+<td>蒙的</td>
+</tr>
+<tr>
+<td>0.10</td>
+<td>2.30</td>
+<td>大</td>
+<td>基本答错</td>
+</tr>
+<tr>
+<td>0.01</td>
+<td>4.61</td>
+<td>很大</td>
+<td>错得离谱且很自信</td>
+</tr>
+<tr>
+<td>→0</td>
+<td>→∞</td>
+<td>无穷大</td>
+<td>极刑</td>
+</tr>
+</tbody>
+</table>
+<p><strong>交叉熵的精髓：不只看"对不对"，还看"有多自信"。</strong> 自信地答错，惩罚极重；犹豫地答对，也有一定惩罚。这正是我们想要的训练信号。</p>
+<pre class="codehilite"><code class="language-python">import numpy as np
+
+def cross_entropy(p_correct):
+    return -np.log(p_correct)
+
+for p in [0.99, 0.7, 0.5, 0.1, 0.01]:
+    print(f&quot;正确类概率={p:.2f}  损失={cross_entropy(p):.3f}&quot;)
+</code></pre>
+
+<hr />
+<h2 id="25-softmax">2.5 Softmax：把任意数字变成概率</h2>
+<p>问题来了：神经网络最后一层输出的是任意实数（比如 <code>[2.3, -1.1, 0.5]</code>），怎么变成"加起来等于 1 的概率"？</p>
+<p>答案是 <strong>Softmax</strong>：</p>
+<pre class="codehilite"><code>softmax(zᵢ) = e^(zᵢ) / Σ e^(zⱼ)
+</code></pre>
+
+<p>三步走：
+1. 每个数取指数 <code>e^z</code>（保证全部变成正数，且放大差距）
+2. 全部加起来当分母
+3. 每个除以总和（保证加起来 = 1）</p>
+<pre class="codehilite"><code class="language-python">import numpy as np
+
+z = np.array([2.3, -1.1, 0.5])
+exp_z = np.exp(z)              # [9.97, 0.33, 1.65]
+probs = exp_z / exp_z.sum()    # [0.834, 0.028, 0.138]
+print(probs, probs.sum())      # 加起来 = 1.0
+</code></pre>
+
+<blockquote>
+<p>🔑 <strong>这就是大模型"预测下一个词"的最后一步</strong>：模型对词表里 5 万个词各算一个分数，Softmax 转成概率，然后按概率采样一个词出来。你在 L2 课程里看到的"temperature 温度参数"，就是在 Softmax 之前给 z 除以一个数——除得越大，概率分布越平，输出越随机。</p>
+</blockquote>
+<hr />
+<h2 id="26">2.6 两把尺子怎么选</h2>
+<table>
+<thead>
+<tr>
+<th>任务类型</th>
+<th>例子</th>
+<th>输出层</th>
+<th>损失函数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>回归</td>
+<td>房价、温度、销量</td>
+<td>直接输出实数</td>
+<td><strong>MSE</strong></td>
+</tr>
+<tr>
+<td>二分类</td>
+<td>垃圾邮件 / 正常</td>
+<td>Sigmoid（1 个输出）</td>
+<td><strong>二元交叉熵 BCE</strong></td>
+</tr>
+<tr>
+<td>多分类</td>
+<td>猫/狗/兔，下一个词</td>
+<td>Softmax（N 个输出）</td>
+<td><strong>交叉熵 CE</strong></td>
+</tr>
+</tbody>
+</table>
+<p>在 PyTorch 里就是一行：</p>
+<pre class="codehilite"><code class="language-python">import torch.nn as nn
+
+loss_fn = nn.MSELoss()              # 回归
+loss_fn = nn.BCELoss()              # 二分类
+loss_fn = nn.CrossEntropyLoss()     # 多分类（内部已含 Softmax，别重复加）
+</code></pre>
+
+<hr />
+<h2 id="27">2.7 关键认知：损失函数是模型的"人生目标"</h2>
+<p>这句话值得单独拎出来：</p>
+<blockquote>
+<p><strong>你定义什么损失函数，模型就会不择手段地把那个数字降到最低。</strong></p>
+</blockquote>
+<p>这既是威力也是陷阱：</p>
+<ul>
+<li>你让它最小化"预测点击率的误差" → 它可能学会推荐标题党</li>
+<li>你让它最小化"下一个词的交叉熵" → 它学会流畅地说话，但<strong>不保证说真话</strong>（这正是大模型"幻觉"的根源之一）</li>
+<li>你让它最小化"人类打分的负值" → 这就是 RLHF（L6 课程内容），也是 ChatGPT 比原始 GPT 好用的原因</li>
+</ul>
+<p><strong>模型没有价值观，只有损失函数。</strong> 记住这句话，你对 AI 的很多"奇怪行为"就都能理解了。</p>
+<hr />
+<h2 id="28">2.8 本章小结</h2>
+<ul>
+<li><strong>损失函数 = 给模型打分的尺子</strong>，数字越小说明模型越好</li>
+<li>误差不能直接相加（正负抵消），要平方或取绝对值</li>
+<li><strong>MSE</strong> 用于回归：重罚大错、处处可导</li>
+<li><strong>交叉熵</strong> 用于分类：只看正确答案的概率，"自信地答错"惩罚最重</li>
+<li><strong>Softmax</strong> 负责把任意实数变成概率分布，是大模型输出词的最后一步</li>
+<li>损失函数决定了模型的行为目标，选错尺子等于教错方向</li>
+</ul>
+<hr />
+<h2 id="29">2.9 自测</h2>
+<ol>
+<li>为什么不能直接把误差相加当损失？</li>
+<li>MSE 里为什么用平方而不是绝对值？说出两个理由。</li>
+<li>模型对正确答案给出 0.9 的概率，交叉熵损失大约是多少？给 0.1 呢？</li>
+<li>为什么说"大模型的幻觉和它的损失函数有关"？</li>
+</ol>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：有了尺子，我们知道当前参数好不好了。但<strong>怎么把参数改得更好</strong>？这就是深度学习最核心的算法——梯度下降。</p>
+</blockquote></body></html>

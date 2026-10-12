@@ -1,0 +1,335 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>ComfyUI 入门：节点式工作流 | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="comfyui">ComfyUI 入门：节点式工作流</h1>
+<p>前两篇，我们认识了多模态，也理解了 SD 这个「画图引擎」。但从今天起，我们真正要打交道的主角登场了：<strong>ComfyUI</strong>——一个让无数新手又爱又怕、实际上却简单得离谱的工具。</p>
+<p>一句话定义 ComfyUI：<strong>它是一个「可视化编程式」的 AI 画图工具，把「画一张图」的整个过程，拆成一堆可以拖来拖去的小方块（节点），用线连起来，就是一条流水线。</strong></p>
+<p>这篇我们分四步走：先搞懂它到底是什么、和另一个著名的画图工具 WebUI 有什么区别；然后把它装到电脑上；再认识它的界面；最后亲手把官方自带的一个示例工作流跑起来。别怕，每一步我都会给到可以直接照抄的命令和操作。</p>
+<h2 id="comfyui_1">一、ComfyUI 是什么：把「画图」变成「搭积木」</h2>
+<p>先看一个容易让人蒙圈的对比：传统的画图工具（比如 Stable Diffusion WebUI）是一个「填表工具」——你在网页表单里填提示词、填参数，点一下「生成」，图就出来了。简单直观，但<strong>流程是写死的</strong>，你想加一步「先放大再上色」？做不到，只能装插件。</p>
+<p>ComfyUI 完全反过来：<strong>它不给你一个现成的表单，而是给你一堆零件，让你自己拼流水线。</strong> 这听起来门槛更高，但好处是：</p>
+<ul>
+<li><strong>想怎么改就怎么改</strong>：加一个节点 = 加一步处理，减一个节点 = 砍掉一步；</li>
+<li><strong>看得见中间过程</strong>：每一步处理的中间结果都能预览，出问题一眼定位；</li>
+<li><strong>可以复用和分享</strong>：一条拼好的流水线可以保存成文件，发给别人，别人加载就能用；</li>
+<li><strong>效率高</strong>：内存管理更精细，同样一张图往往比 WebUI 更快、更省显存。</li>
+</ul>
+<p>正因为灵活，ComfyUI 如今是本地 AI 创作圈的事实标准。它来自一个叫 Comfy 的开源项目，在 GitHub（全球最大的代码托管网站）上有超过十万颗星标——这个数字代表着全球无数人的信任和贡献。</p>
+<blockquote>
+<p><strong>心智模型（一定要记住）：把 ComfyUI 想象成乐高。</strong> 每个节点是一块乐高积木（比如「读取模型」「写提示词」「画图」「保存图片」），每根连线是积木之间的插槽。你拼出的整条积木车，叫<strong>工作流（workflow）</strong>。画一张图，本质上就是拼出并运行一条工作流。</p>
+</blockquote>
+<h3 id="11">1.1 节点长什么样</h3>
+<p>一个节点就是一个矩形小卡片，大致有这几个部分：</p>
+<ul>
+<li><strong>顶部</strong>：节点名字（比如 Load Checkpoint「加载模型」、KSampler「采样器」）；</li>
+<li><strong>左侧</strong>：输入端（input），画图所需的数据从这里进来，用「线」连进来；</li>
+<li><strong>右侧</strong>：输出端（output），处理完的结果从这里出去，用「线」连出去；</li>
+<li><strong>中间</strong>：一些可调的参数（比如分辨率、采样步数）。</li>
+</ul>
+<p>每个节点的输入输出都<strong>必须匹配</strong>——就像乐高积木的凸点和凹槽，型号不对插不上。ComfyUI 会用颜色和形状告诉你什么能连什么：</p>
+<table>
+<thead>
+<tr>
+<th>连线颜色</th>
+<th>传输的数据</th>
+<th>举例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>粉红</td>
+<td>模型</td>
+<td>checkpoint、LoRA</td>
+</tr>
+<tr>
+<td>紫色</td>
+<td>提示词（文本）</td>
+<td>正向提示词、负向提示词</td>
+</tr>
+<tr>
+<td>青色（蓝绿）</td>
+<td>条件（编码后的语义）</td>
+<td>CLIP 编码结果</td>
+</tr>
+<tr>
+<td>灰色</td>
+<td>图片（潜空间/像素）</td>
+<td>生成的图、VAE 输出</td>
+</tr>
+<tr>
+<td>蓝色</td>
+<td>参数（数字/滑杆）</td>
+<td>步数、种子、CFG</td>
+</tr>
+</tbody>
+</table>
+<p>颜色暂时不用背，跑起来自然就认识了。</p>
+<h2 id="comfyui-vs-webui">二、ComfyUI vs WebUI：选谁？</h2>
+<p>你可能会在教程里看到另一种主流工具「Stable Diffusion WebUI」（一般叫 A1111，因为源自 Automatic1111 项目）。两者都是给 SD 用的界面，我们对比一下，帮你理解「为什么本阶选 ComfyUI」：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>WebUI（A1111）</th>
+<th>ComfyUI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>上手难度</td>
+<td>低，填表单就行</td>
+<td>中等，要理解节点</td>
+</tr>
+<tr>
+<td>灵活性</td>
+<td>低，流程写死</td>
+<td>极高，任意拼装</td>
+</tr>
+<tr>
+<td>中间过程可见性</td>
+<td>弱</td>
+<td>强，每步可预览</td>
+</tr>
+<tr>
+<td>资源占用/速度</td>
+<td>相对高</td>
+<td>更省显存、更快</td>
+</tr>
+<tr>
+<td>批量/自动化</td>
+<td>一般</td>
+<td>极强（API、参数化，第 9 篇讲）</td>
+</tr>
+<tr>
+<td>社区现状</td>
+<td>老牌，插件多</td>
+<td>新主流，更新最快</td>
+</tr>
+<tr>
+<td>适合谁</td>
+<td>只想要简单出图</td>
+<td>想进阶、想要自由、想自动化</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>结论：<strong>如果你只想「点几下出张图」，WebUI 更快；但本阶的目标是让你从「会出图」变成「能自由控制出图、能批量、能自动化」，这是 ComfyUI 的主场。</strong> 而且两者共用一套模型，学了 ComfyUI 之后你的模型文件两边都能用。</p>
+</blockquote>
+<h2 id="comfyuiwindows">三、安装 ComfyUI：Windows 一键包</h2>
+<p>接下来进入实操。这一节以 <strong>Windows</strong> 系统为例，因为绝大多数读者用 Windows。安装方式有两种，推荐新手用第一种。</p>
+<h3 id="_1">方式一：下载一键整合包（推荐新手）</h3>
+<p>国内社区（如秋叶、B 站 up 主）提供了「一键整合包」，把 ComfyUI 本体、Python 环境、常用插件、示例模型打包好了，解压就能用。步骤：</p>
+<ol>
+<li>搜索「ComfyUI 整合包」或「ComfyUI 秋叶包」，在靠谱的下载页下载；</li>
+<li>解压到一个<strong>路径里不要有中文和空格</strong>的目录（这一点非常重要！第 10 篇会专门讲为什么），比如：</li>
+</ol>
+<pre class="codehilite"><code class="language-text">E:\ComfyUI
+</code></pre>
+
+<p>而不是：</p>
+<pre class="codehilite"><code class="language-text">E:\我的工具\ComfyUI 新版（这样容易出问题）
+</code></pre>
+
+<ol>
+<li>双击目录里的启动脚本，一般叫 <code>run_nvidia_gpu.bat</code>（英伟达显卡）或 <code>启动 ComfyUI.bat</code>；</li>
+<li>等待窗口里出现类似下面这行，说明服务启动成功：</li>
+</ol>
+<pre class="codehilite"><code class="language-text">To see the GUI go to: http://127.0.0.1:8188
+</code></pre>
+
+<ol>
+<li>打开浏览器，访问 <code>http://127.0.0.1:8188</code>，ComfyUI 界面就出现了。</li>
+</ol>
+<blockquote>
+<p><code>127.0.0.1:8188</code> 是什么意思？<code>127.0.0.1</code> 是「本机」的地址（就像自己家的门牌号），<code>8188</code> 是端口号（就像楼层的编号）。这句话的意思就是：你的浏览器通过这个地址访问自家电脑上运行的 ComfyUI。<strong>以后每次用，都先启动脚本，再访问这个地址。</strong></p>
+</blockquote>
+<h3 id="_2">方式二：手动安装（进阶，可选）</h3>
+<p>如果你喜欢干净环境，或者打算在 Linux 服务器上跑，可以手动装。需要先装好 Python 3.10~3.12 和 Git，然后执行：</p>
+<pre class="codehilite"><code class="language-bash"># 1. 克隆 ComfyUI 官方仓库到本地
+git clone https://github.com/comfyanonymous/ComfyUI.git
+cd ComfyUI
+
+# 2. 安装 Python 依赖
+pip install -r requirements.txt
+
+# 3. 启动（英伟达显卡）
+python main.py
+
+# 如果你的显卡显存不大，可以用低显存模式启动
+python main.py --lowvram
+</code></pre>
+
+<p>其他硬件平台对应的启动命令：</p>
+<pre class="codehilite"><code class="language-bash"># AMD 显卡（Linux 用户）
+python main.py --directml
+# 苹果电脑（Mac）
+python main.py --force-fp16
+</code></pre>
+
+<h3 id="31">3.1 第一次启动常见问题速查</h3>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>最可能原因</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>双击脚本一闪而过</td>
+<td>显卡驱动或 Python 问题</td>
+<td>看脚本窗口的报错文字，截图搜解决方案</td>
+</tr>
+<tr>
+<td>网页打不开</td>
+<td>服务没启动成功，或防火墙拦截</td>
+<td>回启动窗口看是否出现了 <code>127.0.0.1:8188</code> 那行</td>
+</tr>
+<tr>
+<td>提示 CUDA 相关错误</td>
+<td>显卡驱动过旧</td>
+<td>更新到 NVIDIA 官网最新驱动</td>
+</tr>
+<tr>
+<td>生成特别慢</td>
+<td>在 CPU 上跑</td>
+<td>确认用的是独显；检查启动参数</td>
+</tr>
+</tbody>
+</table>
+<p>如果卡住，最常见的原因就两个：<strong>路径里有中文</strong>、<strong>显卡驱动太旧</strong>。先把这两点排查掉。</p>
+<h2 id="_3">四、认识界面：菜单、画布与队列</h2>
+<p>第一次打开 ComfyUI，你可能觉得「这是什么鬼」——一片深色画布，几串连好的小方块。别慌，我们逐个认识。</p>
+<h3 id="41">4.1 顶部菜单</h3>
+<ul>
+<li><strong>Queue（队列）</strong>：点击后开始运行当前工作流。快捷键是 Ctrl+Enter。它下面有个「任务进度」，能看当前正在跑第几步；</li>
+<li><strong>Node Library（节点库）</strong>：所有积木的分类目录，按需拖出节点；</li>
+<li><strong>Workflow（工作流）</strong>：新建、打开、保存工作流文件（保存的是 <code>.json</code> 文件，可以分享）；</li>
+<li><strong>Settings（设置）</strong>：偏好设置，新手暂时不用动。</li>
+</ul>
+<h3 id="42-canvas">4.2 画布（Canvas）</h3>
+<p>画布就是中间的大片空白区，所有节点都摆在这上面。常用鼠标操作：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>左键拖拽节点</td>
+<td>移动积木</td>
+</tr>
+<tr>
+<td>从节点右端拖到另一节点左端</td>
+<td>连线</td>
+</tr>
+<tr>
+<td>滚轮</td>
+<td>缩放画布</td>
+</tr>
+<tr>
+<td>按住鼠标中键拖动</td>
+<td>平移画布</td>
+</tr>
+<tr>
+<td>选中节点后按 Delete</td>
+<td>删除节点</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-queue">4.3 队列（Queue）</h3>
+<p>「队列」背后是这样一个概念：你点一次 Queue，ComfyUI 就把当前画布上的流水线从头到尾执行一遍。多条待执行的流程会排队依次运行。这和第 9 篇的「批量生成」直接相关——跑一百张图，就是往队列里塞一百次任务。</p>
+<h3 id="44">4.4 节点右键菜单</h3>
+<p>在画布空白处<strong>双击</strong>，会弹出节点搜索框；在某个节点上<strong>右键</strong>，能对该节点做删除、复制、绕过（Mute，暂时跳过这一步）等操作。「绕过」特别有用：调试时先跳过某一步看效果。</p>
+<h2 id="_4">五、第一个工作流：加载官方示例</h2>
+<p>ComfyUI 自带几个示例工作流，专门用来证明「安装成功」。我们用它完成第一次跑图。</p>
+<h3 id="1">步骤 1：打开示例</h3>
+<ul>
+<li>方法 A：在浏览器里点 ComfyUI 界面的 <code>Workflow → Browse Templates（浏览模板）</code>，选 <strong>SD1.5</strong> 或 <strong>SDXL</strong> 对应模板；</li>
+<li>方法 B：手动加载 ComfyUI 安装目录下 <code>web/templates</code> 文件夹里的 <code>.json</code> 文件；</li>
+<li>方法 C：把别人分享的工作流 <code>.json</code> 文件拖进浏览器窗口，ComfyUI 会自动打开它。</li>
+</ul>
+<h3 id="2">步骤 2：检查模型</h3>
+<p>示例工作流里的「Load Checkpoint」节点指向一个模型文件名。如果提示找不到文件，说明你还没下载模型。先把第 2 篇提到的模型下载好，放到指定目录：</p>
+<pre class="codehilite"><code class="language-text">ComfyUI/models/checkpoints/
+</code></pre>
+
+<p>比如把 <code>Realistic_Vision.safetensors</code> 放进去后，回 ComfyUI，在 Load Checkpoint 节点上点击下拉框，选择这个名字。</p>
+<h3 id="3">步骤 3：填写提示词</h3>
+<p>找到两个写着文字的大框（文本框节点），一个标着 positive（正向），一个标着 negative（负向）。先随便填：</p>
+<pre class="codehilite"><code class="language-text">正向：a cute cat, sitting on a chair, photo
+负向：blurry, low quality, watermark
+</code></pre>
+
+<p>负向提示词的意思后面第 4 篇细讲，现在先照抄。</p>
+<h3 id="4-queue">步骤 4：点击 Queue，等待出图</h3>
+<p>点右上角 <strong>Queue</strong>（或按 Ctrl+Enter）。你会看到节点开始「动」——有的节点变绿或出现进度条，说明正在执行。几十秒后，一张猫的图片出现在节点图上。</p>
+<p><strong>如果你看见图片从「一团模糊」慢慢变清晰，恭喜你，你亲眼看见了第 2 篇讲的「去噪」过程。</strong> 这是 ComfyUI 最迷人的瞬间。</p>
+<h3 id="5">步骤 5：保存你的工作流</h3>
+<p><code>Workflow → Save</code>，把工作流存成文件。<strong>建议给每个做过的工作流命名存档</strong>，这是你未来最宝贵的资产——比攒模型还重要。</p>
+<h2 id="_5">六、给新手的三个习惯建议</h2>
+<p>装好了、跑通了，但距离「熟练」还有距离。三个习惯帮你少走弯路：</p>
+<ol>
+<li><strong>每跑通一条流程，立刻保存</strong>。改坏了可以随时回退，复现成功经验靠的就是存档；</li>
+<li><strong>一次只改一个参数</strong>。改完对比效果，才知道是哪个参数造成了变化。同时改三个，出了问题你根本不知道怪谁；</li>
+<li><strong>报错了先看报错框颜色</strong>。ComfyUI 出问题时，相关节点会变成红色，把鼠标放上去能看到错误信息。绝大多数错误是「模型文件路径不对」或「节点连线类型不匹配」——别慌，截图搜索，十有八九是老问题。</li>
+</ol>
+<h2 id="comfyui_2">七、ComfyUI 的日常操作小技巧</h2>
+<p>跑过示例之后，再教你几手「日常高频操作」，让使用体验立刻顺滑起来。</p>
+<h3 id="71">7.1 汉化界面</h3>
+<p>默认界面是英文，很多新手看着发怵。整合包通常自带汉化插件（如 AIGODLIKE-ComfyUI-Translation），在 ComfyUI Manager 里搜索安装，然后在 Settings 里选择中文即可。节点名、菜单都能变成中文，学习压力小一大截。</p>
+<h3 id="72">7.2 常用「轻量节点」先备好</h3>
+<p>以下节点很小，但几乎天天用：</p>
+<ul>
+<li><code>Load Image</code>（加载图片）：图生图、局部重绘的入口；</li>
+<li><code>Preview Image</code>（预览图片）：出图先看一眼，满意再保存；</li>
+<li><code>Save Image</code>（保存图片）：默认存到 <code>output</code> 目录；</li>
+<li><code>Image Size</code>（图像尺寸）：自动读取一张图的宽高，方便按原图比例设定画布；</li>
+<li><code>Empty Latent Image</code>（空白画布）：文生图的起点。</li>
+</ul>
+<h3 id="73">7.3 从「图片」反查「参数」</h3>
+<p>你从网上下载了一张别人用 ComfyUI 生成的图（PNG 格式），它可能内嵌了完整的工作流信息。做法：<strong>把这张 PNG 图片直接拖进 ComfyUI 窗口</strong>，如果图片带内嵌信息，画布上会自动还原出作者当时用的整个工作流——包括模型、提示词、全部参数。这是「复现教程图」最省事的方法（第 10 篇还会再提）。</p>
+<h3 id="74">7.4 卡死/报错怎么办</h3>
+<ul>
+<li>界面卡住：刷新浏览器页面即可，正在跑的任务一般不受影响；</li>
+<li>节点变红：把鼠标悬停在红色节点上，会显示报错原因；</li>
+<li>想完全重置：关闭启动窗口，重新运行启动脚本。</li>
+</ul>
+<h3 id="75">7.5 养成「读图」的习惯</h3>
+<p>每次出图后，ComfyUI 会把参数保存在图片信息里。你可以把「模型、种子、步数」记进文件名，或者用上面「拖图还原工作流」的方式随时回看。<strong>参数即历史，保存即复现。</strong></p>
+<h2 id="_6">八、本篇小结</h2>
+<ul>
+<li><strong>ComfyUI 是一个把「画图」变成「搭积木」的可视化工具</strong>，节点是积木，连线是插槽，拼出来的一条条流水线叫「工作流」；</li>
+<li>相比 WebUI，它<strong>更灵活、更省资源、更适合自动化和进阶</strong>，是当前本地创作的主流；</li>
+<li><strong>安装推荐 Windows 一键整合包</strong>，路径不要有中文，启动后浏览器访问 <code>http://127.0.0.1:8188</code>；</li>
+<li>界面核心：<strong>菜单、画布（节点区）、队列</strong>，双击画布出节点，右键节点可管理；</li>
+<li>用<strong>官方示例工作流</strong>跑通第一次出图，并立刻<strong>保存工作流</strong>；</li>
+<li>建立好习惯：<strong>及时存档、一次只改一个参数、报错先看红色节点</strong>。</li>
+</ul>
+<p>下一篇，我们就用刚才拼好的这条流水线，把「从提示词到一张图」的每一步——加载模型、文本编码、采样去噪、解码保存——掰开揉碎讲清楚。</p>
+<blockquote>
+<p>相关篇章：还没下载模型，先看 <a href="content/本地图像生成基础：SD 与 SDXL.html">本地图像生成基础：SD 与 SDXL</a>；下一章 <a href="content/文生图工作流：从提示词到一张图.html">文生图工作流：从提示词到一张图</a> 手把手拆解每一步。</p>
+</blockquote></body></html>

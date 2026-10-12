@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微调实战进阶 L14 · 由简入深</title>
+<style>
+  :root{
+    --l1:#3b82f6; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#eff6ff; --ink:#172554; --sub:#5b7492;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#eff6ff,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#1e40af,#2563eb 55%,#3b82f6);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(37,99,235,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#dbeafe;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#3b82f6)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#2563eb;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #bfdbfe;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(37,99,235,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(37,99,235,.16);border-color:#3b82f6}
+  .card .day{font-size:12px;color:#2563eb;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #93c5fd;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#2563eb;border-color:#2563eb}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #bfdbfe;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(37,99,235,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#2563eb}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#eff6ff;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #93c5fd}
+  .btn{background:#2563eb;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#1d4ed8}
+  .btn.ghost{background:#fff;color:#2563eb;border:1px solid #2563eb}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#dbeafe;color:#2563eb;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#172554;color:#bfdbfe;padding:2px 7px;border-radius:6px;font-size:12px}
+  .sel{display:inline-block;background:#fff;border:1px solid #93c5fd;border-radius:10px;padding:8px 14px;margin:5px 6px 0 0;font-size:14px;cursor:pointer;transition:.15s}
+  .sel:hover{border-color:#3b82f6}
+  .sel.on{background:#2563eb;color:#fff;border-color:#2563eb}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+  .node{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #93c5fd;font-weight:600}
+  .node.on{background:#2563eb;color:#fff;border-color:#2563eb}
+  .arrow{color:#2563eb;font-weight:700}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#dbeafe;border:1px solid #93c5fd;border-radius:12px;padding:12px 16px;font-size:13px;color:#1e3a8a;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L14 · 由简入深 AI 学习路线</div>
+  <h1>🛠️ 微调实战进阶</h1>
+  <p>把开源大模型训练成你的专属助手：LoRA/QLoRA、指令数据、Unsloth 极速微调、中文小模型 MiniMind，到评测并部署一个能落地的领域模型。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · <a href="https://agent.zbjh.top/">agent</a> · <a href="https://local.zbjh.top/">local</a> · <a href="https://prompt.zbjh.top/">prompt</a> · <a href="https://comfy.zbjh.top/">comfy</a> · <a href="https://ragpro.zbjh.top/">ragpro</a> · ftplus</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「微调全景再认识」到「做一个领域问答助手」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里看懂微调的三大关键环节。</p>
+    <div class="demos">
+
+      <!-- 演示1 LoRA 原理 -->
+      <div class="demo">
+        <h3>① LoRA 微调原理台</h3>
+        <p class="sub">看 LoRA 怎么用两个低秩小矩阵 A/B 只训练一小部分参数，把基座模型「拧」成你要的样子。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">放大 / 缩小 LoRA 秩 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示2 数据配比 -->
+      <div class="demo">
+        <h3>② 微调数据配比台</h3>
+        <p class="sub">通用对话 + 领域问答 + 高质量对话怎么配比，才不会「学新忘旧」（灾难性遗忘）。</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn" id="next2">换一种配比 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示3 损失曲线 -->
+      <div class="demo">
+        <h3>③ 训练损失曲线台</h3>
+        <p class="sub">loss 曲线怎么看：过拟合、欠拟合、学习率太快太慢，各自长什么样。</p>
+        <div class="stage" id="stage3"></div>
+        <div class="row">
+          <button class="btn" id="next3">换一种训练状况 ▶</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示中的「显存/损失曲线/配比」为教学模拟，展示机制与典型趋势。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · agent · local · prompt · comfy · ragpro · <b>ftplus</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L14</b> · 微调实战进阶 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"微调全景再认识：从 LoRA 到全参数"},
+  {no:"第2天", t:"数据准备：让模型学会你要的格式"},
+  {no:"第3天", t:"用 Unsloth 快速跑通 QLoRA"},
+  {no:"第4天", t:"低资源微调：4bit 量化与显存精打细算"},
+  {no:"第5天", t:"对话模型微调：ChatML 与指令模板"},
+  {no:"第6天", t:"中文小模型实战：MiniMind 从零训练"},
+  {no:"第7天", t:"全参数微调与 LoRA 效果对比"},
+  {no:"第8天", t:"合并与导出：把 LoRA 变成完整模型"},
+  {no:"第9天", t:"评测你的微调模型"},
+  {no:"第10天", t:"实战路线：做一个领域问答助手"},
+];
+const KEY = "ftplus_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：LoRA 微调原理台 ============ */
+(function(){
+  const cases = [
+    {name:"LoRA 秩 r=4（小）", desc:"低秩矩阵小，可训练参数最少",
+     good:"极省显存，适合快速试跑", bad:"表达力有限，复杂任务可能学不透", param:"约 0.1% 参数可训练"},
+    {name:"LoRA 秩 r=16（常用）", desc:"在省显存与表达力之间平衡",
+     good:"绝大多数场景效果已足够，社区默认值", bad:"仍需一点显存", param:"约 0.5% 参数可训练"},
+    {name:"LoRA 秩 r=64（大）", desc:"低秩矩阵更大，更接近全参数效果",
+     good:"复杂领域任务更稳", bad:"显存与训练时间上升，接近半微调", param:"约 2% 参数可训练"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage1");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>设置：</b>'+c.name+'（'+c.desc+'）</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0">'
+      +'<div class="node" style="background:#1e40af;color:#fff;border-color:#1e40af">基座模型<br><span style="font-weight:400;font-size:11px">(冻结不动)</span></div>'
+      +'<span class="arrow">+</span>'
+      +'<div class="node">LoRA<br><span style="font-weight:400;font-size:11px">A×B 低秩增量</span></div>'
+      +'<span class="arrow">=</span>'
+      +'<div class="node on" style="background:#2563eb;color:#fff;border-color:#2563eb">微调后模型<br><span style="font-weight:400;font-size:11px">W + A×B</span></div>'
+      +'</div>'
+      +'<div class="ok" style="margin:4px 0">✓ 优点：'+c.good+'（'+c.param+'）</div>'
+      +'<div class="bad">✗ 局限：'+c.bad+'</div>'
+      +'<div class="muted" style="margin-top:8px">LoRA 冻结原权重 W，只训练小矩阵 A 和 B，最终等效权重 = W + A×B。秩 r 越大，学的「新东西」越多。</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示2：微调数据配比台 ============ */
+(function(){
+  const cases = [
+    {name:"纯领域数据 100%", desc:"只喂你要的场景问答",
+     good:"领域能力提升快", bad:"极易「灾难性遗忘」，通用能力明显退化"},
+    {name:"领域 60% + 通用 40%", desc:"领域为主，掺入通用对话",
+     good:"兼顾领域能力与通用性，实用推荐", bad:"领域提升略慢于纯领域"},
+    {name:"领域 50% + 通用 40% + 高质量 10%", desc:"再加一批精选的高质量数据",
+     good:"通用性与稳定性最好，社区常用配方", bad:"数据准备成本更高"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage2");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>配比：</b>'+c.name+'</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0">'
+      +'<div style="flex:1;min-width:200px;background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:10px;text-align:center">'
+      +'<div style="font-size:26px">🧠</div><div style="font-weight:700;margin-top:4px">领域能力</div><div class="muted">'+c.good.split('，')[0]+'</div></div>'
+      +'<div style="flex:1;min-width:200px;background:#fff;border:1px solid #93c5fd;border-radius:10px;padding:10px;text-align:center">'
+      +'<div style="font-size:26px">💬</div><div style="font-weight:700;margin-top:4px">通用能力</div><div class="muted">'+c.bad+'</div></div>'
+      +'</div>'
+      +'<div class="muted" style="margin-top:8px">口诀：领域数据教「新知识」，通用数据防「忘旧」——两者要按比例混着喂。</div>';
+  }
+  document.getElementById("next2").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示3：训练损失曲线台 ============ */
+(function(){
+  const cases = [
+    {name:"健康的下降", curve:"从高 loss 平滑下降后趋于平缓",
+     good:"训练验证双下降、最终收敛", bad:"无明显问题", trend:"损失随训练单调下降，最后平稳"},
+    {name:"过拟合", curve:"训练 loss 很低，验证 loss 反而回升",
+     good:"训练集表现极好", bad:"对新数据泛化差，学会死记硬背", trend:"训练/验证开始分叉，验证升高"},
+    {name:"学习率过大震荡", curve:"loss 忽高忽低、不收敛",
+     good:"（无）", bad:"参数来回横跳，训不出来", trend:"曲线剧烈抖动，久久不下降"},
+    {name:"学习率太小", curve:"下降极慢、近乎停滞",
+     good:"稳定不崩", bad:"要很久才收敛，浪费时间", trend:"几乎贴地平走，进度缓慢"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage3");
+  function render(){
+    const c = cases[ci];
+    const bars = ["训练", "验证"].map((k,j)=>{
+      const h = j===0 ? (ci===1?26: 90-ci*6) : (ci===1? 68 : 84-ci*7);
+      const col = (ci===1 && j===1) ? "#dc2626" : "#2563eb";
+      return '<div style="text-align:center"><div style="height:'+h+'px;width:34px;margin:0 auto;background:'+col+';border-radius:6px 6px 0 0"></div><div class="muted" style="margin-top:4px;font-size:12px">'+k+'</div></div>';
+    }).join('');
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>状况：</b>'+c.name+'（'+c.curve+'）</div>'
+      +'<div style="display:flex;justify-content:center;gap:26px;align-items:flex-end;background:#eff6ff;border:1px dashed #93c5fd;border-radius:10px;padding:14px 0 10px">'
+      +bars+'</div>'
+      +'<div style="margin-top:8px"><span class="bad">✗ 问题：</span>'+c.bad+'</div>'
+      +'<div class="muted" style="margin-top:4px">趋势判断：'+c.trend+'</div>';
+  }
+  document.getElementById("next3").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+</script>
+</body>
+</html>

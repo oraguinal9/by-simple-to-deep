@@ -1,0 +1,216 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>本地图像生成基础：SD 与 SDXL | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="sd-sdxl">本地图像生成基础：SD 与 SDXL</h1>
+<p>上一篇我们认识了「多模态」和本地创作生态。现在，我们就要接触那个真正负责「画图」的引擎了：<strong>Stable Diffusion</strong>，江湖人称 <strong>SD</strong>。这一篇要解决四件事：</p>
+<ol>
+<li>用最容易懂的方式讲明白，SD 到底是怎么「凭空画出」一张图的（扩散模型原理）；</li>
+<li>搞清楚 SD 家族里那些版本——SD 1.5、SDXL、SD 3.5——到底差在哪，新手该选哪个；</li>
+<li>知道你电脑要什么配置才跑得动（显存那点事）；</li>
+<li>知道「模型文件」是什么、从哪下载。</li>
+</ol>
+<p>读完这一篇，你虽然还没动手，但已经能看懂 80% 的教程黑话了。</p>
+<h2 id="_1">一、扩散模型：从一团马赛克到一张照片</h2>
+<p>先回答最核心的问题：<strong>AI 是怎么把一句「一只戴草帽的橘猫」变成一张图画的？</strong></p>
+<p>这里要用一个反复出现的比喻，请你记住它：</p>
+<blockquote>
+<p><strong>AI 画画，不是从空白开始「画」，而是从一团纯噪声开始「去噪」。</strong></p>
+</blockquote>
+<p>想象一张非常糟糕、全是雪花点的老电视画面（专业上叫「噪声」，你可以理解成「马赛克糊成一片」）。噪声本身没有信息，只是一堆随机亮点。但扩散模型学到了一件事：<strong>它见过亿万万张真实图片是什么样，所以它知道「把噪声一步步理顺」成一张真实图该往哪个方向走。</strong></p>
+<p>具体过程，我们拆成三步：</p>
+<h3 id="_2">第一步：训练时，「倒放」真实图片</h3>
+<p>工程师们拿数亿张真实图片，一张张把它们打上随机噪声，直到完全看不出原图（这就是「加噪」）。然后让模型做反向练习：给我一张糊掉的图，请还原出原图。练的次数足够多，模型就掌握了「从噪声恢复图像」的规律。这个「由噪声一步步恢复原图」的过程，就叫<strong>去噪</strong>，英文是 denoise。</p>
+<h3 id="_3">第二步：生成时，「正放」一遍</h3>
+<p>真正生成图片时，模型先随机生成一张「纯噪声」图——就像在漆黑画布上撒一把随机像素。然后它执行几十步「去噪」：每一步，把图里的噪声稍微抹掉一点，同时根据你的文字提示，让画面往「橘猫、草帽、海边」这个方向收。几十步之后，噪声被抹干净，一张清晰的图片就诞生了。</p>
+<p><strong>把「去噪」换成「雕刻」也通</strong>：一块毫无形状的石头，雕塑家一刀一刀剔除多余的部分，最后雕像浮现。AI 是从噪声里「剔除不需要的部分」，而不是「添加」内容——这和我们直觉里的「画画」恰好相反，但这就是扩散模型的精髓。</p>
+<h3 id="_4">第三步：文本怎么「指挥」去噪</h3>
+<p>你可能想问：凭什么模型知道往「橘猫」方向去噪，而不是往「大象」方向去？</p>
+<p>答案是文本编码器。在你画图之前，模型先把你写的提示词丢给一个叫 <strong>CLIP</strong> 的文字理解模块，CLIP 把一句话变成一串「数字向量」——你可以把向量想象成「语义坐标」：在这个坐标空间里，「橘猫」和「戴草帽的橘猫」离得很近，「橘猫」和「大象」离得很远。然后，模型每一步行进「去噪方向」时，都会参考这个坐标，保证画面的语义一步步贴近你的描述。</p>
+<blockquote>
+<p>一句话总结原理：<strong>生成=从随机噪声出发，沿着「文字语义坐标」指引的方向，走几十步去噪，最终落脚到一张清晰的图。</strong> 不理解的地方先不深究，后面第 4 篇我们会用 ComfyUI 把这几步「亲眼」看到。</p>
+</blockquote>
+<h2 id="sd-15sdxlsd-35">二、SD 家族谱：1.5、SDXL、SD 3.5 到底差在哪</h2>
+<p>「Stable Diffusion」是个大家族。你会在教程里看到各种版本号：SD 1.5、SDXL、SD 3.5，还有带后缀的如 SDXL Turbo。新手最大的困惑就是：<strong>我该用哪个？</strong></p>
+<p>先给结论，再说原因：</p>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>诞生年份</th>
+<th>默认分辨率</th>
+<th>显存门槛（最低/推荐）</th>
+<th>特点与定位</th>
+<th>新手建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SD 1.5</td>
+<td>2022</td>
+<td>512×512</td>
+<td>4G / 8G</td>
+<td>老而弥坚，社区生态最庞大，LoRA、ControlNet 支持最全</td>
+<td>老显卡（8G 以下）首选</td>
+</tr>
+<tr>
+<td>SDXL</td>
+<td>2023</td>
+<td>1024×1024</td>
+<td>8G / 12G</td>
+<td>画质、光影、对长提示词理解全面超越 1.5</td>
+<td><strong>8G 以上显存的首选，本阶主推</strong></td>
+</tr>
+<tr>
+<td>SDXL Turbo</td>
+<td>2023</td>
+<td>1024×1024</td>
+<td>8G / 12G</td>
+<td>一步出图，速度极快，代价是细节稍弱</td>
+<td>赶稿、预览时用</td>
+</tr>
+<tr>
+<td>SD 3.5</td>
+<td>2024</td>
+<td>1024×1024</td>
+<td>8G / 16G</td>
+<td>文本渲染、理解力再升级，但生态（LoRA 等）尚在建设中</td>
+<td>尝鲜，不建议新手主力</td>
+</tr>
+</tbody>
+</table>
+<p>几个版本差异背后的本质，用大白话说：</p>
+<ul>
+<li><strong>SD 1.5 是「老房子」</strong>：层数少、参数少（约 9 亿），所以画 512×512 的小图，显存需求低。社区里积累了海量的 LoRA 和插件，几乎什么风格的教程都有。缺点是画质上限低、对文字描述理解一般，画大图容易出「双头怪」「多余手指」。</li>
+<li><strong>SDXL 是「精装大平层」</strong>：参数多（约 26 亿），原生支持 1024×1024，细节、光影、构图都明显更好，对复杂提示词的理解也更聪明。代价是显存门槛更高，LoRA 生态仍在快速补全中。</li>
+<li><strong>SD 3.5 是「新盘」</strong>：还在装修，前景看好，但周边配套少，新手先别碰。</li>
+</ul>
+<blockquote>
+<p>选型口诀：<strong>显存 8G 以下老老实实用 SD 1.5；8G 及以上直接用 SDXL。</strong> 本阶所有示例都以 SDXL 为主，但思路对 1.5 完全通用。</p>
+</blockquote>
+<h2 id="checkpointlora">三、大模型（checkpoint）、LoRA、采样器：三者的分工</h2>
+<p>现在讲三个几乎每个教程都会出现的词，它们最容易被混淆：<strong>checkpoint（大模型）</strong>、<strong>LoRA</strong>、<strong>采样器（sampler）</strong>。</p>
+<p>请把整个画图流程想象成「开车送外卖」：</p>
+<h3 id="31-checkpoint">3.1 大模型 checkpoint = 汽车本身</h3>
+<p><strong>checkpoint</strong> 是整个 SD 引擎的「核心脑」，它是训练好的那套「从噪声恢复图像」的全部知识，决定了你画出来的图<strong>整体是什么画风</strong>：是写实照片风、动漫风、还是插画风。你可以把它理解成「车子的引擎和底盘」。</p>
+<p>在 ComfyUI 里，你加载的第一个文件往往就是 checkpoint，常见格式是 <code>.safetensors</code>（安全格式，推荐）或 <code>.ckpt</code>（老格式）。</p>
+<p>不同 checkpoint 就是不同的人训练出来的「不同脾气的引擎」。比如：</p>
+<pre class="codehilite"><code class="language-text">Realistic Vision      —— 偏写实摄影
+Anything / 二次元      —— 偏动漫插画
+DreamShaper           —— 偏梦幻概念艺术
+墨心 MoDi             —— 偏中国风水墨
+</code></pre>
+
+<h3 id="32-lora">3.2 LoRA = 车的改装件 / 贴纸</h3>
+<p><strong>LoRA</strong>（读作「洛拉」）是一种小文件（通常几十到一两百兆），它不替换大模型，而是在大模型基础上「微调」某些风格或角色：某动漫角色的画法、某种画风、某位画师的笔触。装一个 LoRA，等于给汽车换个涂装或加个尾翼，不换发动机。</p>
+<p>一个大模型可以同时挂多个 LoRA，搭配出无穷组合。这是社区最火爆的玩法，第 5 篇详细讲。</p>
+<h3 id="33">3.3 采样器 = 司机开车的「方式」</h3>
+<p><strong>采样器（sampler）</strong> 决定了「去噪」这一步一步具体怎么走。同样的车、同样的路，新手司机和老司机的开法不同，到达的画质和耗时也不同。常见采样器有 Euler、Euler a、DPM++ 2M、UniPC、DDIM 等，它们生成的结果差别微妙。</p>
+<blockquote>
+<p>对于新手，先记住：<strong>采样器用 Euler a 或 DPM++ 2M 最不容易出错</strong>，具体的调度器（scheduler）先用 Karras。等你有经验了再去折腾参数，第 4 篇会给出默认值。</p>
+</blockquote>
+<p>三者关系一句话：<strong>checkpoint 决定「画风」，LoRA 决定「细节风格/角色」，采样器决定「去噪节奏」。</strong></p>
+<h2 id="sd">四、跑 SD 需要什么配置：显卡与显存那点事</h2>
+<p>本地跑图的硬门槛只有一个：<strong>显卡的显存（VRAM）</strong>。显存是显卡自带的「临时工作台」，画图计算都在上面进行。显存越大，能一次性计算的图越大、越快、越稳。</p>
+<p>先泼一盆清醒的水，再给你分级建议：</p>
+<table>
+<thead>
+<tr>
+<th>显存大小</th>
+<th>能干什么</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4G</td>
+<td>SD 1.5 小图勉强能跑，速度慢</td>
+<td>可以玩，别期望太高</td>
+</tr>
+<tr>
+<td>6G</td>
+<td>SD 1.5 流畅，SDXL 低分辨率能试</td>
+<td>够入门</td>
+</tr>
+<tr>
+<td>8G</td>
+<td><strong>SDXL 标准分辨率可流畅运行</strong></td>
+<td>本阶推荐的起步配置</td>
+</tr>
+<tr>
+<td>12G–16G</td>
+<td>SDXL 大图、开 ControlNet、试视频</td>
+<td>舒服区</td>
+</tr>
+<tr>
+<td>24G（如 4090）</td>
+<td>各种视频模型、全家桶基本无压力</td>
+<td>发烧配置</td>
+</tr>
+</tbody>
+</table>
+<p>常见问题解答：</p>
+<ul>
+<li><strong>没有独立显卡（纯 CPU）能跑吗？</strong> 技术上能，但慢到怀疑人生（一张图十几分钟到几十分钟）。不推荐，除非只是想体验原理。</li>
+<li><strong>苹果电脑（Mac）能跑吗？</strong> 可以，通过名为 MPS 的方式调用芯片，M 系列芯片跑 SDXL 完全可行，速度看芯片档次。</li>
+<li><strong>显存不够怎么办？</strong> 不是末日。可以加启动参数降低显存占用（<code>--lowvram</code> 等，第 8 篇专门讲），可以用更小的模型，可以调小分辨率。我们第 8 篇有完整「省显存攻略」。</li>
+<li><strong>怎么看自己显存多大？</strong> 在 Windows 任务管理器里点「性能」标签，再点「GPU」，就能看到「专用 GPU 内存」的大小。</li>
+</ul>
+<blockquote>
+<p>如果你现在手里没有合适的电脑，别泄气。先把原理学完，或者用免费云端算力（如 Google Colab、AutoDL 等租卡平台，按小时计费，几十块能玩很久）练手，等有设备再上手本地。<strong>先建立心智模型，工具是随时可以换的。</strong></p>
+</blockquote>
+<h2 id="hugging-facecivitai">五、模型文件从哪来：Hugging Face、Civitai 与国内镜像</h2>
+<p>配置之外，你还需要「模型文件」。模型文件就是前面说的 checkpoint、LoRA 等，是别人（或官方）训练好、免费发布出来的「成品」。去哪里下载？三个主要渠道：</p>
+<h3 id="51-civitai">5.1 Civitai（西维塔）—— 模型界的「应用商店」</h3>
+<p><a href="https://civitai.com">Civitai</a> 是目前全球最大的模型分享社区，界面像淘宝：每个模型都有预览图、标签（动漫/写实/风景）、下载量、评分。<strong>新手首选这里</strong>，因为你能直观看到「这个模型画出来长什么样」。注意：站内有些内容需要登录，且需留意模型页面的使用许可。</p>
+<h3 id="52-hugging-face">5.2 Hugging Face（抱抱脸）—— 模型的「官方货仓」</h3>
+<p><a href="https://huggingface.co">Hugging Face</a> 是机器学习界的 GitHub，官方模型（如 SDXL 本体）都在这里首发。界面更「程序员」一些，文件用网页上的下载按钮，或者用 <code>huggingface-cli</code> 命令行工具下载。适合下官方模型。</p>
+<h3 id="53">5.3 国内镜像与整合包 —— 网络不顺畅时的救星</h3>
+<p>如果上面两个网站访问慢或打不开（这是很多国内读者的真实痛点），有两条替代路：</p>
+<ul>
+<li><strong>国内模型站</strong>：如「LiblibAI（哩布哩布）」「SeaArt」「huggingface 国内镜像站」等，不少模型有国内分发渠道；</li>
+<li><strong>整合包自带</strong>：很多「一键安装包」（第 3 篇会讲）会预装几个常用模型，先跑起来再说，之后慢慢换。</li>
+</ul>
+<blockquote>
+<p><strong>新手第一原则：别急着下载一堆模型。</strong> 先用整合包自带的模型把流程跑通，跑通了再去下新的。一次装十个模型，很容易在「模型不匹配」「路径错误」的坑里爬不出来——这些坑我们第 8 篇会系统排查。</p>
+</blockquote>
+<h2 id="_5">六、动手前的清单：检查你的「车」准备好了吗</h2>
+<p>看完原理和配置，在你安装任何东西之前，花一分钟确认三件事：</p>
+<ol>
+<li><strong>确认显存</strong>：打开任务管理器（Ctrl+Shift+Esc）→ 性能 → GPU，看「专用 GPU 内存」。有 8G 及以上，恭喜你，配置达标；</li>
+<li><strong>确认硬盘空间</strong>：SDXL 一个 checkpoint 约 6~7GB，LoRA 几十到几百 MB。建议预留至少 30GB 空闲硬盘，模型只会越攒越多；</li>
+<li><strong>确认网络</strong>：接下来下载模型、装插件都会用网络，准备一个能正常访问国内站点的网络环境即可。</li>
+</ol>
+<p>这三样都 OK，你的「车」就算备好了。</p>
+<h2 id="_6">七、本篇小结</h2>
+<ul>
+<li><strong>扩散模型的本质是「去噪」</strong>：从一团随机噪声出发，跟着文字提示的语义方向，走几十步「把噪声理清」，得到一张图；</li>
+<li>文字靠 <strong>CLIP</strong> 模块变成「语义坐标」来指挥去噪方向；</li>
+<li><strong>SD 1.5</strong> 是老而全、低门槛的选择；<strong>SDXL</strong> 是 8G 显存以上用户的画质首选；SD 3.5 暂不推荐新手；</li>
+<li><strong>checkpoint（引擎）决定画风，LoRA（改装件）决定风格细节，采样器（司机）决定去噪节奏</strong>；</li>
+<li>硬件门槛的核心是<strong>显存</strong>：8G 起步，4G 也能玩 1.5；</li>
+<li>模型下载渠道：<strong>Civitai</strong>（看预览图挑模型）、<strong>Hugging Face</strong>（官方货仓）、<strong>国内镜像/整合包</strong>（网络不畅时的救星）。</li>
+</ul>
+<p>下一篇，我们装上「驾驶舱」——ComfyUI。那是你第一次亲眼看到「去噪」长什么样的地方。</p>
+<blockquote>
+<p>相关篇章：还不清楚多模态是什么，回看 <a href="content/多模态 AI 是什么：从文字到图像与视频.html">第 1 篇</a>；下一章 <a href="content/ComfyUI 入门：节点式工作流.html">ComfyUI 入门：节点式工作流</a> 马上开始安装。</p>
+</blockquote></body></html>

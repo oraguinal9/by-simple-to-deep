@@ -1,0 +1,102 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第一章 什么是 RAG：让大模型开卷考试 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="rag">第一章 什么是 RAG：让大模型"开卷考试"</h1>
+<p>你有没有遇到过这种情况：问一个 AI 助手"我们公司去年的退款政策是什么"，它却一本正经地编了一段听起来很合理、但其实根本不存在的规定？</p>
+<p>这不是模型"坏"，而是因为它的脑子里<strong>根本没有你公司的资料</strong>。大模型在训练时学的是互联网上的公开文本，它知道"一般来说退款政策长什么样"，但不知道"你们家具体怎么定"。这种"一本正经胡说八道"的现象，行话叫<strong>幻觉（hallucination）</strong>。</p>
+<p>RAG 就是为了解决这个问题而生的。本章我们用一个生活里的比喻，把 RAG 的来龙去脉讲清楚。</p>
+<h2 id="vs">一、闭卷考试 vs 开卷考试</h2>
+<p>把大模型想象成一个学霸。</p>
+<ul>
+<li><strong>闭卷考试</strong>：考试时什么资料都不让带，全凭平时记忆答题。大模型"原生"就是这样——你问它问题，它只靠训练时记住的东西来回答。遇到它没记过、或记错的细节，就只能"猜"，猜错了就是幻觉。</li>
+<li><strong>开卷考试</strong>：考试时允许带参考资料，遇到不确定的，先翻书、找到相关段落、再结合题目作答。答得又准又有出处。</li>
+</ul>
+<p><strong>RAG 就是给大模型"开卷"的能力。</strong></p>
+<p>RAG 是 <strong>Retrieval-Augmented Generation</strong> 的缩写，翻译过来叫"检索增强生成"。拆开看就是三个字各自的意思：</p>
+<ul>
+<li><strong>Retrieval（检索）</strong>：回答问题前，先从外部知识库里"翻"出相关的资料。</li>
+<li><strong>Augmented（增强）</strong>：把翻到的资料，塞进给模型的提示词里，作为上下文。</li>
+<li><strong>Generation（生成）</strong>：模型结合"问题 + 资料"，生成有根据的回答。</li>
+</ul>
+<p>一句话总结：<strong>先查资料，再回答</strong>。就这么简单。</p>
+<h2 id="_1">二、为什么不直接把资料全塞给模型？</h2>
+<p>你可能会想：那为什么不干脆把公司的全部文档都贴进提示词，让模型一次看完？</p>
+<p>两个现实问题：</p>
+<ol>
+<li><strong>装不下</strong>。模型的"上下文窗口"是有限的（哪怕现在能装几万字，也不可能为每个问题都塞进几百万字的公司资料库）。</li>
+<li><strong>塞太多会乱</strong>。给模型一大坨无关内容，它反而容易答偏，或者把不相关的信息混进来。</li>
+</ol>
+<p>RAG 的聪明之处在于<strong>按需取用</strong>：每次只检索出和当前问题最相关的几段，精准投喂。既省空间，又提准确率。</p>
+<h2 id="rag_1">三、RAG 的完整流程长什么样</h2>
+<p>把整个过程串起来，其实就四步：</p>
+<pre class="codehilite"><code>用户提问
+   ↓
+① 检索：去知识库里找和&quot;问题&quot;最相关的几段资料
+   ↓
+② 拼装：把&quot;问题 + 找到的资料&quot;拼成一个提示词
+   ↓
+③ 生成：模型读提示词，基于资料作答
+   ↓
+④ 回答：把答案返回给用户（最好带上出处）
+</code></pre>
+
+<p>举个具体例子。你问："我们家猫主子最近掉毛厉害，能不能吃鸡肉？"</p>
+<p>如果知识库里存着你家猫的<strong>健康档案</strong>和<strong>喂养手册</strong>，RAG 会：</p>
+<ol>
+<li>检索出"猫咪饮食禁忌"和"蛋白质需求"这两段；</li>
+<li>拼成提示词："根据以下资料回答……【资料1：……】【资料2：……】问题：猫能吃鸡肉吗？"；</li>
+<li>模型基于资料给出"可以，鸡肉是优质蛋白，但要注意……"；</li>
+<li>顺手告诉你"以上来自《喂养手册》第 3 章"。</li>
+</ol>
+<p>是不是比凭空编靠谱多了？</p>
+<h2 id="rag_2">四、RAG 能解决什么、不能解决什么</h2>
+<p><strong>RAG 擅长</strong>：
+- 回答"你们家/你们公司特有的"问题（政策、文档、手册、私域知识）；
+- 需要<strong>最新</strong>信息的问题（知识库可以随时更新，不用重新训练模型）；
+- 需要<strong>有出处、可追责</strong>的回答（医疗、法律、企业合规场景）。</p>
+<p><strong>RAG 不擅长 / 要注意</strong>：
+- 资料库里压根没有的答案，它还是答不上来（或退回幻觉）；
+- 检索这一步如果"找错了资料"，后面生成得再漂亮也是建立在错误基础上——所以<strong>检索质量决定了 RAG 的上限</strong>；
+- 它让模型"知道事实"，但不会让模型突然"学会新技能"（那是微调干的事，后面章节会讲）。</p>
+<h2 id="_2">五、一个常见的误解</h2>
+<blockquote>
+<p>"上了 RAG，模型就永远不会胡说了。"</p>
+</blockquote>
+<p><strong>错。</strong> RAG 大幅降低了幻觉，但不能 100% 消除。原因有三：检索可能漏掉关键资料；模型可能忽略你给的资料而坚持自己的偏见；提示词没写好时，模型会"自作主张"。所以实际系统里，RAG 通常要配合"检索质量优化 + 回答评估"一起用（本书第六章会专门讲）。</p>
+<h2 id="_3">六、本章小结</h2>
+<ul>
+<li>大模型原生是"闭卷"的，只凭训练记忆答题，容易在陌生/私有知识上产生幻觉。</li>
+<li><strong>RAG = 检索 + 增强 + 生成</strong>，核心是"先查资料，再回答"，相当于给模型开卷。</li>
+<li>RAG 不是把所有资料硬塞给模型，而是<strong>每次只检索最相关的几段</strong>，精准投喂。</li>
+<li>RAG 降低幻觉、支持私域/最新/可溯源知识，但<strong>检索质量决定上限</strong>，且不能彻底消灭幻觉。</li>
+</ul>
+<h2 id="_4">七、小练习</h2>
+<ol>
+<li>想一想：你日常工作里，有哪些问题是"通用大模型答不好、但你们内部资料能答好"的？列出 3 个。</li>
+<li>下面哪种情况更适合用 RAG，哪种更适合重新训练/微调模型？</li>
+<li>A. 让模型学会你们公司的报销流程；</li>
+<li>B. 让模型写诗更押韵。</li>
+<li>试着用自己的话，向一个完全不懂技术的人解释"什么是 RAG"（不超过三句话）。</li>
+</ol>
+<hr />
+<p><em>下一章，我们钻进 RAG 的第一步"检索"之前，先解决一个更基础的问题：怎么把一整本书、一整个文件夹的文档，变成模型能"翻"得动的样子——也就是</em><em>文档切块</em><em>。</em></p></body></html>

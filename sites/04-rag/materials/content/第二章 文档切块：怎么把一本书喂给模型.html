@@ -1,0 +1,125 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第二章 文档切块：怎么把一本书喂给模型 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="_1">第二章 文档切块：怎么把一本书喂给模型</h1>
+<p>上一章我们说，RAG 的核心是"先查资料，再回答"。但有个前提没解决：<strong>你那一大堆资料，模型怎么"翻"？</strong></p>
+<p>你不能把整个公司的知识库（几百万字）一次性甩给模型——它装不下，也翻不动。真实做法是：先把资料<strong>切成一块一块的小片段</strong>，建好索引；等用户提问时，只精准找出最相关的那几块。</p>
+<p>这个"切"的动作，行话叫 <strong>chunking（切块 / 分块）</strong>。本章就讲清楚：为什么要切、怎么切、切多大最合适。</p>
+<h2 id="_2">一、为什么必须切块，不能整篇喂</h2>
+<p>想象你有一本 300 页的员工手册 PDF。两种用法：</p>
+<ul>
+<li><strong>不切块</strong>：每次提问，都把整本手册贴进提示词。结果：提示词爆仓、检索粒度太粗（只能判断"整本手册"相不相关，无法定位到第 47 页那句关键规定）、而且大部分内容其实和问题无关，反而干扰模型。</li>
+<li><strong>切块</strong>：把手册切成 500 个段落片段，每个片段单独建索引。提问时只捞出和问题最像的那 3 段。又快又准。</li>
+</ul>
+<p><strong>切块的本质，是把"按文档检索"变成"按片段检索"</strong>，让检索的颗粒度足够细。</p>
+<h2 id="_3">二、切块策略：怎么切才合理</h2>
+<p>切块不是随便拿刀砍，常见有几种策略，从简单到聪明：</p>
+<h3 id="1">1. 按结构切（最推荐起步）</h3>
+<p>照着文档原有的层级切：一个 Markdown 标题（#、##）下的一段算一块，或者一个段落（paragraph）算一块。
+- 优点：每个块天然语义完整，不会把一句话拦腰斩断。
+- 适合：结构清晰的文档（手册、Wiki、Markdown、带标题的 PDF）。</p>
+<h3 id="2">2. 固定长度切（最省事）</h3>
+<p>不管内容，每隔固定字数（比如 500 字 / 200 个 token）切一刀。
+- 优点：实现简单、长度均匀。
+- 缺点：容易把一句话、一个表格、一段代码从中间切开，破坏语义。
+- 补救：<strong>加重叠（overlap）</strong>。</p>
+<h3 id="3">3. 语义切（最聪明）</h3>
+<p>用模型判断"这段话讲的主题变没变"，在主题切换的地方切。比如一段讲"退款流程"、下一段讲"物流时效"，就在交界处切。
+- 优点：每块语义高度内聚。
+- 缺点：需要额外模型调用，成本高一点。</p>
+<blockquote>
+<p><strong>新手建议</strong>：先用"按结构切 + 适度固定长度兜底"，等真正遇到检索质量问题时，再上语义切。</p>
+</blockquote>
+<h2 id="overlap">三、重叠（overlap）：别把一句话拦腰斩断</h2>
+<p>固定长度切最容易出的问题：恰好在一段话中间切开了，前半句在一个块、后半句在另一个块。检索时如果只命中其中一半，模型读到的就是半句残废信息。</p>
+<p><strong>解决办法：重叠切分。</strong> 比如块长 500 字、重叠 50 字，那么第 2 块的开头 50 字，和第 1 块的结尾 50 字是重复的。这样即便切点落在句子中间，关键信息也会完整出现在某个块里。</p>
+<p>打个比方：像两个人接力传话，交接处故意多说一句"刚才那句是……"，确保不断片。</p>
+<h2 id="_4">四、切块大小：切多大最合适</h2>
+<p>这是 RAG 里最常被问的问题，没有标准答案，但有经验区间和权衡：</p>
+<table>
+<thead>
+<tr>
+<th>块太大</th>
+<th>块太小</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>一块里混进太多无关内容，检索不精准</td>
+<td>一句话被拆散，语义不完整</td>
+</tr>
+<tr>
+<td>单块占满上下文，能检索的块数变少</td>
+<td>检索准了，但模型拿到的上下文支离破碎</td>
+</tr>
+<tr>
+<td>噪声多，模型被带偏</td>
+<td>容易丢失前后的来龙去脉</td>
+</tr>
+</tbody>
+</table>
+<p><strong>常见起步值</strong>：每块 300–800 字（约 200–500 token），重叠 10%–20%。</p>
+<p>更聪明的做法是<strong>匹配你的检索器和生成器</strong>：如果你发现"检索总差一点点就命中"，就调小块；如果"模型答得支离破碎"，就调大块或加大重叠。</p>
+<h2 id="_5">五、别忘了给每块"贴标签"（元数据）</h2>
+<p>切块时，最好顺手记录每块来自哪里，比如：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;content&quot;: &quot;猫咪掉毛严重时……&quot;,
+  &quot;metadata&quot;: {
+    &quot;source&quot;: &quot;喂养手册.pdf&quot;,
+    &quot;page&quot;: 47,
+    &quot;chapter&quot;: &quot;第三章 日常护理&quot;,
+    &quot;type&quot;: &quot;doc&quot;
+  }
+}
+</code></pre>
+
+<p>这些<strong>元数据（metadata）</strong> 有三个用处：
+1. 回答时能告诉用户"这段来自《喂养手册》第 47 页"，<strong>可溯源</strong>；
+2. 检索时可以按来源过滤（比如只搜"手册"，不搜"聊天记录"）；
+3. 排查问题时能快速定位是哪块资料出了问题。</p>
+<h2 id="_6">六、一个完整例子</h2>
+<p>假设你有《公司报销制度.docx》，切成 80 块，每块带"章节 + 页码"元数据。用户问"出差打车能报销吗？"：</p>
+<ol>
+<li>检索器在 80 块里找出最相关的 3 块（分别是"交通报销标准""出差规定""票据要求"）；</li>
+<li>这 3 块连同问题拼成提示词；</li>
+<li>模型基于这 3 块作答，并标注"依据《报销制度》'交通报销标准'章节"。</li>
+</ol>
+<p>如果当初没切块、直接整篇塞，模型很可能在几万字里"迷路"，答非所问。</p>
+<h2 id="_7">七、本章小结</h2>
+<ul>
+<li>切块（chunking）是把大文档拆成小片段，让检索从"整篇"精确到"片段"。</li>
+<li>三种策略：按结构切（推荐起步）、固定长度切（要加重叠）、语义切（最聪明但贵）。</li>
+<li><strong>重叠（overlap）</strong> 防止句子被拦腰斩断，是固定长度切的标配。</li>
+<li>块大小经验值 300–800 字，重叠 10%–20%，<strong>按检索/生成效果反调</strong>。</li>
+<li>每块记得带<strong>元数据</strong>（来源、页码），方便溯源与过滤。</li>
+</ul>
+<h2 id="_8">八、小练习</h2>
+<ol>
+<li>找一篇你手头的长文档（说明书、论文、内部 Wiki），试着手工把它按"标题/段落"切成 10 块左右，体会一下"切在哪最自然"。</li>
+<li>下面哪种情况该调大块、哪种该调小块？</li>
+<li>A. 检索经常"差一点命中"正确答案；</li>
+<li>B. 模型拿到的资料支离破碎、答得没头没尾。</li>
+<li>为什么重叠切分能减少"半句残废信息"的问题？用自己的话讲一遍。</li>
+</ol>
+<hr />
+<p><em>切块解决的是"怎么把资料准备好"。下一步，我们要让模型能"按意思找资料"而不是"按字面找资料"——这就需要一个把文字变成数字的本事：</em><em>Embedding（嵌入）</em><em>。下一章见。</em></p></body></html>

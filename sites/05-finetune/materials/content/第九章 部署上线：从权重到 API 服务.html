@@ -1,0 +1,86 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第九章 部署上线：从权重到 API 服务 | 微调与部署 L5</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a2018;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a3412;line-height:1.35;}
+  h1{border-bottom:3px solid #ea580c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ea580c;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#1f1407;color:#fde7d3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ffedd5;color:#9a3412;}
+  tr:nth-child(even){background:#fffaf3;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #f59e0b;background:#fff7ed;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#ea580c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ea580c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L5 学习路线图</a><span class='r'>微调与部署 · finetune.zbjh.top</span></div><h1 id="api">第九章 部署上线：从权重到 API 服务</h1>
+<p>微调、量化都搞定了，模型躺在硬盘里。怎么让它真正"接客"——被你的 App、网站、脚本调用？这就是部署。</p>
+<h2 id="_1">部署在解决什么？</h2>
+<p>训练时模型在 GPU 上慢慢学；<strong>部署时模型要 7×24 小时、低延迟、高并发地回答问题</strong>。目标从"学好"变成"服务好"。一条典型的链路：</p>
+<pre class="codehilite"><code>用户请求 → 你的服务程序 → 加载模型(权重+LoRA) → 推理引擎生成回答 → 返回
+</code></pre>
+
+<h2 id="_2">两种形态</h2>
+<ol>
+<li><strong>本地/内网调用</strong>：脚本直接 <code>from transformers import ...</code> 加载模型跑。适合实验、一次性处理。</li>
+<li><strong>在线 API 服务</strong>：起一个 HTTP 服务，对外提供 <code>/chat</code> 接口，多个客户端随时来问。这是生产常态。</li>
+</ol>
+<p>本章聚焦 API 服务。</p>
+<h2 id="_3">推理引擎：别用最慢的那个</h2>
+<p>模型"怎么跑"极大影响速度和显存。直接用原生 <code>transformers</code> 生成也能跑，但吞吐低。生产常用专门优化过的引擎：</p>
+<ul>
+<li><strong>vLLM</strong>：高吞吐、PagedAttention 显存管理，几乎是大模型 API 服务的标配。</li>
+<li><strong>llama.cpp</strong>：C++ 实现，跨平台、对量化（尤其 4-bit GGUF）支持极好，适合边缘/消费级显卡。</li>
+<li><strong>TensorRT-LLM / Ollama / LMStudio</strong>：各有侧重，Ollama 对"个人本地一键起服务"最友好。</li>
+</ul>
+<blockquote>
+<p>打个比方：权重是发动机，推理引擎是整车厂——同样的发动机，装进不同的车，速度和油耗天差地别。</p>
+</blockquote>
+<h2 id="lora">加载 LoRA：底座 + 适配</h2>
+<p>部署微调成果时，通常是：</p>
+<ol>
+<li>加载<strong>底座模型</strong>（可先量化到 INT4/NF4 省显存）；</li>
+<li><strong>叠加 LoRA 权重</strong>（几 MB 的那个文件）；</li>
+<li>合并或动态挂载后提供服务。</li>
+</ol>
+<p>很多框架支持"一个底座挂多个 LoRA，按请求动态切换"，这正是第二章说的 PEFT 多任务优势在部署端的兑现。</p>
+<h2 id="api_1">API 长什么样？</h2>
+<p>对外通常暴露一个和 OpenAI 兼容的接口，方便现有生态直接对接：</p>
+<pre class="codehilite"><code class="language-json">POST /v1/chat/completions
+{
+  &quot;model&quot;: &quot;my-finetuned-7b&quot;,
+  &quot;messages&quot;: [{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;你们的退货政策？&quot;}]
+}
+</code></pre>
+
+<p>返回流式或非流式的回答文本。用 OpenAI 兼容格式的好处：你写的客户端、LangChain 等工具<strong>几乎不用改</strong>就能接上。</p>
+<h2 id="_4">上线前要检查的清单</h2>
+<ul>
+<li><strong>显存够不够</strong>：模型 + 推理引擎开销，留出余量（量化是常用解法，见第八章）。</li>
+<li><strong>并发与队列</strong>：多人同时问怎么办？引擎一般有批处理（batching）和排队。</li>
+<li><strong>最大长度</strong>：限制输入/输出 token，防超长请求拖垮服务。</li>
+<li><strong>超时与降级</strong>：模型卡住要有超时；重要场景准备兜底话术。</li>
+<li><strong>安全</strong>：要不要鉴权（API Key）？要不要过滤危险请求？</li>
+</ul>
+<h2 id="_5">容器化：一键复现环境</h2>
+<p>把"模型 + 引擎 + 依赖"打包进 Docker 镜像，能在任意机器一键起服务，避免"在我机器上能跑"的玄学。生产部署几乎必做。</p>
+<h2 id="_6">本章小结</h2>
+<ul>
+<li>部署目标：把"会学的模型"变成"能 7×24 服务用户的 API"。</li>
+<li>选对<strong>推理引擎</strong>（vLLM/llama.cpp/Ollama）事半功倍。</li>
+<li>部署 = 底座（可量化）+ 叠加 LoRA，支持多适配动态切换。</li>
+<li>用 OpenAI 兼容接口，生态无缝对接；上线前查显存/并发/安全。</li>
+</ul>
+<h2 id="_7">小练习</h2>
+<ol>
+<li>你训好一个退货客服 LoRA。部署时为什么要"先加载 4-bit 底座，再叠加 LoRA"，而不是只存一个合并后的完整模型？</li>
+<li>为什么用 OpenAI 兼容的 API 格式，对后续接工具链更省事？</li>
+</ol></body></html>

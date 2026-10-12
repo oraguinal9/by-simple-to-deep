@@ -1,0 +1,142 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>为什么需要 MCP：Function Calling 的混乱与重复造轮子 | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="mcpfunction-calling">为什么需要 MCP：Function Calling 的混乱与重复造轮子</h1>
+<p>上一章我们说，MCP 出现之前，模型接工具是「各玩各的」。这一章我们把这件事拆开看：到底痛在哪、MCP 又是怎么逐个解决的。</p>
+<h2 id="_1">一、痛点一：每个模型厂商的格式都不统一</h2>
+<p>这是最表层的痛。三家主流模型的「工具定义」，长得完全不一样。</p>
+<h3 id="openai">OpenAI 风格</h3>
+<pre class="codehilite"><code class="language-json">{
+  &quot;tools&quot;: [{
+    &quot;type&quot;: &quot;function&quot;,
+    &quot;function&quot;: {
+      &quot;name&quot;: &quot;get_weather&quot;,
+      &quot;description&quot;: &quot;查询某城市天气&quot;,
+      &quot;parameters&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;properties&quot;: {
+          &quot;city&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;城市名&quot;}
+        },
+        &quot;required&quot;: [&quot;city&quot;]
+      }
+    }
+  }]
+}
+</code></pre>
+
+<h3 id="anthropic">Anthropic 风格</h3>
+<pre class="codehilite"><code class="language-json">{
+  &quot;tools&quot;: [{
+    &quot;name&quot;: &quot;get_weather&quot;,
+    &quot;description&quot;: &quot;查询某城市天气&quot;,
+    &quot;input_schema&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;city&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;城市名&quot;}
+      },
+      &quot;required&quot;: [&quot;city&quot;]
+    }
+  }]
+}
+</code></pre>
+
+<p>看出区别了吗？同样的「查天气」，一个叫 <code>function</code>，一个叫 <code>input_schema</code>；返回结构也不同。这意味着：<strong>你为 GPT 写的工具描述，搬到 Claude 上得改一遍字段名</strong>。模型多了、工具多了，这种改写是指数级的工作量。</p>
+<p><strong>MCP 的解决</strong>：协议规定了一套统一的「能力声明格式」。Server 用 MCP 标准告诉客户端「我会什么」，客户端再翻译成自家模型能懂的格式。工具作者<strong>完全不用关心</strong>下游是哪个模型。</p>
+<h2 id="_2">二、痛点二：每个应用都得自己造一遍对接代码</h2>
+<p>假设你是个开发者，想做一个「AI 助理」，它能：
+- 读你电脑上的文件；
+- 查你的 GitHub；
+- 发消息到 Slack；
+- 跑你公司的数据库查询。</p>
+<p>在没有标准的情况下，你得：</p>
+<ol>
+<li>为「文件」写一套对接（怎么列目录、怎么读、怎么处理权限）；</li>
+<li>为「GitHub」写一套（调 REST API、处理 token）；</li>
+<li>为「Slack」「数据库」各写一套；</li>
+<li>把每一套都接到你选的那个模型上（再写一遍适配）；</li>
+<li>如果哪天你想换成另一个更强的模型，第 4 步推倒重来。</li>
+</ol>
+<p>这就是「重复造轮子」。更糟的是，<strong>别人已经写过的 GitHub 对接，你用不了</strong>，因为你们的「接口约定」不一样，得自己再写。</p>
+<p><strong>MCP 的解决</strong>：文件系统、GitHub、Slack、数据库的对接，<strong>各由专人写成一个个 MCP Server</strong>（官方和社区已经有一大堆现成的）。你作为应用开发者，只要实现对 MCP 协议的支持，就能「插上」所有这些 Server。你写 1 次协议对接，获得 N 个能力。</p>
+<h2 id="_3">三、痛点三：工具一多，模型就「选不准」</h2>
+<p>即使你把所有工具都接上了，还有个现实问题：<strong>给模型的工具清单太长，它会瞎调</strong>。</p>
+<p>模型本质是「在 prompt 里挑一个最合适的工具」。当工具从 5 个涨到 500 个，噪声急剧上升：
+- 它可能在不需要时硬调一个工具；
+- 它可能调错参数；
+- 它可能在该用 A 的时候用了名字像的 B。</p>
+<p><strong>MCP 的解决（部分）</strong>：MCP 把「工具」「资源」「提示词」分成了不同原语（详见第六章），并且 Server 可以按需暴露、可以分页、可以有清晰的 description。再加上客户端的「能力路由」设计，能有效降低模型的选择负担。这不是 MCP 单独能根治的，但它提供了结构化的基础。</p>
+<h2 id="_4">四、痛点四：安全与权限一片混乱</h2>
+<p>「让模型调工具」最危险的地方是<strong>权限</strong>。一个能读文件的模型，会不会偷偷读你的密码文件？一个能发 Slack 的模型，会不会乱发消息？</p>
+<p>在早期各自为战的方案里，每个应用自己定义「模型能做什么、不能做什么」，没有统一的安全模型。有的干脆「全放开」，有的临时加个确认弹窗，质量参差。</p>
+<p><strong>MCP 的解决</strong>：协议把「谁有权限」这件事上升为<strong>一等公民</strong>。Server 声明自己能做什么，客户端/用户负责授权（比如「允许模型读 Desktop 目录，但不允许写」）。而且 MCP 强烈建议<strong>危险操作要 humans in the loop（人在回路）</strong> —— 真要删文件、真要发消息，先弹窗让你确认。这把安全从「各应用自觉」变成了「协议层约定」。</p>
+<h2 id="_5">五、痛点五：无法组合与复用</h2>
+<p>真实任务往往是<strong>组合拳</strong>：「读 GitHub 上这个 issue → 查相关数据库 → 总结成 Slack 消息」。在没有标准时，这种跨系统的编排得你手写一整条 pipeline，换一个场景又得重写。</p>
+<p><strong>MCP 的解决</strong>：因为所有 Server 都说同一种语言，客户端可以<strong>同时连接多个 Server</strong>，并把它们编进同一次对话。模型自己就能决定「先调 GitHub Server 拿 issue，再调 Database Server 查数据」。组合能力变成「插上更多 Server」，而不是「再写一套代码」。</p>
+<h2 id="_6">六、把五个痛点串起来</h2>
+<table>
+<thead>
+<tr>
+<th>痛点</th>
+<th>没有标准时</th>
+<th>MCP 之后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>格式不统一</td>
+<td>每模型一套</td>
+<td>统一能力声明</td>
+</tr>
+<tr>
+<td>重复对接</td>
+<td>每应用重写</td>
+<td>Server 写一次，处处可用</td>
+</tr>
+<tr>
+<td>工具太多选不准</td>
+<td>prompt 噪声爆炸</td>
+<td>结构化原语 + 路由</td>
+</tr>
+<tr>
+<td>安全混乱</td>
+<td>各应用自觉</td>
+<td>协议层授权 + 人在回路</td>
+</tr>
+<tr>
+<td>无法组合</td>
+<td>手写 pipeline</td>
+<td>多 Server 并行接入</td>
+</tr>
+</tbody>
+</table>
+<p>这正是为什么 MCP 值得存在：<strong>它把「模型用工具」这件本该是基础设施的事，做成了标准件</strong>。</p>
+<h2 id="_7">七、本章小结</h2>
+<ul>
+<li>模型接工具的混乱来自五方面：格式不统一、重复对接、选不准、安全乱、难组合；</li>
+<li>MCP 用「统一能力声明 + Server 生态 + 结构化原语 + 协议层授权 + 多 Server 并发」逐一对应解决；</li>
+<li>核心收益是<strong>解耦与复用</strong>：工具作者、应用作者、模型厂商各司其职；</li>
+<li>但要清醒：MCP 不是银弹，模型「选不准工具」「乱调」的问题需要客户端路由 + 良好 prompt 配合，协议只提供地基。</li>
+</ul>
+<p>下一章，我们回到最底层，看「工具调用」这件事在模型内部到底是怎么发生的——这是理解 MCP 之前必须打好的基础。</p>
+<hr />
+<p><em>小练习：如果你要做一个 AI 助理，列 5 个你最想接的工具。想一想，在没有 MCP 的情况下，每个工具你要重复写哪些对接代码？有了 MCP 后又省了什么？</em></p></body></html>

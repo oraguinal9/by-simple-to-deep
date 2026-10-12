@@ -1,0 +1,106 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>MCP 是什么：让 AI 模型连接真实世界的「USB 接口」 | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="mcp-ai-usb">MCP 是什么：让 AI 模型连接真实世界的「USB 接口」</h1>
+<p>你有没有想过：为什么 ChatGPT、Claude 这些大模型，明明「什么都知道」，却<strong>没法帮你查一下今天的天气、读一下你电脑里的文件、或者在你公司的数据库里跑一条 SQL</strong>？</p>
+<p>不是因为它们不够聪明，而是因为它们被关在一个「只有文字的笼子里」。它们能生成文字，却碰不到外面的世界。你问「我桌面上那个 CSV 里有多少行」，它只能说「我看不到你的文件」。</p>
+<p><strong>MCP（Model Context Protocol，模型上下文协议）</strong> 就是为了解决这个问题而生的。它是一套<strong>开放标准</strong>，用来规范「AI 模型」和「外部工具 / 数据 / 系统」之间怎么对话。官方喜欢打一个比方：<strong>MCP 就像 AI 世界的 USB-C 接口</strong>——以前每个设备都得配专用的线，乱七八糟；有了统一的 USB-C，只要插上就能用。MCP 想做的，就是给「模型接工具」这件事一个统一的标准。</p>
+<blockquote>
+<p>一句话理解：MCP 是一套「让模型安全、标准化地调用外部能力」的协议，它定义了模型、客户端、服务端三方怎么通信。</p>
+</blockquote>
+<h2 id="mcp">一、没有 MCP 之前，世界是什么样</h2>
+<p>让我们先看「模型接工具」的原始状态，你就知道 MCP 为什么出现了。</p>
+<h3 id="1">1. 最早的「函数调用」是各玩各的</h3>
+<p>2023 年前后，OpenAI 推出了 Function Calling（函数调用），后来 Google、Anthropic 也都做了自己的版本。思路是：你给模型一份「函数清单」（名字、参数、说明），模型在回答时，如果觉得该调某个函数，就返回一个结构化的调用请求。</p>
+<p>问题来了：</p>
+<ul>
+<li><strong>每个模型厂商的格式不一样</strong>。OpenAI 的 tool 定义长这样，Anthropic 的 tool_use 长那样。你给 GPT 写的调用代码，搬到 Claude 上基本要重写。</li>
+<li><strong>每个应用都得自己造轮子</strong>。你想让你的 App 既能查日历、又能读数据库、又能发 Slack，就得为每一个工具写一套对接代码，再为每个模型写一套适配。</li>
+<li><strong>工具多了就乱</strong>。几百个工具直接塞给模型，模型根本选不准，prompt 也爆。</li>
+</ul>
+<p>这就好比：每台设备都有自己的充电口（苹果的 Lightning、老安卓的 Micro-USB、新的 USB-C），你出门得带一堆线。</p>
+<h3 id="2-mcp">2. MCP 的回答：统一标准</h3>
+<p>Anthropic 在 2024 年底开源了 MCP。它的核心主张很简单：</p>
+<blockquote>
+<p>不要把「模型」和「工具」焊死在一起。应该用一套<strong>通用的协议</strong>，让任何模型都能连上任何符合标准的服务端。</p>
+</blockquote>
+<p>这样一来：
+- 工具开发者<strong>只写一次</strong> MCP Server（比如「文件系统 Server」「GitHub Server」），谁都能用；
+- 应用开发者<strong>只对接一次</strong> MCP 协议，就能接入所有现成的 Server；
+- 模型厂商只要支持 MCP，就能立刻拥有成千上万种能力。</p>
+<h2 id="mcp_1">二、MCP 到底管了什么</h2>
+<p>MCP 不是「一个具体的工具」，而是一套<strong>通信规则</strong>。它规定了三件事：</p>
+<table>
+<thead>
+<tr>
+<th>管什么</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>消息格式</strong></td>
+<td>客户端和服务端之间传的 JSON-RPC 2.0 消息长什么样</td>
+</tr>
+<tr>
+<td><strong>能力原语</strong></td>
+<td>服务端能向模型提供哪几类能力（工具、资源、提示词）</td>
+</tr>
+<tr>
+<td><strong>传输方式</strong></td>
+<td>消息通过什么通道传（本地标准输入输出 / 远程 HTTP＋SSE）</td>
+</tr>
+</tbody>
+</table>
+<p>注意一个常见误解：<strong>MCP 不负责「让模型变聪明」，也不负责「执行工具里的逻辑」</strong>。它只负责「把模型的请求 reliably 送到正确的地方，并把结果 reliably 送回来」。真正的工具逻辑（比如「查 GitHub」要调 GitHub API），写在 MCP Server 里。</p>
+<h2 id="_1">三、一个最小例子，感受一下</h2>
+<p>假设我们想让模型能「读本地文件」。用 MCP 的思路，大概是这样：</p>
+<ol>
+<li>你启动一个 <strong>文件系统 MCP Server</strong>（它知道自己能列目录、读文件、写文件）；</li>
+<li>你的 AI 客户端（比如 Claude Desktop）连上这个 Server，问它：「你都会什么？」</li>
+<li>Server 回答：「我会 <code>read_file(path)</code>、<code>list_dir(path)</code>……」</li>
+<li>你问模型：「帮我读一下 notes.txt 的第一行」；</li>
+<li>模型判断要调 <code>read_file</code>，返回一个调用请求；</li>
+<li>客户端把这个请求发给文件系统 Server，Server 真的去读文件，把内容返回；</li>
+<li>模型拿到内容，组织成自然语言回答你。</li>
+</ol>
+<p>你看到的只是「我问了一句，它答了一句」；背后发生的是一次<strong>标准化的协议往返</strong>。</p>
+<h2 id="mcp-api">四、MCP 和「普通 API」有什么区别</h2>
+<p>有人会问：我直接写个 HTTP 接口让模型调，不也一样吗？</p>
+<p>区别在于<strong>标准化和组合</strong>：</p>
+<ul>
+<li><strong>普通 API</strong>：你得自己定义「模型怎么知道这个 API 存在」「参数怎么传」「返回怎么解析」「出错怎么处理」。每个 API 一套。</li>
+<li><strong>MCP Server</strong>：以上全部由协议统一规定。模型用一套统一的「发现能力 → 调用 → 拿结果」流程，就能用上成百上千个 Server，而且这些 Server 可以<strong>同时接、组合用</strong>。</li>
+</ul>
+<p>换句话说，MCP 把「写一个工具」和「让模型用这个工具」两件事彻底解耦了。</p>
+<h2 id="_2">五、本章小结</h2>
+<ul>
+<li>大模型本身碰不到真实世界，MCP 是给它接上外部能力的<strong>统一标准</strong>（类比 USB-C）；</li>
+<li>没有 MCP 时，每个模型、每个应用都得自己造轮子对接工具，混乱且重复；</li>
+<li>MCP 管的是「通信规则 + 能力原语 + 传输方式」，不管模型聪明与否，也不管工具具体逻辑；</li>
+<li>一次 MCP 交互 = 客户端发现能力 → 模型决定调用 → 服务端执行 → 结果回传 → 模型作答；</li>
+<li>MCP 的价值在于<strong>解耦</strong>：工具写一次、应用接一次、模型通吃所有。</li>
+</ul>
+<p>下一章，我们深入看「为什么会有 Function Calling 的混乱」，以及 MCP 具体解决了哪些痛点。</p>
+<hr />
+<p><em>小练习：想一想你日常用 AI 时，有哪些「它本该能做却做不到」的事（比如查你的邮件、改你的代码、订会议室）？这些正是 MCP 想补齐的能力。</em></p></body></html>

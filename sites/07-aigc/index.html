@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 学习站 L7 · AIGC 创作：文生图与文生视频</title>
+<style>
+  :root{
+    --bg:#15110a; --bg2:#1f180c; --card:#241b0e; --card2:#2e2210;
+    --ink:#fbf3e2; --sub:#cdbb95; --line:#4a3a1c;
+    --a1:#ffd23c; --a2:#ff8a3c; --a3:#ff5c9d; --accent:#ffb648;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%,#3a2a12 0%,#15110a 55%),var(--bg);
+    color:var(--ink);line-height:1.75;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 22px 80px}
+  header.hero{text-align:center;margin-bottom:18px}
+  .badge{display:inline-block;font-size:13px;letter-spacing:.12em;color:var(--sub);
+    border:1px solid var(--line);border-radius:999px;padding:5px 14px;margin-bottom:18px}
+  h1{font-size:clamp(28px,5vw,44px);font-weight:800;
+    background:linear-gradient(90deg,#ffe27a,#ff8a3c 55%,#ff5c9d);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--sub);font-size:clamp(15px,2.4vw,18px);margin-top:12px;max-width:720px;margin-left:auto;margin-right:auto}
+  .progress{margin:26px auto 4px;max-width:560px}
+  .bar{height:12px;border-radius:999px;background:#2a2010;overflow:hidden;border:1px solid var(--line)}
+  .bar > i{display:block;height:100%;width:0%;border-radius:999px;
+    background:linear-gradient(90deg,var(--a1),var(--a2) 55%,var(--a3));transition:width .4s}
+  .prog-txt{text-align:center;color:var(--sub);font-size:14px;margin-top:10px}
+  .sec-h{font-size:15px;font-weight:700;color:var(--sub);letter-spacing:.08em;text-transform:uppercase;margin:40px 0 16px;display:flex;align-items:center;gap:10px}
+  .sec-h::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+  .ch{position:relative;background:linear-gradient(180deg,var(--card),#1d160b);border:1px solid var(--line);
+    border-radius:14px;padding:16px 16px 14px;cursor:pointer;transition:transform .16s,border-color .16s,box-shadow .16s;overflow:hidden}
+  .ch::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--a1),var(--a3))}
+  .ch:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 12px 28px rgba(0,0,0,.35)}
+  .ch .no{font-size:12px;color:var(--accent);font-weight:700}
+  .ch h3{font-size:15.5px;margin:7px 0 6px;font-weight:700;line-height:1.45}
+  .ch p{font-size:12.5px;color:var(--sub);min-height:34px}
+  .ch .done{position:absolute;right:12px;top:12px;font-size:13px;color:var(--a1);opacity:0}
+  .ch.read .done{opacity:1}
+  .card-box{background:linear-gradient(180deg,var(--card),#1b150a);border:1px solid var(--line);border-radius:16px;padding:20px;margin-top:14px}
+  .demo-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .tab{padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:#1d160b;color:var(--sub);cursor:pointer;font-size:13.5px;font-weight:600}
+  .tab.on{background:linear-gradient(90deg,var(--a1),var(--a2));color:#2a1c05;border-color:transparent}
+  .demo{display:none}
+  .demo.on{display:block}
+  .demo h4{font-size:16px;margin-bottom:8px}
+  .demo .desc{font-size:13px;color:var(--sub);margin-bottom:14px}
+  .btn{padding:9px 16px;border-radius:10px;border:none;cursor:pointer;font-size:13.5px;font-weight:700;
+    background:linear-gradient(90deg,var(--a1),var(--a2));color:#2a1c05;transition:filter .15s}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.ghost{background:#1d160b;color:var(--sub);border:1px solid var(--line)}
+  canvas{background:#0d0a05;border-radius:10px;display:block;max-width:100%;image-rendering:pixelated}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+  .ctrl{display:flex;flex-direction:column;gap:10px;min-width:220px}
+  .ctrl label{font-size:12.5px;color:var(--sub)}
+  input[type=range]{width:100%;accent-color:var(--a2)}
+  input[type=text]{width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--line);background:#0d0a05;color:var(--ink);font-size:14px}
+  .out{font-size:13px;color:var(--ink);margin-top:8px;line-height:1.7}
+  .cands{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:12px}
+  .cand{border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center;background:#1d160b;transition:.2s}
+  .cand .ic{font-size:30px}
+  .cand .nm{font-size:13px;margin-top:6px;color:var(--sub)}
+  .cand .sc{font-size:12px;color:var(--a1);margin-top:3px;font-weight:700}
+  .cand.hi{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,182,72,.25)}
+  .cand .bar2{height:5px;border-radius:3px;background:#2a2010;margin-top:6px;overflow:hidden}
+  .cand .bar2 > i{display:block;height:100%;background:linear-gradient(90deg,var(--a1),var(--a2));width:0%}
+  .styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:12px}
+  .st{border:1px solid var(--line);border-radius:12px;padding:10px;background:#1d160b;text-align:center;transition:.2s}
+  .st.hi{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,182,72,.3);transform:translateY(-3px)}
+  .st .lb{font-size:13px;margin-top:6px;color:var(--sub);font-weight:600}
+  /* 章节阅读层 */
+  .reader{position:fixed;inset:0;background:rgba(8,6,3,.96);z-index:50;display:none;overflow:auto}
+  .reader.on{display:block}
+  .reader-bar{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;
+    padding:14px 20px;background:#15110a;border-bottom:1px solid var(--line)}
+  .reader-bar a{color:var(--a1);text-decoration:none;font-size:14px;font-weight:700}
+  .reader-body{max-width:820px;margin:0 auto;padding:26px 20px 80px;font-size:16px;line-height:1.95;color:var(--ink)}
+  .reader-body h1{font-size:26px;margin-bottom:18px;background:linear-gradient(90deg,#ffe27a,#ff8a3c);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .reader-body h2{font-size:20px;margin:24px 0 10px;color:#ffe9b8}
+  .reader-body h3{font-size:17px;margin:18px 0 8px;color:#ffd98a}
+  .reader-body p{margin:12px 0}
+  .reader-body code{background:#2a2010;padding:2px 6px;border-radius:5px;font-size:14px;color:#ffd98a}
+  .reader-body pre{background:#0d0a05;border:1px solid var(--line);border-radius:10px;padding:14px;overflow:auto;font-size:13.5px;line-height:1.6}
+  .reader-body table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  .reader-body th,.reader-body td{border:1px solid var(--line);padding:8px 10px;text-align:left}
+  .reader-body blockquote{border-left:3px solid var(--accent);padding:6px 14px;color:var(--sub);margin:12px 0;background:#1d160b;border-radius:0 8px 8px 0}
+  .reader-body ul,.reader-body ol{margin:10px 0 10px 22px}
+  footer{margin-top:54px;text-align:center;color:#9c8c68;font-size:13px;line-height:1.9}
+  footer a{color:#ffd98a;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <span class="badge">AI 学习站 · 第七阶 L7</span>
+    <h1>AIGC 创作：文生图与文生视频</h1>
+    <p class="sub">从一张噪声，到一只猫、到一段会动的视频。本阶用纯中文讲透扩散模型、CLIP、Stable Diffusion、提示词与 ControlNet，并带你亲手玩三个浏览器内演示。</p>
+    <div class="progress">
+      <div class="bar"><i id="bar"></i></div>
+      <div class="prog-txt">已学 <b id="cnt">0</b> / 10 章 · 进度自动保存</div>
+    </div>
+  </header>
+
+  <div class="sec-h">10 章学习路线图</div>
+  <div class="grid" id="chGrid"></div>
+
+  <div class="sec-h">三个交互演示（浏览器内运行）</div>
+  <div class="card-box">
+    <div class="demo-tabs">
+      <div class="tab on" data-d="d1">① 扩散去噪可视化台</div>
+      <div class="tab" data-d="d2">② CLIP 文本-图像匹配台</div>
+      <div class="tab" data-d="d3">③ 提示词风格对比台</div>
+    </div>
+
+    <!-- 演示1 -->
+    <div class="demo on" id="d1">
+      <h4>扩散去噪可视化台</h4>
+      <div class="desc">看一张图如何被逐步「加噪」成雪花，再从纯噪声逐步「去噪」还原（用简化模拟）。这正是扩散模型生成图像的核心过程。</div>
+      <div class="row">
+        <canvas id="cv1" width="320" height="320"></canvas>
+        <div class="ctrl">
+          <label>总步数：<span id="stpVal">30</span></label>
+          <input type="range" id="stp" min="6" max="60" value="30">
+          <label>当前阶段：<span id="phase">—</span></label>
+          <label>步进度：<span id="cur">0</span> / <span id="tot">30</span></label>
+          <button class="btn" id="play1">▶ 播放去噪过程</button>
+          <button class="btn ghost" id="reset1">重置为纯噪声</button>
+          <div class="out" id="out1">点击「播放」，观察从噪点逐步显影出目标图像。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 演示2 -->
+    <div class="demo" id="d2">
+      <h4>CLIP 文本-图像匹配台</h4>
+      <div class="desc">输入一句话，看系统如何给每张候选图打分、排序——直观感受「文字向量怎么衡量图像相关性」（此处用关键词匹配简化模拟 CLIP 的语义对齐）。</div>
+      <div class="ctrl" style="max-width:100%">
+        <label>描述你想要的画面：</label>
+        <input type="text" id="clipIn" value="一只猫坐在夕阳下的草地上" placeholder="如：猫 山 水 太阳...">
+        <button class="btn" id="clipGo">匹配候选图</button>
+      </div>
+      <div class="cands" id="cands"></div>
+      <div class="out" id="out2" style="margin-top:14px"></div>
+    </div>
+
+    <!-- 演示3 -->
+    <div class="demo" id="d3">
+      <h4>提示词风格对比台</h4>
+      <div class="desc">输入提示词，看它如何匹配不同「风格预设」（写实 / 动漫 / 油画 / 像素）。同一主体，不同风格词会触发完全不同的画面——这就是风格词在交叉注意力里的作用。</div>
+      <div class="ctrl" style="max-width:100%">
+        <label>提示词：</label>
+        <input type="text" id="styIn" value="一只猫，油画风格，柔和暖光" placeholder="试试含：写实 / 动漫 / 油画 / 像素">
+        <button class="btn" id="styGo">应用风格</button>
+      </div>
+      <div class="styles" id="styles"></div>
+      <div class="out" id="out3" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <footer>
+    L7 是「由简入深」系列的第七阶 · 与 L1–L6 同属生成式 AI 体系<br>
+    建议学完 L1–L6 再来 · 三个演示均可在浏览器离线运行，无需外部模型<br>
+    <span style="color:#7a6c4e">本站为纯静态教学站，演示为原理可视化，非真实模型推理</span>
+  </footer>
+</div>
+
+<!-- 章节阅读层 -->
+<div class="reader" id="reader">
+  <div class="reader-bar">
+    <a href="../../index.html" id="backLink">← 返回路线图</a>
+    <a href="../../index.html">✕ 关闭</a>
+  </div>
+  <div class="reader-body" id="readerBody"></div>
+</div>
+
+<script>
+const CH=[
+  {no:"第 1 章",t:"AIGC 是什么：从文字到图像的创作革命",d:"检索 vs 生成，为什么近几年爆发。"},
+  {no:"第 2 章",t:"图像是如何被生成的：像素、噪声与概率",d:"78 万个数字 + 概率采样 = 一幅图。"},
+  {no:"第 3 章",t:"扩散模型原理：从噪声中雕刻图像",d:"前向加噪、反向去噪，预测噪声的极简目标。"},
+  {no:"第 4 章",t:"文本如何控制图像：CLIP 与文本编码器",d:"文字变向量，交叉注意力注入每一步。"},
+  {no:"第 5 章",t:"Stable Diffusion 架构：潜空间与 UNet",d:"压缩到潜空间再去噪，速度的关键。"},
+  {no:"第 6 章",t:"提示词工程：写出更懂你的画面",d:"主体+风格+光线的结构，与负面提示。"},
+  {no:"第 7 章",t:"采样器与步数：速度与质量的权衡",d:"步数与采样器的性价比甜区、CFG 约束。"},
+  {no:"第 8 章",t:"图生图与 ControlNet：姿势、轮廓可控生成",d:"从参考图继续画，到精确锁姿势。"},
+  {no:"第 9 章",t:"文生视频：让画面动起来",d:"潜空间加时间维，时序一致性难题。"},
+  {no:"第 10 章",t:"动手实践与进阶路线",d:"工具生态、LoRA 进阶与版权伦理。"}
+];
+const KEY="aigc_progress_v1";
+let read=new Set(JSON.parse(localStorage.getItem(KEY)||"[]"));
+function toMat(s){return s.replace(/^content\//,"materials/content/").replace(/\.md$/,".html");}
+
+// 渲染章节
+const grid=document.getElementById("chGrid");
+CH.forEach((c,i)=>{
+  const file="content/"+c.t+".md";
+  const el=document.createElement("div");
+  el.className="ch"+(read.has(file)?" read":"");
+  el.innerHTML=`<div class="done">✓</div><div class="no">${c.no}</div><h3>${c.t}</h3><p>${c.d}</p>`;
+  el.onclick=()=>openCh(file);
+  grid.appendChild(el);
+});
+function openCh(file){
+  const url=toMat(file);
+  fetch(url).then(r=>r.text()).then(html=>{
+    const body=html.replace(/<script[\s\S]*?<\/script>/gi,"");
+    document.getElementById("readerBody").innerHTML=body;
+    document.getElementById("reader").classList.add("on");
+    document.getElementById("reader").scrollTop=0;
+    if(!read.has(file)){read.add(file);localStorage.setItem(KEY,JSON.stringify([...read]));}
+    updateProg();
+    [...document.querySelectorAll(".ch")][CH.findIndex(c=>"content/"+c.t+".md"===file)].classList.add("read");
+  });
+}
+function updateProg(){
+  document.getElementById("cnt").textContent=read.size;
+  document.getElementById("bar").style.width=(read.size/CH.length*100)+"%";
+}
+updateProg();
+
+// ---- tabs ----
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll(".demo").forEach(x=>x.classList.remove("on"));
+    t.classList.add("on");
+    document.getElementById(t.dataset.d).classList.add("on");
+  };
+});
+
+/* ============ 演示1：扩散去噪可视化 ============ */
+const cv1=document.getElementById("cv1"),ctx1=cv1.getContext("2d");
+const W=320,H=320;
+// 目标图：画一个简笔"猫脸"+背景，作为去噪还原目标
+function drawTarget(g){
+  g.clearRect(0,0,W,H);
+  // 背景渐变
+  let bg=g.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,"#ffd98a");bg.addColorStop(1,"#ff8a5c");
+  g.fillStyle=bg;g.fillRect(0,0,W,H);
+  // 太阳
+  g.fillStyle="#fff3c4";g.beginPath();g.arc(250,70,34,0,7);g.fill();
+  // 草地
+  g.fillStyle="#7bbf5a";g.beginPath();g.moveTo(0,250);g.lineTo(W,230);g.lineTo(W,H);g.lineTo(0,H);g.fill();
+  // 猫脸
+  g.fillStyle="#5a3b22";g.beginPath();g.arc(150,170,62,0,7);g.fill();
+  // 耳朵
+  g.beginPath();g.moveTo(110,120);g.lineTo(120,70);g.lineTo(150,110);g.fill();
+  g.beginPath();g.moveTo(190,120);g.lineTo(180,70);g.lineTo(150,110);g.fill();
+  // 眼睛
+  g.fillStyle="#fff";g.beginPath();g.arc(130,165,12,0,7);g.arc(170,165,12,0,7);g.fill();
+  g.fillStyle="#222";g.beginPath();g.arc(130,165,6,0,7);g.arc(170,165,6,0,7);g.fill();
+  // 鼻
+  g.fillStyle="#ff7aa2";g.beginPath();g.arc(150,190,7,0,7);g.fill();
+  // 胡须
+  g.strokeStyle="#5a3b22";g.lineWidth=2;
+  g.beginPath();g.moveTo(150,190);g.lineTo(110,185);g.moveTo(150,190);g.lineTo(110,200);
+  g.moveTo(150,190);g.lineTo(190,185);g.moveTo(150,190);g.lineTo(190,200);g.stroke();
+}
+// 取目标像素
+drawTarget(ctx1);
+const tgt=ctx1.getImageData(0,0,W,H).data.slice();
+function lerp(a,b,t){return a+(b-a)*t;}
+function noiseAt(){return Math.random()*255;}
+function renderState(t,T,phase){
+  // t: 当前步 0..T ; phase forward(加噪) / backward(去噪)
+  // ratio: 噪声占比 0(纯图)~1(纯噪)
+  const ratio=phase==="forward" ? (t/T) : (1 - t/T);
+  const img=ctx1.createImageData(W,H);
+  for(let i=0;i<tgt.length;i+=4){
+    for(let k=0;k<3;k++){
+      const tv=tgt[i+k];
+      const nv=noiseAt();
+      let v=lerp(tv,nv,ratio);
+      // 去噪阶段加一点点残余抖动，模拟不完全干净
+      if(phase==="backward" && t>0){ v += (Math.random()-0.5)*(ratio*40); }
+      img.data[i+k]=Math.max(0,Math.min(255,v));
+    }
+    img.data[i+3]=255;
+  }
+  ctx1.putImageData(img,0,0);
+}
+renderState(0,30,"backward"); // 初始显示为纯噪声
+document.getElementById("tot").textContent=30;
+document.getElementById("stp").oninput=e=>{
+  const v=+e.target.value;document.getElementById("stpVal").textContent=v;document.getElementById("tot").textContent=v;
+};
+let playing=false,animId=null;
+document.getElementById("play1").onclick=()=>{
+  const T=+document.getElementById("stp").value;
+  if(playing){playing=false;cancelAnimationFrame(animId);document.getElementById("play1").textContent="▶ 播放去噪过程";return;}
+  playing=true;document.getElementById("play1").textContent="⏸ 暂停";
+  let phase="forward",step=0;
+  const stepMs=Math.max(40, 700/T);
+  function tick(){
+    if(!playing)return;
+    document.getElementById("phase").textContent=phase==="forward"?"加噪中":"去噪中";
+    document.getElementById("cur").textContent=step;
+    if(phase==="forward"){
+      renderState(step,T,"forward");
+      if(step>=T){phase="backward";step=T;}
+      else step++;
+    }else{
+      renderState(step,T,"backward");
+      if(step<=0){
+        playing=false;document.getElementById("play1").textContent="▶ 播放去噪过程";
+        document.getElementById("out1").textContent="完成：纯噪声已被「雕刻」回目标图像。这就是扩散模型生成的核心——反反复复地减去噪声。";
+        return;
+      }
+      step--;
+    }
+    animId=setTimeout(tick,stepMs);
+  }
+  tick();
+};
+document.getElementById("reset1").onclick=()=>{playing=false;cancelAnimationFrame(animId);
+  const T=+document.getElementById("stp").value;renderState(0,T,"backward");
+  document.getElementById("phase").textContent="—";document.getElementById("cur").textContent=0;
+  document.getElementById("out1").textContent="已重置为纯噪声。";document.getElementById("play1").textContent="▶ 播放去噪过程";};
+
+/* ============ 演示2：CLIP 文本-图像匹配 ============ */
+const CANDS=[
+  {ic:"🐱",nm:"猫",tags:["猫","喵"," feline","宠物","虎斑"]},
+  {ic:"🐶",nm:"狗",tags:["狗","汪","犬","宠物"]},
+  {ic:"⛰️",nm:"山",tags:["山","峰","山峦","远山"]},
+  {ic:"🌊",nm:"水",tags:["水","海","河","湖","波"]},
+  {ic:"☀️",nm:"太阳",tags:["太阳","日","阳光","暖","夕"]},
+  {ic:"🌿",nm:"草",tags:["草","草地","绿","草坪"]},
+  {ic:"🌸",nm:"花",tags:["花","花朵","樱"]},
+  {ic:"🏙️",nm:"城市",tags:["城市","楼","建筑","都市"]}
+];
+const SYN={猫:["喵","虎斑"],狗:["汪","犬"],山:["峰","峦"],水:["海","河","湖"],太阳:["日","阳光","夕","暖"],草:["绿","草坪"],花:["花朵"],城市:["楼","建筑"]};
+const candsEl=document.getElementById("cands");
+function renderCands(){
+  candsEl.innerHTML="";
+  CANDS.forEach(c=>{
+    const d=document.createElement("div");d.className="cand";d.dataset.nm=c.nm;
+    d.innerHTML=`<div class="ic">${c.ic}</div><div class="nm">${c.nm}</div><div class="sc">0.00</div><div class="bar2"><i></i></div>`;
+    candsEl.appendChild(d);
+  });
+}
+renderCands();
+document.getElementById("clipGo").onclick=()=>{
+  const txt=document.getElementById("clipIn").value.toLowerCase();
+  const scores=CANDS.map(c=>{
+    let s=0;
+    c.tags.forEach(t=>{ if(txt.includes(t.toLowerCase())) s+=1; });
+    // 同义词也算
+    Object.entries(SYN).forEach(([k,vs])=>{
+      if(txt.includes(k.toLowerCase())) vs.forEach(v=>{ if(txt.includes(v.toLowerCase())) s+=0.5; else s+=0.3; });
+    });
+    return {nm:c.nm,ic:c.ic,score:s};
+  }).sort((a,b)=>b.score-a.score);
+  const max=Math.max(1,...scores.map(s=>s.score));
+  scores.forEach(s=>{
+    const el=candsEl.querySelector(`[data-nm="${s.nm}"]`);
+    el.querySelector(".sc").textContent=s.score.toFixed(2);
+    el.querySelector(".bar2 > i").style.width=(s.score/max*100)+"%";
+    el.classList.toggle("hi",s.score>0);
+  });
+  const top=scores.filter(s=>s.score>0).slice(0,3).map(s=>s.nm).join("、");
+  document.getElementById("out2").textContent= top? `文本向量与【${top}】最相关——CLIP 正是把文字和图像映射到同一空间后做这种相似度匹配，从而决定「画什么」。`
+    : "没有命中任何候选关键词。试试输入包含：猫、狗、山、水、太阳、草、花、城市...";
+};
+
+/* ============ 演示3：提示词风格对比 ============ */
+const STYLES=[
+  {key:"写实",kw:["写实","照片","摄影","真实","realistic"],draw:drawReal},
+  {key:"动漫",kw:["动漫","二次元","动画","anime","漫画"],draw:drawAnime},
+  {key:"油画",kw:["油画","油彩","古典","笔触","oil"],draw:drawOil},
+  {key:"像素",kw:["像素","pixel","8bit","马赛克","复古"],draw:drawPixel}
+];
+const stylesEl=document.getElementById("styles");
+function catCanvas(){
+  const c=document.createElement("canvas");c.width=120;c.height=120;return c;
+}
+function baseCat(g,style){
+  g.clearRect(0,0,120,120);
+  g.fillStyle= style==="pixel"?"#c98a5a":"#e0a86a";
+  g.beginPath();g.arc(60,62,40,0,7);g.fill();
+  g.fillStyle=style==="pixel"?"#c98a5a":"#e0a86a";
+  g.beginPath();g.moveTo(38,40);g.lineTo(44,12);g.lineTo(66,34);g.fill();
+  g.beginPath();g.moveTo(82,40);g.lineTo(76,12);g.lineTo(54,34);g.fill();
+  g.fillStyle="#fff";g.beginPath();g.arc(48,60,9,0,7);g.arc(72,60,9,0,7);g.fill();
+  g.fillStyle="#222";g.beginPath();g.arc(48,60,4,0,7);g.arc(72,60,4,0,7);g.fill();
+  g.fillStyle="#ff7aa2";g.beginPath();g.arc(60,76,5,0,7);g.fill();
+}
+function drawReal(c){const g=c.getContext("2d");baseCat(g,"real");g.fillStyle="#3a2a1a";g.font="bold 13px sans-serif";g.fillText("写实",10,114);}
+function drawAnime(c){const g=c.getContext("2d");baseCat(g,"anime");g.fillStyle="#ff5c9d";g.beginPath();g.arc(48,60,11,0,7);g.arc(72,60,11,0,7);g.fill();g.fillStyle="#fff";g.beginPath();g.arc(48,60,5,0,7);g.arc(72,60,5,0,7);g.fill();g.fillStyle="#ff5c9d";g.font="bold 13px sans-serif";g.fillText("动漫",10,114);}
+function drawOil(c){const g=c.getContext("2d");baseCat(g,"oil");g.strokeStyle="#8a5a2a";g.lineWidth=2;for(let i=0;i<30;i++){g.beginPath();g.moveTo(Math.random()*120,Math.random()*120);g.lineTo(Math.random()*120,Math.random()*120);g.stroke();}g.fillStyle="#caa";g.font="bold 13px serif";g.fillText("油画",10,114);}
+function drawPixel(c){const g=c.getContext("2d");baseCat(g,"pixel");g.imageSmoothingEnabled=false;const img=g.getImageData(0,0,120,120);const s=8;for(let y=0;y<120;y+=s)for(let x=0;x<120;x+=s){const i=(y*120+x)*4;g.fillStyle=`rgb(${img.data[i]},${img.data[i+1]},${img.data[i+2]})`;g.fillRect(x,y,s,s);}g.fillStyle="#fff";g.font="bold 12px monospace";g.fillText("像素",10,114);}
+function renderStyles(){
+  stylesEl.innerHTML="";
+  STYLES.forEach(s=>{
+    const card=document.createElement("div");card.className="st";card.dataset.k=s.key;
+    const cv=catCanvas();s.draw(cv);cv.style.width="100%";cv.style.borderRadius="8px";
+    card.appendChild(cv);
+    const lb=document.createElement("div");lb.className="lb";lb.textContent=s.key;card.appendChild(lb);
+    stylesEl.appendChild(card);
+  });
+}
+renderStyles();
+document.getElementById("styGo").onclick=()=>{
+  const txt=document.getElementById("styIn").value.toLowerCase();
+  let hit=[];
+  STYLES.forEach(s=>{ if(s.kw.some(k=>txt.includes(k.toLowerCase()))) hit.push(s.key); });
+  document.querySelectorAll(".st").forEach(c=>c.classList.toggle("hi",hit.includes(c.dataset.k)));
+  document.getElementById("out3").textContent= hit.length? `提示词命中风格：【${hit.join("、")}】。在真实模型里，这些风格词会通过交叉注意力，让 UNet 在去噪时复现对应的视觉统计特征——同一只猫，风格词不同，画面天差地别。`
+    : "未命中已知风格词。试试在提示词里加：写实 / 动漫 / 油画 / 像素。";
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第二章 人类偏好数据：比较、排序与标注 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="_1">第二章 人类偏好数据：比较、排序与排序</h1>
+<p>RLHF 的第一步，不是写算法，而是<strong>收集人类偏好</strong>。如果说奖励模型是「裁判」，那偏好数据就是「裁判的教材」。教材质量直接决定了模型学到的是真品味还是歪品味。</p>
+<p>这一章我们聊聊：偏好数据长什么样、有哪些标注方式、以及几个经典数据集。</p>
+<h2 id="preference-pair">一、最基本的单位：偏好对（Preference Pair）</h2>
+<p>最朴素的偏好数据长这样：</p>
+<ul>
+<li>给定一个问题（prompt）：<em>「怎么向 8 岁小孩解释黑洞？」</em></li>
+<li>模型生成两个候选回答：回答 A、回答 B</li>
+<li>标注者判断：<strong>A 比 B 好</strong>（记作 A ≻ B）</li>
+</ul>
+<p>这就是一个<strong>偏好对</strong>。算法上我们常写成 <code>(x, y_w, y_l)</code>，其中 x 是问题，y_w（winner）是胜方回答，y_l（loser）是败方回答。</p>
+<p>为什么用「比较」而不是让标注者直接写「标准答案」？因为如第一章所说——<strong>人擅长比较，不擅长凭空创造</strong>。比较两个现成回答哪个更好，标注又快又准；让人从零写完美回答，慢且因人而异。</p>
+<h2 id="_2">二、三种常见标注范式</h2>
+<h3 id="1-pairwise-comparison">1. 成对比较（Pairwise Comparison）</h3>
+<p>最常见。给标注者两个回答，选一个更好的，或「平局」。优点简单、标注一致率高；缺点是信息量少（一次只比较一对）。</p>
+<h3 id="2-ranking-best-to-worst">2. 排序（Ranking / Best-to-Worst）</h3>
+<p>给标注者 K 个候选回答（比如 4~9 个），要求从好到坏排个序，或至少标出「最好」和「最差」。这比成对比较信息密度高得多——一次标注能推出 C(K,2) 个偏好关系。InstructGPT 用的就是「对 4~9 个回答排序」。</p>
+<h3 id="3-rating-scalar">3. 打分（Rating / Scalar）</h3>
+<p>直接给每个回答打 1~7 分。直观，但不同标注者尺度不一（有人习惯打 4 分，有人打 6 分），需要校准。真实项目中，打分常和比较结合使用。</p>
+<h2 id="guideline">三、标注指南（Guideline）决定了数据长相</h2>
+<p>标注者不是凭感觉乱点，而是依据一份<strong>标注指南</strong>，通常从这几个维度评判：</p>
+<ul>
+<li><strong>有用性（Helpfulness）</strong>：有没有真正解决问题？信息是否准确？</li>
+<li><strong>真实性（Truthfulness）</strong>：有没有幻觉、编造？</li>
+<li><strong>安全性（Harmlessness）</strong>：是否包含危险、违法、歧视性内容？</li>
+<li><strong>清晰度与简洁性</strong>：是否啰嗦、是否跑题？</li>
+</ul>
+<p>不同项目的侧重不同。比如做客服助手，可能把「有用性」权重拉满；做通用助手，则必须兼顾安全。</p>
+<blockquote>
+<p>注意一个常见坑：<strong>标注者之间的不一致</strong>。同一对回答，不同人可能选不同方。实操中要测「标注者一致性」（如 Krippendorff's alpha），低一致性说明指南含糊，得改指南重标。</p>
+</blockquote>
+<h2 id="_3">四、经典数据集一览</h2>
+<table>
+<thead>
+<tr>
+<th>数据集</th>
+<th>来源</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>HH-RLHF</strong> (Anthropic, 2022)</td>
+<td>人类助手对话</td>
+<td>强调 Helpful &amp; Harmless，含大量「红队」对抗样本</td>
+</tr>
+<tr>
+<td><strong>WebGPT</strong> (OpenAI)</td>
+<td>带引用回答的比较</td>
+<td>侧重事实准确性</td>
+</tr>
+<tr>
+<td><strong>UltraFeedback</strong></td>
+<td>用 GPT-4 生成候选 + 多维度打分</td>
+<td>大规模、低成本、开源友好</td>
+</tr>
+<tr>
+<td><strong>Stanford SHP</strong></td>
+<td>论坛「点赞」隐含偏好</td>
+<td>自然发生的人类偏好</td>
+</tr>
+</tbody>
+</table>
+<p>特别提醒：<strong>数据偏见会传染</strong>。如果标注者群体本身有倾向（比如都来自某文化背景），奖励模型就会学到这个倾向，最终模型也会带偏。这是 RLHF 部署中必须持续监控的风险。</p>
+<h2 id="_4">五、质量比数量更重要</h2>
+<p>很多新手以为「堆几百万对偏好」就行。实际上：</p>
+<ul>
+<li><strong>噪声偏好</strong>（标注者乱点）会让奖励模型学歪，进而让策略模型钻空子（见第七章）。</li>
+<li><strong>覆盖范围</strong>比总量重要：你得确保难样本、边界样本、安全样本都被覆盖。</li>
+<li><strong>可复现的指南</strong>比临时发挥重要：指南写得越清楚，数据越一致，奖励模型越稳。</li>
+</ul>
+<p>实践中常见做法是「先小批量试标 → 测一致性 → 修正指南 → 再放大」，而不是一上来就大规模铺开。</p>
+<h2 id="_5">本章小结</h2>
+<ul>
+<li>偏好数据是 RLHF 的燃料，基本单位是<strong>偏好对</strong> <code>(x, y_w, y_l)</code>。</li>
+<li>标注范式分<strong>成对比较、排序、打分</strong>三种，排序信息密度最高。</li>
+<li>标注靠<strong>指南</strong>驱动，核心维度是有用、真实、安全、清晰。</li>
+<li>经典数据集有 HH-RLHF、UltraFeedback 等；<strong>数据偏见会直接传染给模型</strong>。</li>
+<li>质量（一致性、覆盖、指南清晰）比单纯数量更重要。</li>
+</ul>
+<h2 id="_6">思考与延伸</h2>
+<ul>
+<li>如果预算有限，你会优先「多标注几对」还是「把标注指南打磨得更清楚」？为什么？</li>
+<li>UltraFeedback 用强模型生成候选、再打分，这种「模型辅助造数据」的方式有什么优点和隐患？</li>
+<li>延伸：搜索「HH-RLHF dataset」或「UltraFeedback」查看更多相关内容。</li>
+</ul></body></html>

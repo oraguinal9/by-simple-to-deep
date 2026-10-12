@@ -1,0 +1,263 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第七章 过拟合、欠拟合与正则化 | 深度学习基础 L3</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #7c3aed;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #a78bfa;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L3 学习路线图</a><span class='r'>深度学习基础 · dl.zbjh.top</span></div><h1 id="_1">第七章 过拟合、欠拟合与正则化</h1>
+<blockquote>
+<p>本章目标：理解为什么"训练集上 99 分、真实场景 60 分"，以及工程上治疗它的六种常规武器。这是<strong>理论到落地之间最关键的一章</strong>。</p>
+</blockquote>
+<hr />
+<h2 id="71">7.1 一个死记硬背的学生</h2>
+<p>两个学生备考：</p>
+<ul>
+<li><strong>小 A</strong>：把 500 道真题的答案<strong>一字不差背下来</strong>。模拟考（原题）100 分，正式考试（新题）50 分。</li>
+<li>
+<p><strong>小 B</strong>：只看了 3 道题就说"我懂了"。模拟考 55 分，正式考试 52 分。</p>
+</li>
+<li>
+<p>小 A 的问题叫 <strong>过拟合（Overfitting）</strong>：<strong>把训练数据背下来了，包括其中的噪声，但没学到规律</strong>。</p>
+</li>
+<li>小 B 的问题叫 <strong>欠拟合（Underfitting）</strong>：<strong>能力不足或学得不够，连训练数据都没学好</strong>。</li>
+</ul>
+<p>我们要的是<strong>小 C</strong>：理解了解题方法，模拟 85、正式 82。这叫<strong>泛化（Generalization）能力好</strong>。</p>
+<blockquote>
+<p><strong>机器学习的终极目标不是在训练数据上表现好，而是在没见过的数据上表现好。</strong></p>
+</blockquote>
+<hr />
+<h2 id="72">7.2 怎么判断：看两条曲线</h2>
+<p>必须把数据切成三份：</p>
+<table>
+<thead>
+<tr>
+<th>数据集</th>
+<th>占比</th>
+<th>用途</th>
+<th>能否用来调参</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>训练集</strong> train</td>
+<td>~70~80%</td>
+<td>更新模型参数</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>验证集</strong> val</td>
+<td>~10~15%</td>
+<td>调超参数、判断何时停</td>
+<td>可以</td>
+</tr>
+<tr>
+<td><strong>测试集</strong> test</td>
+<td>~10~15%</td>
+<td>最终评估</td>
+<td><strong>绝对不能</strong>，只用一次</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>⚠️ 测试集一旦被你反复用来"看看效果如何然后再调调"，它就变成了第二个验证集，评估结果会虚高。这是实践中最常见的作弊（往往是无意的）。</p>
+</blockquote>
+<p>训练时把<strong>训练损失</strong>和<strong>验证损失</strong>画在同一张图上，一眼看出状态：</p>
+<pre class="codehilite"><code> Loss
+  │
+  │╲                              ← 验证损失（val）
+  │ ╲___                    ___╱  ← 后期回升 = 过拟合开始
+  │     ╲______________╱
+  │╲                              ← 训练损失（train）
+  │ ╲______________________       ← 一直在降
+  └──────────────┬─────────────→ epoch
+                 ↑ 最佳停止点
+</code></pre>
+
+<p>判断表：</p>
+<table>
+<thead>
+<tr>
+<th>训练损失</th>
+<th>验证损失</th>
+<th>诊断</th>
+<th>对策</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>高</td>
+<td>高</td>
+<td><strong>欠拟合</strong></td>
+<td>加大模型、训练更久、换特征</td>
+</tr>
+<tr>
+<td>低</td>
+<td>高（且在上升）</td>
+<td><strong>过拟合</strong></td>
+<td>见 7.4 节六种武器</td>
+</tr>
+<tr>
+<td>低</td>
+<td>低</td>
+<td>👍 正常</td>
+<td>可以收工</td>
+</tr>
+<tr>
+<td>高</td>
+<td>低</td>
+<td>数据划分有问题</td>
+<td>检查代码/数据泄漏</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="73">7.3 过拟合是怎么发生的</h2>
+<p>三个主要原因：</p>
+<ol>
+<li><strong>模型太复杂</strong>：参数量远超数据能支撑的信息量。用 100 万参数拟合 200 条数据，它完全有能力把每条都背下来。</li>
+<li><strong>数据太少或不够多样</strong>：只见过白猫，就以为"白色 = 猫"。</li>
+<li><strong>训练太久</strong>：前期学规律，后期开始抠噪声细节。</li>
+</ol>
+<p>一个直观的例子：用多项式拟合 10 个带噪声的点</p>
+<ul>
+<li>1 次多项式（直线）：欠拟合，抓不住趋势</li>
+<li>3 次多项式：刚好，抓住了整体形状</li>
+<li>9 次多项式：<strong>穿过每一个点</strong>，训练误差 0，但曲线剧烈扭动，预测新点时错得离谱</li>
+</ul>
+<hr />
+<h2 id="74">7.4 六种常规武器</h2>
+<h3 id="_2">武器一：更多数据（最有效，也最贵）</h3>
+<p>数据量翻倍，通常比任何算法技巧都管用。搞不到新数据时用<strong>数据增强（Data Augmentation）</strong>：</p>
+<ul>
+<li>图像：随机裁剪、翻转、旋转、调色、加噪、Cutout、MixUp</li>
+<li>文本：同义词替换、回译（中→英→中）、随机删词</li>
+<li>语音：变速、变调、加背景噪声</li>
+</ul>
+<p><strong>原理</strong>：让模型见到同一个物体的各种变体，逼它学"本质特征"而不是死记像素。</p>
+<pre class="codehilite"><code class="language-python">from torchvision import transforms
+train_tf = transforms.Compose([
+    transforms.RandomResizedCrop(224),
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(0.2, 0.2, 0.2),
+    transforms.ToTensor(),
+])
+</code></pre>
+
+<h3 id="l2">武器二：L2 正则化（权重衰减）</h3>
+<p>在损失函数里加一项"参数大小的惩罚"：</p>
+<pre class="codehilite"><code>新损失 = 原损失 + λ · Σ w²
+</code></pre>
+
+<p><strong>为什么有用</strong>：过拟合的模型往往有一些<strong>特别大的权重</strong>（为了精确穿过某个噪声点，必须剧烈扭动）。惩罚大权重 = 强迫曲线平滑。</p>
+<p><code>λ</code> 是强度，常取 <code>1e-4 ~ 1e-2</code>。在 PyTorch 里就是优化器的 <code>weight_decay</code> 参数：</p>
+<pre class="codehilite"><code class="language-python">optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-2)
+</code></pre>
+
+<p><strong>L1 正则</strong>（<code>λ·Σ|w|</code>）则会把很多权重压成<strong>恰好 0</strong>，产生稀疏模型，可用于特征选择。</p>
+<h3 id="dropout">武器三：Dropout（随机失活）⭐</h3>
+<p>训练时<strong>随机让一部分神经元临时"罢工"</strong>（输出置 0），比例通常 0.1~0.5。</p>
+<pre class="codehilite"><code class="language-python">nn.Sequential(
+    nn.Linear(784, 256), nn.ReLU(), nn.Dropout(0.5),
+    nn.Linear(256, 10),
+)
+</code></pre>
+
+<p><strong>为什么有用</strong>（两种解释都对）：</p>
+<ol>
+<li><strong>防止依赖</strong>：某个神经元随时可能消失，网络不敢把宝押在单个特征上，必须学会冗余表达。</li>
+<li><strong>隐式集成</strong>：每次随机屏蔽相当于训练一个略微不同的子网络，最终等效于成千上万个网络投票。</li>
+</ol>
+<blockquote>
+<p>⚠️ <strong>Dropout 只在训练时开启，推理时必须关闭</strong>。PyTorch 里靠 <code>model.train()</code> / <code>model.eval()</code> 切换。<strong>忘记调用 <code>model.eval()</code> 是新手最常见的 bug 之一</strong>，会导致推理结果每次都不一样。</p>
+</blockquote>
+<h3 id="early-stopping">武器四：早停（Early Stopping）</h3>
+<p>监控验证损失，<strong>连续 N 个 epoch 不再改善就停止训练</strong>，并回滚到最好的那个 checkpoint。</p>
+<pre class="codehilite"><code class="language-python">best, patience, wait = 1e9, 5, 0
+for epoch in range(200):
+    train_one_epoch()
+    val_loss = evaluate()
+    if val_loss &lt; best:
+        best, wait = val_loss, 0
+        torch.save(model.state_dict(), &quot;best.pt&quot;)     # 保存最优
+    else:
+        wait += 1
+        if wait &gt;= patience:
+            print(f&quot;验证损失 {patience} 轮没改善，提前停止&quot;)
+            break
+model.load_state_dict(torch.load(&quot;best.pt&quot;))          # 回滚到最优
+</code></pre>
+
+<p>简单、免费、几乎总是该用。</p>
+<h3 id="batchnorm-layernorm">武器五：批归一化（BatchNorm / LayerNorm）</h3>
+<p>把每层的输入<strong>归一化到均值 0、方差 1</strong>，再用两个可学习参数缩放平移。</p>
+<p>好处：训练更稳、可以用更大的学习率、有轻微正则效果。</p>
+<ul>
+<li><strong>BatchNorm</strong>：在 batch 维度上归一化，CNN 里的标配</li>
+<li><strong>LayerNorm</strong>：在特征维度上归一化，<strong>Transformer / 大模型的标配</strong>（因为序列长度可变，batch 统计不可靠）</li>
+</ul>
+<h3 id="_3">武器六：简化模型</h3>
+<p>减少层数或宽度。数据量小的时候，小模型往往打得过大模型。</p>
+<p><strong>经验法则</strong>：先用小模型跑通基线，再逐步加大，直到验证损失不再改善。</p>
+<hr />
+<h2 id="75">7.5 完整的实战流程</h2>
+<pre class="codehilite"><code>1. 切分数据 train / val / test
+2. 先训一个小模型，跑通全流程，拿到基线分数
+3. 逐步加大模型，直到出现明显过拟合（训练损失远低于验证损失）
+   —— 能过拟合说明模型容量够了，这是好事
+4. 开始上正则化：数据增强 → Dropout → weight decay → 早停
+5. 调学习率、batch size 等超参（只看验证集）
+6. 全部定型后，在测试集上评估一次，得到最终报告数字
+</code></pre>
+
+<blockquote>
+<p>🔑 <strong>步骤 3 反直觉但很关键</strong>：新手总想一步到位，老手会<strong>先故意把模型做到过拟合</strong>，证明"容量足够、代码没 bug、数据能学"，然后再往回收。<strong>先过拟合，再正则化</strong>——这是业界通行的调参哲学。</p>
+</blockquote>
+<hr />
+<h2 id="76">7.6 大模型时代的新现象</h2>
+<p>传统机器学习教科书说"模型越大越容易过拟合"，但大模型时代出现了一些例外：</p>
+<ul>
+<li><strong>双下降（Double Descent）</strong>：模型继续变大，验证误差先升后<strong>再次下降</strong>，突破了经典的 U 型曲线。</li>
+<li><strong>过参数化的祝福</strong>：参数量远超数据量的超大模型，反而泛化得更好。</li>
+<li><strong>大模型的主要风险不是过拟合，而是数据污染</strong>——测试题混进了训练集（data contamination），导致跑分虚高。</li>
+</ul>
+<p>不过对于 99% 的实际项目（数据几千到几十万条），<strong>经典的过拟合规律依然完全适用</strong>，本章的六种武器都要会用。</p>
+<hr />
+<h2 id="77">7.7 本章小结</h2>
+<ul>
+<li><strong>过拟合</strong> = 训练好、验证差 = 背答案；<strong>欠拟合</strong> = 都差 = 没学会</li>
+<li>必须切 <strong>train / val / test</strong> 三份，测试集只用一次</li>
+<li>通过<strong>两条损失曲线</strong>诊断状态：验证损失开始回升 = 过拟合起点</li>
+<li>六种武器：<strong>更多数据/增强 → Dropout → L2 权重衰减 → 早停 → 归一化 → 简化模型</strong></li>
+<li>Dropout <strong>只在训练时开</strong>，推理前务必 <code>model.eval()</code></li>
+<li>调参哲学：<strong>先把模型做到能过拟合，再加正则往回收</strong></li>
+</ul>
+<hr />
+<h2 id="78">7.8 自测</h2>
+<ol>
+<li>训练准确率 99%、验证准确率 62%，属于什么问题？列出三条对策。</li>
+<li>为什么不能用测试集调超参数？</li>
+<li>Dropout 为什么能防过拟合？说出两种解释。</li>
+<li>为什么 Transformer 用 LayerNorm 而不是 BatchNorm？</li>
+<li>为什么老手会"先追求过拟合"？</li>
+</ol>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：全连接层处理图像效率极低。看看<strong>卷积神经网络（CNN）</strong>是怎么用三个巧妙的思想，把参数量降低几百倍的。</p>
+</blockquote></body></html>

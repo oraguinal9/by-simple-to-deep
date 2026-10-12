@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推理模型与思维链 L16 · 由简入深</title>
+<style>
+  :root{
+    --l1:#6366f1; --l2:#06b6d4; --l3:#22c55e; --l4:#8b5cf6;
+    --l5:#f59e0b; --l6:#6366f1; --l7:#ec4899; --l8:#db2777;
+    --bg:#eef2ff; --ink:#1e1b4b; --sub:#6b6f9e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;
+    background:linear-gradient(180deg,#eef2ff,#fff 40%);color:var(--ink);line-height:1.6}
+  a{color:var(--l9);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 18px 80px}
+  /* HERO */
+  .hero{background:linear-gradient(120deg,#312e81,#4338ca 55%,#6366f1);color:#fff;
+    border-radius:0 0 28px 28px;padding:54px 22px 40px;text-align:center;box-shadow:0 12px 40px rgba(67,56,202,.25)}
+  .hero .badge{display:inline-block;background:rgba(255,255,255,.18);padding:5px 14px;border-radius:999px;
+    font-size:13px;letter-spacing:1px;margin-bottom:14px}
+  .hero h1{margin:0 0 10px;font-size:34px;letter-spacing:1px}
+  .hero p{margin:6px auto 0;max-width:680px;opacity:.95;font-size:15px}
+  .hero .links{margin-top:18px;font-size:13px;opacity:.9}
+  .hero .links a{color:#fff;text-decoration:underline}
+  /* 进度条 */
+  .progress{margin:26px auto 0;max-width:560px}
+  .progress .bar{height:10px;border-radius:999px;background:#e0e7ff;overflow:hidden}
+  .progress .bar > i{display:block;height:100%;width:100%;border-radius:999px;
+    background:linear-gradient(90deg,var(--l1),var(--l4) 45%,#6366f1)}
+  .progress .txt{font-size:13px;color:var(--sub);margin-top:7px;text-align:center}
+  /* 路线图 */
+  .sec{margin-top:42px}
+  .sec h2{font-size:22px;margin:0 0 6px;display:flex;align-items:center;gap:9px}
+  .sec h2 .dot{width:11px;height:11px;border-radius:50%;background:#4338ca;display:inline-block}
+  .sec .desc{color:var(--sub);font-size:14px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}
+  .card{background:#fff;border:1px solid #c7d2fe;border-radius:16px;padding:16px 16px 14px;
+    box-shadow:0 4px 14px rgba(67,56,202,.06);transition:.18s;cursor:pointer;position:relative}
+  .card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(67,56,202,.16);border-color:#6366f1}
+  .card .day{font-size:12px;color:#4338ca;font-weight:700;letter-spacing:.5px}
+  .card h3{font-size:16px;margin:6px 0 6px;line-height:1.4}
+  .card p{font-size:13px;color:var(--sub);margin:0}
+  .card .chk{position:absolute;top:13px;right:13px;width:20px;height:20px;border-radius:50%;
+    border:2px solid #a5b4fc;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;background:#fff;transition:.15s}
+  .card.done .chk{background:#4338ca;border-color:#4338ca}
+  /* 演示 */
+  .demos{display:grid;grid-template-columns:1fr;gap:18px}
+  .demo{background:#fff;border:1px solid #c7d2fe;border-radius:18px;padding:20px;box-shadow:0 6px 20px rgba(67,56,202,.07)}
+  .demo h3{margin:0 0 4px;font-size:17px;color:#4338ca}
+  .demo .sub{font-size:13px;color:var(--sub);margin:0 0 14px}
+  .demo .stage{background:#eef2ff;border-radius:12px;padding:16px;min-height:120px;border:1px dashed #a5b4fc}
+  .btn{background:#4338ca;color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:14px;
+    cursor:pointer;font-weight:600;transition:.15s}
+  .btn:hover{background:#3730a3}
+  .btn.ghost{background:#fff;color:#4338ca;border:1px solid #4338ca}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .pill{display:inline-block;background:#e0e7ff;color:#4338ca;border-radius:999px;padding:3px 11px;font-size:12px;margin:3px 4px 0 0}
+  .ok{color:#16a34a;font-weight:700}
+  .bad{color:#dc2626;font-weight:700}
+  .muted{color:var(--sub);font-size:13px}
+  .tok{font-family:ui-monospace,Menlo,monospace;background:#1e1b4b;color:#c7d2fe;padding:2px 7px;border-radius:6px;font-size:12px}
+  .sel{display:inline-block;background:#fff;border:1px solid #a5b4fc;border-radius:10px;padding:8px 14px;margin:5px 6px 0 0;font-size:14px;cursor:pointer;transition:.15s}
+  .sel:hover{border-color:#6366f1}
+  .sel.on{background:#4338ca;color:#fff;border-color:#4338ca}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+  .node{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #a5b4fc;font-weight:600}
+  .node.on{background:#4338ca;color:#fff;border-color:#4338ca}
+  .arrow{color:#4338ca;font-weight:700}
+  footer{margin-top:50px;text-align:center;color:var(--sub);font-size:13px;line-height:1.9}
+  footer b{color:var(--ink)}
+  .note{background:#e0e7ff;border:1px solid #a5b4fc;border-radius:12px;padding:12px 16px;font-size:13px;color:#312e81;margin-top:22px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="badge">L16 · 由简入深 AI 学习路线</div>
+  <h1>🧠 推理模型与思维链</h1>
+  <p>让模型「停下来想一想」：思维链 CoT 的原理与提示词技巧、o1/R1 式推理模型的训练与使用，到慢思考的成本权衡与评测，把「会思考」变成可用的能力。</p>
+  <div class="links">系列站点：<a href="https://ai101.zbjh.top/">ai101</a> · <a href="https://llm.zbjh.top/">llm</a> · <a href="https://dl.zbjh.top/">dl</a> · <a href="https://rag.zbjh.top/">rag</a> · <a href="https://finetune.zbjh.top/">finetune</a> · <a href="https://rlhf.zbjh.top/">rlhf</a> · <a href="https://aigc.zbjh.top/">aigc</a> · <a href="https://mcp.zbjh.top/">mcp</a> · <a href="https://agent.zbjh.top/">agent</a> · <a href="https://local.zbjh.top/">local</a> · <a href="https://prompt.zbjh.top/">prompt</a> · <a href="https://comfy.zbjh.top/">comfy</a> · <a href="https://ragpro.zbjh.top/">ragpro</a> · <a href="https://ftplus.zbjh.top/">ftplus</a> · <a href="https://dify.zbjh.top/">dify</a> · reason</div>
+</div>
+
+<div class="wrap">
+  <div class="progress">
+    <div class="bar"><i></i></div>
+    <div class="txt" id="progtxt">已学 0 / 10 章</div>
+  </div>
+
+  <!-- 路线图 -->
+  <div class="sec">
+    <h2><span class="dot"></span>10 天学习路线图</h2>
+    <p class="desc">每天一章，从「快思考与慢思考」到「用推理模型解决复杂问题」。点击卡片开始阅读，进度自动保存在本机。</p>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- 3 个演示 -->
+  <div class="sec">
+    <h2><span class="dot"></span>3 个浏览器内可玩演示</h2>
+    <p class="desc">不用装任何环境，直接在页面里看懂「推理」的三大关键环节。</p>
+    <div class="demos">
+
+      <!-- 演示1 快慢思考 -->
+      <div class="demo">
+        <h3>① 快思考 vs 慢思考对比台</h3>
+        <p class="sub">同一个问题，直接答 vs 一步步想，看推理模型为什么答得更准。</p>
+        <div class="stage" id="stage1"></div>
+        <div class="row">
+          <button class="btn" id="next1">换一道题 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示2 思维链 -->
+      <div class="demo">
+        <h3>② 思维链可视化台</h3>
+        <p class="sub">把「一步一步想」的过程展开，看中间推理步骤怎么通向正确答案。</p>
+        <div class="stage" id="stage2"></div>
+        <div class="row">
+          <button class="btn" id="next2">展开 / 收起推理 ▶</button>
+        </div>
+      </div>
+
+      <!-- 演示3 成本对比 -->
+      <div class="demo">
+        <h3>③ 推理成本对比台</h3>
+        <p class="sub">慢思考的代价：推理模型的 token 消耗与延迟，比普通模型贵多少。</p>
+        <div class="stage" id="stage3"></div>
+        <div class="row">
+          <button class="btn" id="next3">换一种任务 ▶</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="note">提示：学习进度保存在你浏览器本地（localStorage），换设备不会同步。演示中的「思考过程/成本数据」为教学模拟，展示机制与典型量级。</div>
+
+  <footer>
+    系列站点：ai101 · llm · dl · rag · finetune · rlhf · aigc · mcp · agent · local · prompt · comfy · ragpro · ftplus · dify · <b>reason</b>（基于 <b>zbjh.top</b> 部署）<br>
+    本页为「由简入深」AI 学习路线 <b>L16</b> · 推理模型与思维链 · 纯中文教程 + 浏览器内演示<br>
+    <span class="muted">章节内容均为原创中文讲解，演示无需联网即可运行。</span>
+  </footer>
+</div>
+
+<script>
+/* ===== 章节数据（与 content/ 文件名严格一致，无「第X章」前缀） ===== */
+const CH = [
+  {no:"第1天", t:"推理模型是什么：从快思考到慢思考"},
+  {no:"第2天", t:"思维链 CoT：让模型一步一步想"},
+  {no:"第3天", t:"提示词中的思维链：Few-shot 与零样本"},
+  {no:"第4天", t:"训练推理模型：从 SFT 到强化学习"},
+  {no:"第5天", t:"开源推理模型：DeepSeek-R1 深度解析"},
+  {no:"第6天", t:"推理模型的部署与调用：reasoner 模式"},
+  {no:"第7天", t:"思维链的取舍：什么时候该用什么时候不该用"},
+  {no:"第8天", t:"推理成本与延迟：慢思考的代价"},
+  {no:"第9天", t:"评测推理模型：从准确率到推理过程"},
+  {no:"第10天", t:"实战路线：用推理模型解决复杂问题"},
+];
+const KEY = "reason_progress_v1";
+function toMat(md){ // content/xxx.md -> materials/content/xxx.html
+  const name = md.replace(/^content\//,"").replace(/\.md$/,"");
+  return "materials/content/" + name + ".html";
+}
+/* ===== 进度 ===== */
+let done = {};
+try{ done = JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ done={}; }
+function save(){ localStorage.setItem(KEY, JSON.stringify(done)); }
+function updProg(){
+  const n = CH.filter(c=>done[c.t]).length;
+  document.getElementById("progtxt").textContent = "已学 "+n+" / "+CH.length+" 章";
+}
+/* ===== 渲染卡片 ===== */
+const grid = document.getElementById("grid");
+CH.forEach((c,i)=>{
+  const el = document.createElement("div");
+  el.className = "card"+(done[c.t]?" done":"");
+  el.innerHTML = '<div class="day">'+c.no+'</div><h3>'+c.t.replace(/^.*?：/,"")+
+    '</h3><p>点击阅读本章</p><div class="chk">'+(done[c.t]?"✓":"")+'</div>';
+  el.onclick = ()=>{
+    window.location.href = toMat("content/"+c.t+".md");
+  };
+  grid.appendChild(el);
+});
+updProg();
+
+/* ============ 演示1：快思考 vs 慢思考对比台 ============ */
+(function(){
+  const cases = [
+    {q:"一个篮子里有 5 个苹果，拿走 2 个，还剩几个？",
+     fast:"还有 3 个。（直接答）",
+     slow:"步骤 1：原来有 5 个苹果。步骤 2：拿走 2 个。步骤 3：5 - 2 = 3。结论：还剩 3 个。",
+     note:"简单题快慢思考都对——但慢思考把过程展示出来，更可信、可检查。"},
+    {q:"小明有 10 元，买了 3 个苹果每个 2 元，又买了 1 个香蕉 1.5 元，还剩多少？",
+     fast:"还剩 3 元。（漏算香蕉）",
+     slow:"步骤 1：苹果 3×2=6 元。步骤 2：香蕉 1.5 元。步骤 3：总花费 6+1.5=7.5 元。步骤 4：10-7.5=2.5 元。结论：还剩 2.5 元。",
+     note:"多步计算题，快思考容易漏算；慢思考逐步核对，不容易错。"},
+    {q:"如果今天是周三，那么 100 天后是星期几？",
+     fast:"周日。（直接猜）",
+     slow:"步骤 1：100 ÷ 7 = 14 余 2。步骤 2：100 天后 = 14 周 + 2 天。步骤 3：周三 + 2 天 = 周五。结论：周五。",
+     note:"需要取模运算的题，快思考几乎必错，慢思考是唯一可靠路径。"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage1");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:8px"><b>题目：</b>'+c.q+'</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:240px;background:#fff;border:1px solid #a5b4fc;border-radius:10px;padding:10px">'
+      +'<div class="muted" style="margin-bottom:6px">⚡ 快思考（直接答）</div>'
+      +'<div style="font-size:13px">'+c.fast+'</div></div>'
+      +'<div style="flex:1;min-width:240px;background:#eef2ff;border:1px solid #4338ca;border-radius:10px;padding:10px">'
+      +'<div class="muted" style="margin-bottom:6px">🧠 慢思考（一步一步想）</div>'
+      +'<div style="font-size:13px">'+c.slow+'</div></div>'
+      +'</div>'
+      +'<div class="muted" style="margin-top:8px">💡 '+c.note+'</div>';
+  }
+  document.getElementById("next1").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示2：思维链可视化台 ============ */
+(function(){
+  const cases = [
+    {q:"超市促销：买 2 送 1，每个 3 元，要买 6 个实际付多少？",
+     steps:["理解题意：买 2 送 1 = 每付 2 个的钱得到 3 个","要拿 6 个 = 2 组「买 2 送 1」","每组付 2×3=6 元","2 组共付 6×2=12 元","答案：12 元"],
+     ans:"12 元"},
+    {q:"一件衣服打 8 折后再减 10 元，原价 200 元，最终价？",
+     steps:["理解题意：先打折，再减价","打 8 折：200 × 0.8 = 160 元","再减 10 元：160 - 10 = 150 元","答案：150 元"],
+     ans:"150 元"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage2");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:8px"><b>题目：</b>'+c.q+'</div>'
+      +'<div style="background:#eef2ff;border:1px dashed #a5b4fc;border-radius:10px;padding:12px">'
+      +c.steps.map((s,i)=>'<div style="margin:5px 0;font-size:13px"><span class="pill" style="background:#e0e7ff;color:#3730a3">第'+(i+1)+'步</span> '+s+'</div>').join('')
+      +'</div>'
+      +'<div class="ok" style="margin-top:8px">✅ 答案：'+c.ans+'</div>'
+      +'<div class="muted" style="margin-top:4px">思维链的价值：把隐含的推理过程显式化，模型自己看得见、查得了、改得动。</div>';
+  }
+  document.getElementById("next2").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+
+/* ============ 演示3：推理成本对比台 ============ */
+(function(){
+  const cases = [
+    {name:"简单问答（常识）", desc:"普通模型秒回",
+     fast:{t:"0.5s", tok:"50"}, slow:{t:"3s", tok:"400"}, ratio:"约 8 倍 token"},
+    {name:"中等推理（数学应用题）", desc:"需要几步推导",
+     fast:{t:"1s", tok:"120"}, slow:{t:"8s", tok:"1200"}, ratio:"约 10 倍 token"},
+    {name:"复杂推理（代码/逻辑）", desc:"深度思考",
+     fast:{t:"2s", tok:"300"}, slow:{t:"20s", tok:"4000"}, ratio:"约 13 倍 token"},
+  ];
+  let ci = 0;
+  const stage = document.getElementById("stage3");
+  function render(){
+    const c = cases[ci];
+    stage.innerHTML = '<div class="muted" style="margin-bottom:6px"><b>任务：</b>'+c.name+'（'+c.desc+'）</div>'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0">'
+      +'<div style="flex:1;min-width:200px;background:#fff;border:1px solid #a5b4fc;border-radius:10px;padding:10px;text-align:center">'
+      +'<div class="muted" style="margin-bottom:4px">⚡ 普通模型</div><div style="font-size:15px;font-weight:700">'+c.fast.t+'</div>'
+      +'<div class="muted" style="font-size:12px">'+c.fast.tok+' token</div></div>'
+      +'<div style="flex:1;min-width:200px;background:#eef2ff;border:1px solid #4338ca;border-radius:10px;padding:10px;text-align:center">'
+      +'<div class="muted" style="margin-bottom:4px">🧠 推理模型</div><div style="font-size:15px;font-weight:700">'+c.slow.t+'</div>'
+      +'<div class="muted" style="font-size:12px">'+c.slow.tok+' token</div></div>'
+      +'</div>'
+      +'<div class="muted" style="margin-top:6px">差距：'+c.ratio+'。推理模型「想得多」所以贵——只在该用的时候用（第 7、8 章讲怎么取舍）。</div>';
+  }
+  document.getElementById("next3").onclick = ()=>{ ci=(ci+1)%cases.length; render(); };
+  render();
+})();
+</script>
+</body>
+</html>

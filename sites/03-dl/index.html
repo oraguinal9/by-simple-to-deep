@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深度学习基础 · L3 | 10 天搞懂神经网络怎么学习</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --card:#fff; --ink:#1f2430; --muted:#6b7280; --line:#e5e7eb;
+    --accent:#7c3aed; --accent2:#06b6d4; --accent-soft:#ede9fe;
+    --green:#16a34a; --green-soft:#dcfce7;
+    --demo-bg:#0f172a; --demo-ink:#e2e8f0;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.65;}
+  a{color:var(--accent);text-decoration:none;} a:hover{text-decoration:underline;}
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+  nav{max-width:1080px;margin:0 auto;padding:12px 20px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;}
+  nav .brand{font-weight:800;color:var(--accent);margin-right:auto;}
+  nav a{color:var(--muted);font-size:14px;}
+  nav a:hover{color:var(--accent);}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 60px;}
+  .hero{background:linear-gradient(135deg,#7c3aed,#06b6d4);color:#fff;border-radius:18px;padding:30px 32px;margin-bottom:26px;}
+  .hero h1{margin:0 0 8px;font-size:26px;}
+  .hero p{margin:6px 0;opacity:.95;}
+  .hero .tip{background:rgba(255,255,255,.16);padding:10px 14px;border-radius:10px;margin-top:14px;font-size:14px;}
+  .badge-l3{display:inline-block;background:rgba(255,255,255,.22);padding:3px 10px;border-radius:999px;font-size:12px;margin-bottom:8px;}
+  section{margin-bottom:40px;}
+  h2{font-size:21px;border-left:5px solid var(--accent);padding-left:12px;margin:0 0 16px;}
+  .progress-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;}
+  .bar{height:14px;background:#eef0f4;border-radius:999px;overflow:hidden;margin:10px 0;}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--green),#4ade80);transition:width .4s;}
+  .progress-meta{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--muted);}
+  .btn{cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:9px;font-size:13px;}
+  .btn:hover{background:var(--accent-soft);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:.2s;}
+  .day.done{border-color:var(--green);box-shadow:0 0 0 2px var(--green-soft) inset;}
+  .day summary{list-style:none;cursor:pointer;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
+  .day summary::-webkit-details-marker{display:none;}
+  .badge{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:800;display:grid;place-items:center;}
+  .day.done .badge{background:var(--green);color:#fff;}
+  .day h3{margin:0;font-size:16px;} .day .dur{font-size:12px;color:var(--muted);margin-top:2px;}
+  .day .body{padding:0 16px 16px;border-top:1px dashed var(--line);margin-top:4px;}
+  .day .body h4{font-size:13px;margin:14px 0 6px;color:var(--accent);}
+  .day ul{margin:4px 0;padding-left:18px;font-size:14px;} .day li{margin:3px 0;}
+  .chk{margin-top:14px;display:flex;align-items:center;gap:8px;font-size:14px;}
+  .chk input{width:17px;height:17px;accent-color:var(--green);}
+  .mat a{display:inline-block;margin:2px 6px 2px 0;font-size:13px;background:var(--accent-soft);color:var(--accent);padding:2px 9px;border-radius:999px;}
+  /* 演示区 */
+  .demo{background:var(--demo-bg);color:var(--demo-ink);border-radius:14px;padding:20px;margin-bottom:18px;}
+  .demo h3{margin:0 0 4px;color:#fff;font-size:17px;}
+  .demo .sub{font-size:13px;color:#94a3b8;margin-bottom:14px;}
+  .demo label{font-size:13px;color:#cbd5e1;}
+  .demo select,.demo input[type=range]{vertical-align:middle;}
+  .demo select{background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:7px;padding:5px 8px;font-size:13px;}
+  .demo input[type=range]{accent-color:#a78bfa;width:150px;}
+  .ctrl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:10px 0;}
+  .ctrl .item{display:flex;gap:7px;align-items:center;background:#1e293b;border:1px solid #334155;padding:6px 10px;border-radius:9px;}
+  .val{color:#a78bfa;font-weight:700;font-variant-numeric:tabular-nums;min-width:44px;display:inline-block;}
+  .btn2{cursor:pointer;border:none;background:var(--accent);color:#fff;padding:8px 16px;border-radius:8px;font-size:14px;}
+  .btn2.ghost{background:#334155;} .btn2.cyan{background:#0891b2;}
+  .btn2:hover{filter:brightness(1.15);}
+  canvas{background:#0b1220;border:1px solid #334155;border-radius:10px;display:block;width:100%;height:auto;}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+  .stat{background:#1e293b;border:1px solid #334155;border-radius:9px;padding:7px 12px;font-size:13px;}
+  .stat b{color:#fff;font-size:15px;font-variant-numeric:tabular-nums;}
+  .hint{background:#1e293b;border:1px solid #334155;border-radius:9px;padding:10px 13px;margin-top:12px;font-size:13px;color:#cbd5e1;}
+  .hint b{color:#fcd34d;}
+  .legend{font-size:12px;color:#94a3b8;margin-top:6px;}
+  .swatch{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:3px;}
+  .split{display:grid;grid-template-columns:1fr 300px;gap:14px;}
+  @media(max-width:800px){.split{grid-template-columns:1fr;}}
+  .note{background:#fffbeb;border:1px solid #fde68a;color:#92400e;padding:12px 16px;border-radius:10px;font-size:14px;margin-bottom:20px;}
+  .ladder{font-size:14px;color:var(--muted);margin:6px 0;line-height:2;}
+  .ladder .cur{background:var(--accent);color:#fff;padding:2px 9px;border-radius:999px;font-weight:700;}
+  footer{color:var(--muted);font-size:13px;text-align:center;padding:20px;}
+</style>
+</head>
+<body>
+<header>
+  <nav>
+    <span class="brand">🧠 深度学习基础 · L3</span>
+    <a href="#plan">每日计划</a>
+    <a href="#demo">互动演示</a>
+    <a href="#res">教程目录</a>
+    <a href="https://ai101.zbjh.top/" target="_blank" rel="noopener">← L1 提示词</a>
+    <a href="https://llm.zbjh.top/" target="_blank" rel="noopener">L2 大模型原理 →</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <span class="badge-l3">L3 · 由简入深系列 · 原理地基</span>
+    <h1>10 天，搞懂神经网络到底是怎么「学」的</h1>
+    <p>全程中文 · 从一条直线讲到注意力机制 · 三个可动手玩的可视化实验台</p>
+    <div class="tip">📌 这是 L3（地基层）。学完你会真正理解梯度下降、反向传播、CNN 与注意力，再看 <b>L2 大模型原理</b> 会豁然开朗。数学只用到乘法、加法和"斜率"的概念，不需要任何数学背景。</div>
+  </div>
+
+  <div class="note">
+    💡 <b>怎么用：</b>每天点开一张卡片，先读教程再玩下面的演示；学完勾选「我已掌握」，进度条会自动增长（保存在你本机浏览器）。<b>强烈建议每章都配合演示台动手拖一拖</b>——梯度下降、激活函数、神经网络训练，看动画一次胜过读十遍公式。
+  </div>
+
+  <section id="progress">
+    <h2>📊 我的学习进度</h2>
+    <div class="progress-card">
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="progress-meta">
+        <span id="progText">已完成 0 / 10 天</span>
+        <button class="btn" onclick="resetProgress()">重置进度</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>🗓️ 每日学习计划（10 天）</h2>
+    <div class="grid" id="dayGrid"></div>
+  </section>
+
+  <section id="demo">
+    <h2>🎮 三个互动实验台</h2>
+    <p style="color:var(--muted);margin-top:-6px">全部在你的浏览器里实时计算，不联网、不装环境。第三个是**真的在训练一个神经网络**。</p>
+
+    <!-- ========== 演示 1：梯度下降 ========== -->
+    <div class="demo">
+      <h3>1. 梯度下降「下山台」<span style="font-size:12px;color:#94a3b8;font-weight:400">（配合第 3 章）</span></h3>
+      <div class="sub">小球从起点出发，每一步都朝坡度的反方向走。调学习率，看它是稳稳落底、还是疯狂横跳。</div>
+      <div class="ctrl">
+        <span class="item"><label>地形</label>
+          <select id="gdFunc">
+            <option value="bowl">碗形（凸函数）</option>
+            <option value="double">双谷（有局部最优）</option>
+            <option value="wave">波浪（多个坑）</option>
+          </select>
+        </span>
+        <span class="item"><label>学习率 η</label><input type="range" id="gdLr" min="0" max="12" value="4"><b class="val" id="gdLrV">0.10</b></span>
+        <span class="item"><label>起点 w</label><input type="range" id="gdStart" min="-55" max="55" value="-48"><b class="val" id="gdStartV">-4.8</b></span>
+      </div>
+      <div class="ctrl">
+        <button class="btn2" id="gdRun">▶ 自动下山</button>
+        <button class="btn2 cyan" onclick="gdStep()">单步走一步</button>
+        <button class="btn2 ghost" onclick="gdReset()">重置</button>
+      </div>
+      <canvas id="gdCanvas" width="1000" height="380"></canvas>
+      <div class="stats">
+        <span class="stat">步数 <b id="gdStep">0</b></span>
+        <span class="stat">当前 w <b id="gdW">-4.80</b></span>
+        <span class="stat">损失 L <b id="gdLoss">0.00</b></span>
+        <span class="stat">梯度 dL/dw <b id="gdGrad">0.00</b></span>
+        <span class="stat" id="gdState" style="color:#a78bfa">待出发</span>
+      </div>
+      <div class="hint" id="gdHint">
+        <b>试试这三件事：</b><br>
+        ① 学习率拉到 <b>0.02</b> → 走得极慢，几十步还没到底（学得太慢）<br>
+        ② 学习率拉到 <b>1.20</b> 以上 → 小球在谷底两侧横跳甚至飞出去（梯度爆炸，损失变 NaN 就是这么来的）<br>
+        ③ 选「双谷」，起点分别放在最左和最右 → 会落进<b>不同的坑</b>，这就是局部最优
+      </div>
+    </div>
+
+    <!-- ========== 演示 2：激活函数 ========== -->
+    <div class="demo">
+      <h3>2. 神经元与激活函数「实验台」<span style="font-size:12px;color:#94a3b8;font-weight:400">（配合第 4 章）</span></h3>
+      <div class="sub">一个神经元做两件事：先算 z = w·x + b，再把 z 丢进激活函数。拖动 w、b 看曲线怎么变，虚线是它的导数——导数趋近 0 的地方，就是梯度消失发生的地方。</div>
+      <div class="ctrl">
+        <span class="item"><label>激活函数</label>
+          <select id="afType">
+            <option value="relu">ReLU（隐藏层默认）</option>
+            <option value="sigmoid">Sigmoid</option>
+            <option value="tanh">Tanh</option>
+            <option value="leaky">Leaky ReLU</option>
+            <option value="gelu">GELU（大模型常用）</option>
+            <option value="none">无激活（纯线性）</option>
+          </select>
+        </span>
+        <span class="item"><label>权重 w</label><input type="range" id="afW" min="-30" max="30" value="10"><b class="val" id="afWV">1.0</b></span>
+        <span class="item"><label>偏置 b</label><input type="range" id="afB" min="-30" max="30" value="0"><b class="val" id="afBV">0.0</b></span>
+        <span class="item"><label><input type="checkbox" id="afDeriv" checked style="accent-color:#a78bfa"> 显示导数</label></span>
+      </div>
+      <canvas id="afCanvas" width="1000" height="330"></canvas>
+      <div class="legend">
+        <span class="swatch" style="background:#a78bfa"></span>输出 a = f(w·x+b)
+        <span class="swatch" style="background:#22d3ee;margin-left:14px"></span>导数 f'(z)（虚线）
+        <span class="swatch" style="background:#475569;margin-left:14px"></span>线性部分 z = w·x+b
+      </div>
+      <div class="hint" id="afHint"></div>
+    </div>
+
+    <!-- ========== 演示 3：迷你神经网络 ========== -->
+    <div class="demo">
+      <h3>3. 迷你神经网络「训练台」<span style="font-size:12px;color:#94a3b8;font-weight:400">（配合第 4、5、6、7 章）</span></h3>
+      <div class="sub">这是一个真正在跑的神经网络：前向传播 → 交叉熵损失 → 反向传播 → 梯度下降，全部在你浏览器里逐轮执行。背景色是它当前的<b>决策边界</b>，看它一点点学会分开两类点。</div>
+      <div class="ctrl">
+        <span class="item"><label>数据集</label>
+          <select id="nnData">
+            <option value="blobs">两团（线性可分）</option>
+            <option value="xor" selected>异或 XOR（经典难题）</option>
+            <option value="circles">同心环</option>
+            <option value="spiral">双螺旋（最难）</option>
+          </select>
+        </span>
+        <span class="item"><label>隐藏层</label>
+          <select id="nnLayers">
+            <option value="0">0 层（＝线性模型）</option>
+            <option value="1" selected>1 层</option>
+            <option value="2">2 层</option>
+            <option value="3">3 层</option>
+          </select>
+        </span>
+        <span class="item"><label>每层神经元</label>
+          <select id="nnUnits">
+            <option>2</option><option>4</option><option selected>8</option><option>16</option>
+          </select>
+        </span>
+        <span class="item"><label>激活</label>
+          <select id="nnAct"><option value="tanh" selected>Tanh</option><option value="relu">ReLU</option></select>
+        </span>
+        <span class="item"><label>学习率</label><input type="range" id="nnLr" min="0" max="10" value="5"><b class="val" id="nnLrV">0.30</b></span>
+      </div>
+      <div class="ctrl">
+        <button class="btn2" id="nnRun">▶ 开始训练</button>
+        <button class="btn2 cyan" onclick="nnRestart()">🔄 重新初始化</button>
+        <button class="btn2 ghost" onclick="nnNewData()">🎲 换一批数据</button>
+      </div>
+      <div class="split">
+        <div>
+          <canvas id="nnCanvas" width="640" height="640"></canvas>
+          <div class="legend">
+            <span class="swatch" style="background:#ef4444"></span>类别 A
+            <span class="swatch" style="background:#3b82f6;margin-left:12px"></span>类别 B
+            <span style="margin-left:12px">背景深浅 = 模型认为该区域属于哪一类的把握 · 在图上点一下可加点（Shift+点击加蓝点）</span>
+          </div>
+        </div>
+        <div>
+          <canvas id="nnLossCanvas" width="600" height="240" style="height:150px"></canvas>
+          <div class="legend" style="margin-bottom:10px">损失曲线（越低越好）</div>
+          <div class="stats" style="flex-direction:column">
+            <span class="stat">训练轮次 epoch <b id="nnEpoch">0</b></span>
+            <span class="stat">损失 loss <b id="nnLoss">—</b></span>
+            <span class="stat">准确率 <b id="nnAcc">—</b></span>
+            <span class="stat">参数量 <b id="nnParams">—</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="hint">
+        <b>必做的四个实验（结论都实测过）：</b><br>
+        ① 选 <b>异或 XOR</b> + 隐藏层 <b>0 层</b> → 只有 3 个参数，训练再久准确率也在 <b>50% 上下</b>徘徊，因为一条直线永远分不开异或（第 4 章）<br>
+        ② 同样是 XOR，隐藏层改成 <b>1 层</b>（33 个参数）→ 十几秒就 100% 分开，这就是<b>非线性激活</b>的威力<br>
+        ③ 选 <b>双螺旋</b> + 1 层 8 神经元 → 卡在 <b>94% 左右</b>，边界很粗糙；加到 <b>3 层 16 神经元</b>（609 个参数）→ 能缠出完整螺旋并到 100%，这就是<b>深度</b>的价值（第 5 章）<br>
+        ④ 把<b>学习率拉到 5 或 15</b> → 损失曲线会飙起来、准确率掉回 50%，右侧会显示「💥 发散中」。这和演示 1 里小球飞出画面是同一件事（第 3 章）<br>
+        <span style="color:#94a3b8">※ 还可以直接在图上点击添加数据点，看模型如何重新调整边界。</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="res">
+    <h2>📚 教程目录（站内中文，点开即看）</h2>
+    <div class="progress-card">
+      <p class="mat" id="tocBox" style="margin:6px 0"></p>
+      <h4 style="margin:16px 0 6px">由简入深 · 全系列</h4>
+      <p class="ladder">
+        <a href="https://ai101.zbjh.top/" target="_blank" rel="noopener">L1 AI入门·提示词</a> →
+        <a href="https://llm.zbjh.top/" target="_blank" rel="noopener">L2 大模型原理</a> →
+        <span class="cur">L3 深度学习基础 · 你在这里</span> →
+        L4 RAG/Agent → L5 微调部署 → L6 RLHF对齐 → L7 AIGC扩散 → L8 多模态/MCP
+      </p>
+      <p style="font-size:13px;color:var(--muted);margin:10px 0 0">
+        📖 学完本站建议顺序：想做<b>应用</b>走 L4 → L5；想搞<b>算法</b>走 L2 → L5 → L6。
+      </p>
+    </div>
+  </section>
+
+  <footer>由 WorkBuddy 生成 · L3 原创中文教程 · 进度仅保存在你本地浏览器 · dl.zbjh.top</footer>
+</div>
+
+<script>
+/* ==================== 章节数据 ==================== */
+const chapters = [
+  ["第1章 模型、参数与预测", "content/第一章 从一条直线开始：模型、参数与预测.md"],
+  ["第2章 损失函数",         "content/第二章 损失函数：怎么衡量错得有多离谱.md"],
+  ["第3章 梯度下降",         "content/第三章 梯度下降：模型到底是怎么学的.md"],
+  ["第4章 神经元与激活函数", "content/第四章 神经元与激活函数：为什么必须有非线性.md"],
+  ["第5章 多层网络与前向传播","content/第五章 多层神经网络与前向传播.md"],
+  ["第6章 反向传播",         "content/第六章 反向传播：链式法则的直觉理解.md"],
+  ["第7章 过拟合与正则化",   "content/第七章 过拟合、欠拟合与正则化.md"],
+  ["第8章 卷积神经网络 CNN", "content/第八章 卷积神经网络 CNN：让机器看懂图像.md"],
+  ["第9章 RNN 与注意力机制", "content/第九章 序列建模：从 RNN 到注意力机制.md"],
+  ["第10章 动手实践与进阶",  "content/第十章 动手实践与进阶路线.md"],
+];
+
+const days = [
+  { t:"从一条直线开始：模型、参数与预测", d:"约 40 分钟",
+    goal:"搞清楚模型 / 参数 / 特征 / 预测这四个词，理解「训练」和「推理」的区别",
+    points:["模型 = 从输入算出输出的规则","参数 w、b 是可调旋钮，靠数据学出来","矩阵乘法为什么是深度学习的基本操作","训练在改参数，推理不改参数"],
+    quiz:["用一句话解释 w 和 b 分别控制直线的什么？","100 个特征的线性模型一共有多少参数？"] },
+
+  { t:"损失函数：怎么衡量错得有多离谱", d:"约 40 分钟",
+    goal:"理解损失函数是模型的「打分尺子」，掌握 MSE 与交叉熵的适用场景",
+    points:["误差不能直接相加，会正负抵消","MSE：重罚大错、处处可导，用于回归","交叉熵：只看正确答案的概率，用于分类","Softmax 把任意实数变成概率分布"],
+    quiz:["MSE 为什么用平方不用绝对值？说两个理由","为什么说大模型的幻觉和损失函数有关？"] },
+
+  { t:"梯度下降：模型到底是怎么学的", d:"约 50 分钟 ⭐核心",
+    goal:"彻底理解 w ← w − η·梯度 这条公式，知道学习率为什么最重要",
+    points:["蒙眼下山：朝坡度反方向迈步","梯度 = 坡度，指明损失上升最快的方向","学习率太小学不动，太大会横跳发散","mini-batch / epoch / step 三个术语"],
+    quiz:["梯度为 +5 时参数该增大还是减小？","10万条数据、batch=250，一个 epoch 几步？"],
+    demo:"1. 梯度下降下山台" },
+
+  { t:"神经元与激活函数：为什么必须非线性", d:"约 45 分钟",
+    goal:"理解没有激活函数时，堆 100 层也等于一条直线",
+    points:["神经元 = 加权求和 + 激活，两步而已","两层线性 = 一层线性（能自己推一遍）","XOR 问题：直线永远分不开","ReLU / Sigmoid / GELU 各用在哪"],
+    quiz:["为什么权重不能全初始化为 0？","什么是 Dead ReLU？"],
+    demo:"2. 激活函数实验台 + 3. 用 XOR 数据集验证" },
+
+  { t:"多层神经网络与前向传播", d:"约 45 分钟",
+    goal:"会算全连接层参数量，理解「深度」带来的层级特征抽象",
+    points:["层 = 一排并列神经元，a = f(Wx+b)","参数量 = 输入维×输出维 + 输出维","浅层学边缘、深层学语义","残差连接：out = F(x) + x"],
+    quiz:["256→512 的全连接层有多少参数？","为什么同等参数下「深」比「宽」划算？"],
+    demo:"3. 训练台里把隐藏层从 1 层加到 3 层" },
+
+  { t:"反向传播：链式法则的直觉理解", d:"约 60 分钟 ⭐最硬",
+    goal:"手算一遍两层网络的梯度，理解 loss.backward() 在干什么",
+    points:["反向传播 = 从损失出发逐层追溯责任","链式法则 = 影响沿路径相乘","手算例子：前向→反向→更新→验算","梯度消失/爆炸的成因与四种解法"],
+    quiz:["用齿轮解释链式法则","忘了 optimizer.zero_grad() 会怎样？"] },
+
+  { t:"过拟合、欠拟合与正则化", d:"约 45 分钟",
+    goal:"看懂训练/验证两条曲线，掌握六种防过拟合武器",
+    points:["过拟合 = 背答案；欠拟合 = 没学会","train/val/test 三分，测试集只用一次","六武器：数据增强/Dropout/L2/早停/归一化/减小模型","Dropout 推理时必须关（model.eval）"],
+    quiz:["为什么不能用测试集调超参？","为什么老手会「先追求过拟合」？"] },
+
+  { t:"卷积神经网络 CNN", d:"约 50 分钟",
+    goal:"理解卷积三板斧：局部连接、权重共享、池化下采样",
+    points:["全连接处理图像的三宗罪","卷积核 = 滑动窗口的加权求和","通道 / 步长 / 填充三个参数","越深，尺寸越小、通道越多"],
+    quiz:["3×3 核、64→128 通道，参数量多少？","为什么小数据集上 CNN 常打得过 ViT？"] },
+
+  { t:"序列建模：从 RNN 到注意力", d:"约 55 分钟 ⭐通往大模型",
+    goal:"理解 RNN 的三大伤，以及注意力如何一举解决",
+    points:["序列数据：长度可变 + 顺序有意义","RNN 三伤：遗忘 / 不能并行 / 信息瓶颈","LSTM 门控 + 加法更新缓解遗忘","注意力 = Q 找 K，Softmax 得权重，加权求和 V"],
+    quiz:["用自己的话解释 Q、K、V","上下文 2K 扩到 8K，计算量涨几倍？"] },
+
+  { t:"动手实践与进阶路线", d:"约 60 分钟",
+    goal:"跑通 MNIST 完整项目，掌握调试清单，规划下一步",
+    points:["可直接运行的 MNIST 完整代码","五个进阶改造实验","调试清单：NaN / 不下降 / 过拟合 / 太慢","十天练习表 + 全中文资源推荐"],
+    quiz:["能否不看书默写训练循环五步？","用一页纸给朋友讲清神经网络怎么学习"] },
+];
+
+/* ==================== 渲染 ==================== */
+function toMat(p){
+  if(!p || p.startsWith('http') || p.startsWith('#')) return p;
+  if(p.startsWith('content/')){
+    let r = 'materials/' + p;
+    if(r.endsWith('.md')) r = r.slice(0,-3) + '.html';
+    return encodeURI(r);
+  }
+  return p;
+}
+const grid = document.getElementById('dayGrid');
+days.forEach((d,i)=>{
+  const n=i+1;
+  const det=document.createElement('details');
+  det.className='day'; det.dataset.day=n;
+  det.innerHTML = `
+    <summary>
+      <span class="badge">${n}</span>
+      <span><h3>第 ${n} 天 · ${d.t}</h3><div class="dur">⏱ ${d.d}</div></span>
+    </summary>
+    <div class="body">
+      <h4>🎯 今日目标</h4>
+      <div style="font-size:14px">${d.goal}</div>
+      <h4>📖 核心知识点</h4>
+      <ul>${d.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+      <h4>🔗 教程正文</h4>
+      <p class="mat"><a href="${toMat(chapters[i][1])}">${chapters[i][0]}</a></p>
+      ${d.demo?`<h4>🎮 配套演示</h4><div style="font-size:14px"><a href="#demo">${d.demo}</a></div>`:''}
+      <h4>✅ 自测题</h4>
+      <ul>${d.quiz.map(q=>`<li>${q}</li>`).join('')}</ul>
+      <label class="chk"><input type="checkbox" onchange="toggleDay(${n},this)"> 我已掌握这一天</label>
+    </div>`;
+  grid.appendChild(det);
+});
+document.getElementById('tocBox').innerHTML =
+  chapters.map(c=>`<a href="${toMat(c[1])}">${c[0]}</a>`).join('');
+
+/* ==================== 进度 ==================== */
+const KEY='dl_progress_v1';
+function loadProg(){ try{ return JSON.parse(localStorage.getItem(KEY))||{} }catch(e){ return {} } }
+function saveProg(p){ localStorage.setItem(KEY, JSON.stringify(p)); }
+function toggleDay(n,el){ const p=loadProg(); if(el.checked)p[n]=true; else delete p[n]; saveProg(p); refreshBar(); }
+function refreshBar(){
+  const p=loadProg(), done=Object.keys(p).length;
+  document.getElementById('barFill').style.width=(done/10*100)+'%';
+  document.getElementById('progText').textContent=`已完成 ${done} / 10 天`;
+  document.querySelectorAll('.day').forEach(d=>{
+    const ok=!!p[d.dataset.day];
+    d.classList.toggle('done',ok);
+    const cb=d.querySelector('input[type=checkbox]'); if(cb) cb.checked=ok;
+  });
+}
+function resetProgress(){ localStorage.removeItem(KEY); refreshBar(); }
+refreshBar();
+
+/* ==================== 演示 1：梯度下降 ==================== */
+const LRS=[0.01,0.02,0.05,0.08,0.10,0.20,0.30,0.50,0.80,1.00,1.20,1.50,2.00];
+const GF={
+  bowl:  { f:w=>0.30*(w-1.5)**2+0.4,            g:w=>0.60*(w-1.5) },
+  double:{ f:w=>0.03*w**4-0.40*w*w-0.6*w+4,     g:w=>0.12*w**3-0.80*w-0.6 },
+  wave:  { f:w=>0.12*w*w+1.6*Math.cos(1.4*w)+2, g:w=>0.24*w-2.24*Math.sin(1.4*w) },
+};
+let gdW=-4.8, gdSteps=0, gdTrace=[], gdTimer=null, gdDead=false;
+const gdc=document.getElementById('gdCanvas'), gdx=gdc.getContext('2d');
+const W_MIN=-6, W_MAX=6;
+
+function gdFn(){ return GF[document.getElementById('gdFunc').value]; }
+function gdLR(){ return LRS[+document.getElementById('gdLr').value]; }
+
+function gdDraw(){
+  const f=gdFn().f, W=gdc.width, H=gdc.height, pad=34;
+  gdx.clearRect(0,0,W,H);
+  // 采样求纵向范围
+  let ys=[]; for(let i=0;i<=200;i++){ ys.push(f(W_MIN+(W_MAX-W_MIN)*i/200)); }
+  let lo=Math.min(...ys), hi=Math.max(...ys); const m=(hi-lo)*0.12; lo-=m; hi+=m;
+  const X=w=>pad+(w-W_MIN)/(W_MAX-W_MIN)*(W-2*pad);
+  const Y=v=>H-pad-(v-lo)/(hi-lo)*(H-2*pad);
+  // 网格
+  gdx.strokeStyle='#1e293b'; gdx.lineWidth=1;
+  for(let i=0;i<=12;i++){ const gx=pad+i*(W-2*pad)/12; gdx.beginPath(); gdx.moveTo(gx,pad); gdx.lineTo(gx,H-pad); gdx.stroke(); }
+  for(let i=0;i<=6;i++){ const gy=pad+i*(H-2*pad)/6; gdx.beginPath(); gdx.moveTo(pad,gy); gdx.lineTo(W-pad,gy); gdx.stroke(); }
+  // 坐标轴文字
+  gdx.fillStyle='#64748b'; gdx.font='13px sans-serif';
+  gdx.fillText('参数 w →', W-pad-70, H-12);
+  gdx.save(); gdx.translate(14,pad+80); gdx.rotate(-Math.PI/2); gdx.fillText('损失 L', 0,0); gdx.restore();
+  for(let w=-6;w<=6;w+=2){ gdx.fillText(w.toString(), X(w)-6, H-pad+18); }
+  // 曲线
+  gdx.strokeStyle='#a78bfa'; gdx.lineWidth=2.5; gdx.beginPath();
+  for(let i=0;i<=400;i++){ const w=W_MIN+(W_MAX-W_MIN)*i/400; const px=X(w), py=Y(f(w)); i?gdx.lineTo(px,py):gdx.moveTo(px,py); }
+  gdx.stroke();
+  // 轨迹
+  gdx.strokeStyle='rgba(34,211,238,.55)'; gdx.lineWidth=1.5;
+  gdTrace.forEach((w,i)=>{
+    if(w<W_MIN-1||w>W_MAX+1) return;
+    gdx.beginPath(); gdx.arc(X(w),Y(f(w)),3,0,7); gdx.stroke();
+  });
+  // 切线（坡度）
+  if(!gdDead && gdW>=W_MIN && gdW<=W_MAX){
+    const g=gdFn().g(gdW), cx=X(gdW), cy=Y(f(gdW)), L=70;
+    const dxp=(W-2*pad)/(W_MAX-W_MIN), dyp=(H-2*pad)/(hi-lo);
+    let vx=1, vy=-g*dyp/dxp; const n=Math.hypot(vx,vy); vx/=n; vy/=n;
+    gdx.strokeStyle='#fbbf24'; gdx.lineWidth=2; gdx.setLineDash([6,4]);
+    gdx.beginPath(); gdx.moveTo(cx-vx*L, cy-vy*L); gdx.lineTo(cx+vx*L, cy+vy*L); gdx.stroke();
+    gdx.setLineDash([]);
+    // 小球
+    gdx.fillStyle='#f43f5e'; gdx.beginPath(); gdx.arc(cx,cy,9,0,7); gdx.fill();
+    gdx.strokeStyle='#fff'; gdx.lineWidth=2; gdx.stroke();
+    // 下一步箭头
+    const nx=X(gdW-gdLR()*g);
+    if(Math.abs(nx-cx)>3 && nx>pad && nx<W-pad){
+      gdx.strokeStyle='#22d3ee'; gdx.lineWidth=2.5; gdx.beginPath();
+      gdx.moveTo(cx,cy-20); gdx.lineTo(nx,cy-20); gdx.stroke();
+      const dir=Math.sign(nx-cx);
+      gdx.beginPath(); gdx.moveTo(nx,cy-20); gdx.lineTo(nx-dir*8,cy-25); gdx.lineTo(nx-dir*8,cy-15); gdx.closePath();
+      gdx.fillStyle='#22d3ee'; gdx.fill();
+    }
+  } else if(gdDead){
+    gdx.fillStyle='#f43f5e'; gdx.font='bold 20px sans-serif';
+    gdx.fillText('💥 发散了！小球飞出画面 —— 学习率太大，损失变成 NaN 就是这么来的', 60, 50);
+  }
+  // 数值
+  const f0=gdFn().f(gdW), g0=gdFn().g(gdW);
+  document.getElementById('gdStep').textContent=gdSteps;
+  document.getElementById('gdW').textContent=gdDead?'∞':gdW.toFixed(3);
+  document.getElementById('gdLoss').textContent=gdDead?'NaN':f0.toFixed(4);
+  document.getElementById('gdGrad').textContent=gdDead?'NaN':g0.toFixed(4);
+  const st=document.getElementById('gdState');
+  if(gdDead){ st.textContent='💥 发散'; st.style.color='#f43f5e'; }
+  else if(Math.abs(g0)<0.001){ st.textContent='✅ 已收敛到谷底'; st.style.color='#4ade80'; }
+  else if(gdSteps===0){ st.textContent='待出发'; st.style.color='#a78bfa'; }
+  else { st.textContent='下山中…'; st.style.color='#fbbf24'; }
+}
+function gdStep(){
+  if(gdDead) return;
+  const g=gdFn().g(gdW);
+  gdTrace.push(gdW);
+  gdW = gdW - gdLR()*g;
+  gdSteps++;
+  if(!isFinite(gdW) || Math.abs(gdW)>50){ gdDead=true; gdStop(); }
+  gdDraw();
+}
+function gdReset(){
+  gdStop();
+  gdW=+document.getElementById('gdStart').value/10;
+  gdSteps=0; gdTrace=[]; gdDead=false; gdDraw();
+}
+function gdStop(){ if(gdTimer){ clearInterval(gdTimer); gdTimer=null; document.getElementById('gdRun').textContent='▶ 自动下山'; } }
+document.getElementById('gdRun').onclick=function(){
+  if(gdTimer){ gdStop(); return; }
+  if(gdDead) gdReset();
+  this.textContent='⏸ 暂停';
+  gdTimer=setInterval(()=>{
+    gdStep();
+    if(gdDead || gdSteps>300 || Math.abs(gdFn().g(gdW))<0.0008) gdStop();
+  },110);
+};
+document.getElementById('gdLr').oninput=function(){ document.getElementById('gdLrV').textContent=LRS[+this.value].toFixed(2); gdDraw(); };
+document.getElementById('gdStart').oninput=function(){ document.getElementById('gdStartV').textContent=(+this.value/10).toFixed(1); gdReset(); };
+document.getElementById('gdFunc').onchange=gdReset;
+document.getElementById('gdLrV').textContent=LRS[4].toFixed(2);
+gdReset();
+
+/* ==================== 演示 2：激活函数 ==================== */
+const ACT={
+  relu:   { f:z=>Math.max(0,z),                d:z=>z>0?1:0,        name:'ReLU',
+            info:'输出范围 [0, ∞)，导数只有 0 和 1。正区间梯度原样通过 → <b>不会梯度消失</b>；负区间梯度被完全掐断 → 有 <b>Dead ReLU</b> 风险。隐藏层默认首选。' },
+  sigmoid:{ f:z=>1/(1+Math.exp(-z)),           d:z=>{const s=1/(1+Math.exp(-z));return s*(1-s);}, name:'Sigmoid',
+            info:'输出范围 (0,1)，适合<b>二分类输出层</b>。注意看虚线：导数最大只有 <b>0.25</b>，且两端趋近 0 —— 反向传播时层层相乘，几层后梯度就没了，这就是<b>梯度消失</b>。所以隐藏层早就不用它了。' },
+  tanh:   { f:z=>Math.tanh(z),                 d:z=>1-Math.tanh(z)**2, name:'Tanh',
+            info:'输出范围 (−1,1)，<b>以 0 为中心</b>，比 Sigmoid 好用，导数最大为 1。但两端同样饱和，深层网络仍会梯度消失。常见于 RNN / LSTM。' },
+  leaky:  { f:z=>z>0?z:0.1*z,                  d:z=>z>0?1:0.1,      name:'Leaky ReLU',
+            info:'负区间给一个小斜率（这里是 0.1），<b>梯度不会被完全掐断</b>，缓解 Dead ReLU 问题。' },
+  gelu:   { f:z=>0.5*z*(1+Math.tanh(Math.sqrt(2/Math.PI)*(z+0.044715*z**3))),
+            d:z=>{const h=1e-4;const g=x=>0.5*x*(1+Math.tanh(Math.sqrt(2/Math.PI)*(x+0.044715*x**3)));return (g(z+h)-g(z-h))/(2*h);}, name:'GELU',
+            info:'ReLU 的<b>平滑版</b>，负区间保留一点点信息而不是直接归零。<b>BERT / GPT 系列的标配</b>，现代大模型几乎都用它或它的亲戚 SwiGLU。' },
+  none:   { f:z=>z,                            d:z=>1,              name:'无激活（线性）',
+            info:'⚠️ 曲线永远是<b>一条直线</b>。这正是第 4 章的关键结论：<b>不加激活函数，堆多少层都等价于一层线性</b>，网络失去表达复杂形状的能力。去演示 3 把隐藏层设成 0 层，就能看到它连异或都学不会。' },
+};
+const afc=document.getElementById('afCanvas'), afx=afc.getContext('2d');
+function afDraw(){
+  const w=+document.getElementById('afW').value/10, b=+document.getElementById('afB').value/10;
+  const key=document.getElementById('afType').value, A=ACT[key];
+  const showD=document.getElementById('afDeriv').checked;
+  document.getElementById('afWV').textContent=w.toFixed(1);
+  document.getElementById('afBV').textContent=b.toFixed(1);
+  const W=afc.width,H=afc.height,pad=36, XMIN=-6,XMAX=6, YMIN=-2.2,YMAX=2.6;
+  const X=v=>pad+(v-XMIN)/(XMAX-XMIN)*(W-2*pad);
+  const Y=v=>H-pad-(v-YMIN)/(YMAX-YMIN)*(H-2*pad);
+  afx.clearRect(0,0,W,H);
+  afx.strokeStyle='#1e293b'; afx.lineWidth=1;
+  for(let i=-6;i<=6;i++){ afx.beginPath(); afx.moveTo(X(i),pad); afx.lineTo(X(i),H-pad); afx.stroke(); }
+  for(let v=-2;v<=2.5;v+=0.5){ afx.beginPath(); afx.moveTo(pad,Y(v)); afx.lineTo(W-pad,Y(v)); afx.stroke(); }
+  afx.strokeStyle='#475569'; afx.lineWidth=1.5;
+  afx.beginPath(); afx.moveTo(pad,Y(0)); afx.lineTo(W-pad,Y(0)); afx.stroke();
+  afx.beginPath(); afx.moveTo(X(0),pad); afx.lineTo(X(0),H-pad); afx.stroke();
+  afx.fillStyle='#64748b'; afx.font='12px sans-serif';
+  for(let i=-6;i<=6;i+=2){ if(i) afx.fillText(i.toString(), X(i)-5, Y(0)+16); }
+  for(let v=-2;v<=2;v+=1){ if(v) afx.fillText(v.toString(), X(0)-20, Y(v)+4); }
+  afx.fillText('输入 x →', W-pad-62, Y(0)+30);
+  // 线性部分 z
+  afx.strokeStyle='#475569'; afx.lineWidth=1.5; afx.setLineDash([3,3]); afx.beginPath();
+  for(let i=0;i<=300;i++){ const x=XMIN+(XMAX-XMIN)*i/300, z=w*x+b; i?afx.lineTo(X(x),Y(z)):afx.moveTo(X(x),Y(z)); }
+  afx.stroke(); afx.setLineDash([]);
+  // 导数
+  if(showD){
+    afx.strokeStyle='#22d3ee'; afx.lineWidth=2; afx.setLineDash([7,4]); afx.beginPath();
+    for(let i=0;i<=400;i++){ const x=XMIN+(XMAX-XMIN)*i/400, z=w*x+b, v=A.d(z); i?afx.lineTo(X(x),Y(v)):afx.moveTo(X(x),Y(v)); }
+    afx.stroke(); afx.setLineDash([]);
+  }
+  // 激活输出
+  afx.strokeStyle='#a78bfa'; afx.lineWidth=3; afx.beginPath();
+  for(let i=0;i<=500;i++){ const x=XMIN+(XMAX-XMIN)*i/500, v=A.f(w*x+b); i?afx.lineTo(X(x),Y(v)):afx.moveTo(X(x),Y(v)); }
+  afx.stroke();
+  afx.fillStyle='#e2e8f0'; afx.font='bold 15px sans-serif';
+  afx.fillText(`a = ${A.name}( ${w.toFixed(1)}·x ${b>=0?'+':'−'} ${Math.abs(b).toFixed(1)} )`, pad+8, pad+6);
+  // 最大导数
+  let dmax=0; for(let i=0;i<=400;i++){ const x=XMIN+(XMAX-XMIN)*i/400; dmax=Math.max(dmax, Math.abs(A.d(w*x+b))); }
+  document.getElementById('afHint').innerHTML =
+    `<b>${A.name}</b>：${A.info}<br><span style="color:#94a3b8">当前曲线上导数最大值 ≈ <b style="color:#22d3ee">${dmax.toFixed(3)}</b>` +
+    (dmax<0.3?'　← 小于 1，反向传播每穿过一层梯度就衰减一次，层数一多就消失了':'') + `</span>`;
+}
+['afW','afB'].forEach(id=>document.getElementById(id).oninput=afDraw);
+document.getElementById('afType').onchange=afDraw;
+document.getElementById('afDeriv').onchange=afDraw;
+afDraw();
+
+/* ==================== 演示 3：迷你神经网络 ==================== */
+// 实测：lr ≥ 3 时约 2/3 概率训练崩掉，lr ≥ 12 损失直接飙升，适合演示"学习率太大"
+const NLRS=[0.01,0.03,0.05,0.1,0.2,0.3,0.5,1.0,2.0,5.0,15.0];
+const nnc=document.getElementById('nnCanvas'), nnx=nnc.getContext('2d');
+const lsc=document.getElementById('nnLossCanvas'), lsx=lsc.getContext('2d');
+let net=null, data=[], nnEpoch=0, nnTimer=null, lossHist=[];
+
+function rnd(){ return Math.random()*2-1; }
+function gauss(){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+
+function genData(kind, n){
+  const pts=[];
+  if(kind==='blobs'){
+    for(let i=0;i<n;i++){
+      const c=i%2, cx=c?0.45:-0.45, cy=c?0.45:-0.45;
+      pts.push({x:cx+gauss()*0.20, y:cy+gauss()*0.20, l:c});
+    }
+  } else if(kind==='xor'){
+    for(let i=0;i<n;i++){
+      const x=rnd()*0.9, y=rnd()*0.9;
+      pts.push({x:x+Math.sign(x)*0.06, y:y+Math.sign(y)*0.06, l:(x*y>0)?1:0});
+    }
+  } else if(kind==='circles'){
+    for(let i=0;i<n;i++){
+      const c=i%2, r=c? 0.75+gauss()*0.06 : 0.28+gauss()*0.07, a=Math.random()*Math.PI*2;
+      pts.push({x:r*Math.cos(a), y:r*Math.sin(a), l:c});
+    }
+  } else {
+    // 双螺旋：转 6.5 弧度约一圈，实测 1 层 8 神经元只能到 ~94%，2~3 层才能缠出完整边界
+    const half=Math.floor(n/2);
+    for(let c=0;c<2;c++) for(let i=0;i<half;i++){
+      const r=0.07+0.88*i/half, a=(i/half)*6.5+c*Math.PI+gauss()*0.09;
+      pts.push({x:r*Math.cos(a), y:r*Math.sin(a), l:c});
+    }
+  }
+  return pts;
+}
+
+/* --- 极简 MLP：前向 + 反向 + SGD --- */
+function makeNet(sizes, act){
+  const L=[];
+  for(let i=0;i<sizes.length-1;i++){
+    const nin=sizes[i], nout=sizes[i+1];
+    const scale=Math.sqrt(2/nin);
+    const W=[], b=[];
+    for(let o=0;o<nout;o++){ const row=[]; for(let k=0;k<nin;k++) row.push(gauss()*scale); W.push(row); b.push(0); }
+    L.push({W,b,nin,nout, act:(i===sizes.length-2)?'sigmoid':act});
+  }
+  return L;
+}
+function actF(v,t){ return t==='relu'?Math.max(0,v) : t==='tanh'?Math.tanh(v) : 1/(1+Math.exp(-v)); }
+function actD(a,t){ return t==='relu'?(a>0?1:0) : t==='tanh'?(1-a*a) : a*(1-a); }
+
+function forward(net,x){
+  const acts=[x]; let cur=x;
+  for(const l of net){
+    const out=new Array(l.nout);
+    for(let o=0;o<l.nout;o++){
+      let s=l.b[o]; const row=l.W[o];
+      for(let k=0;k<l.nin;k++) s+=row[k]*cur[k];
+      out[o]=actF(s,l.act);
+    }
+    acts.push(out); cur=out;
+  }
+  return acts;
+}
+function trainEpoch(net,data,lr){
+  // 全批量梯度下降
+  const gW=net.map(l=>l.W.map(r=>r.map(()=>0)));
+  const gb=net.map(l=>l.b.map(()=>0));
+  let loss=0, correct=0;
+  for(const p of data){
+    const acts=forward(net,[p.x,p.y]);
+    const out=acts[acts.length-1][0];
+    const y=p.l;
+    const eps=1e-7;
+    loss += -(y*Math.log(out+eps)+(1-y)*Math.log(1-out+eps));
+    if((out>0.5?1:0)===y) correct++;
+    // 输出层 delta（sigmoid + BCE 的漂亮性质）
+    let delta=[out-y];
+    for(let li=net.length-1; li>=0; li--){
+      const l=net[li], prev=acts[li];
+      for(let o=0;o<l.nout;o++){
+        gb[li][o]+=delta[o];
+        for(let k=0;k<l.nin;k++) gW[li][o][k]+=delta[o]*prev[k];
+      }
+      if(li>0){
+        const nd=new Array(l.nin).fill(0);
+        for(let k=0;k<l.nin;k++){
+          let s=0; for(let o=0;o<l.nout;o++) s+=net[li].W[o][k]*delta[o];
+          nd[k]=s*actD(prev[k], net[li-1].act);
+        }
+        delta=nd;
+      }
+    }
+  }
+  const n=data.length;
+  net.forEach((l,li)=>{
+    for(let o=0;o<l.nout;o++){
+      l.b[o]-=lr*gb[li][o]/n;
+      for(let k=0;k<l.nin;k++) l.W[o][k]-=lr*gW[li][o][k]/n;
+    }
+  });
+  return {loss:loss/n, acc:correct/n};
+}
+
+function countParams(net){ return net.reduce((s,l)=>s+l.nout*l.nin+l.nout,0); }
+
+function nnDraw(){
+  const W=nnc.width,H=nnc.height, G=56, cell=W/G;
+  nnx.clearRect(0,0,W,H);
+  // 决策边界
+  for(let i=0;i<G;i++) for(let j=0;j<Math.ceil(H/cell);j++){
+    const x=(i+0.5)/G*2-1, y=1-(j+0.5)*cell/H*2;
+    const p=forward(net,[x,y]).slice(-1)[0][0];
+    const t=Math.abs(p-0.5)*2;
+    nnx.fillStyle = p>0.5
+      ? `rgba(239,68,68,${0.10+t*0.42})`
+      : `rgba(59,130,246,${0.10+t*0.42})`;
+    nnx.fillRect(i*cell, j*cell, cell+1, cell+1);
+  }
+  // 网格与坐标轴
+  nnx.strokeStyle='rgba(148,163,184,.14)'; nnx.lineWidth=1;
+  for(let i=1;i<8;i++){ const p=i*W/8; nnx.beginPath(); nnx.moveTo(p,0); nnx.lineTo(p,H); nnx.stroke();
+    const q=i*H/8; nnx.beginPath(); nnx.moveTo(0,q); nnx.lineTo(W,q); nnx.stroke(); }
+  // 数据点
+  data.forEach(p=>{
+    const px=(p.x+1)/2*W, py=(1-p.y)/2*H;
+    nnx.beginPath(); nnx.arc(px,py,5.2,0,7);
+    nnx.fillStyle = p.l? '#ef4444' : '#3b82f6';
+    nnx.fill(); nnx.strokeStyle='rgba(255,255,255,.85)'; nnx.lineWidth=1.4; nnx.stroke();
+  });
+}
+function lossDraw(){
+  const W=lsc.width,H=lsc.height,pad=22;
+  lsx.clearRect(0,0,W,H);
+  lsx.strokeStyle='#1e293b';
+  for(let i=0;i<=4;i++){ const y=pad+i*(H-2*pad)/4; lsx.beginPath(); lsx.moveTo(pad,y); lsx.lineTo(W-pad,y); lsx.stroke(); }
+  if(lossHist.length<2) return;
+  const hi=Math.max(...lossHist, 0.75), lo=0;
+  lsx.strokeStyle='#a78bfa'; lsx.lineWidth=2.5; lsx.beginPath();
+  lossHist.forEach((v,i)=>{
+    const x=pad+i/(lossHist.length-1)*(W-2*pad);
+    const y=H-pad-(v-lo)/(hi-lo)*(H-2*pad);
+    i?lsx.lineTo(x,y):lsx.moveTo(x,y);
+  });
+  lsx.stroke();
+  lsx.fillStyle='#64748b'; lsx.font='14px sans-serif';
+  lsx.fillText(hi.toFixed(2), 2, pad+6); lsx.fillText('0', 6, H-pad+4);
+}
+function nnRestart(){
+  const layers=+document.getElementById('nnLayers').value;
+  const units=+document.getElementById('nnUnits').value;
+  const act=document.getElementById('nnAct').value;
+  const sizes=[2]; for(let i=0;i<layers;i++) sizes.push(units); sizes.push(1);
+  net=makeNet(sizes,act);
+  nnEpoch=0; lossHist=[];
+  document.getElementById('nnEpoch').textContent='0';
+  document.getElementById('nnLoss').textContent='—';
+  document.getElementById('nnAcc').textContent='—';
+  document.getElementById('nnParams').textContent=countParams(net);
+  nnDraw(); lossDraw();
+}
+function nnNewData(){
+  data=genData(document.getElementById('nnData').value, 220);
+  nnRestart();
+}
+function nnStop(){ if(nnTimer){ clearInterval(nnTimer); nnTimer=null; document.getElementById('nnRun').textContent='▶ 开始训练'; } }
+document.getElementById('nnRun').onclick=function(){
+  if(nnTimer){ nnStop(); return; }
+  this.textContent='⏸ 暂停训练';
+  nnTimer=setInterval(()=>{
+    const lr=NLRS[+document.getElementById('nnLr').value];
+    let r;
+    for(let k=0;k<6;k++){ r=trainEpoch(net,data,lr); nnEpoch++; }
+    if(!isFinite(r.loss)){ nnStop(); document.getElementById('nnLoss').textContent='NaN 💥 发散'; return; }
+    lossHist.push(r.loss); if(lossHist.length>160) lossHist.shift();
+    document.getElementById('nnEpoch').textContent=nnEpoch;
+    const le=document.getElementById('nnLoss');
+    le.textContent = r.loss.toFixed(4) + (r.loss>1.0 ? ' 💥 发散中' : (r.loss>0.68 ? ' ⚠️ 卡住了' : ''));
+    le.style.color = r.loss>0.68 ? '#f43f5e' : '#fff';
+    document.getElementById('nnAcc').textContent=(r.acc*100).toFixed(1)+'%';
+    nnDraw(); lossDraw();
+  }, 60);
+};
+document.getElementById('nnLr').oninput=function(){ document.getElementById('nnLrV').textContent=NLRS[+this.value].toFixed(2); };
+['nnLayers','nnUnits','nnAct'].forEach(id=>document.getElementById(id).onchange=()=>{ nnStop(); nnRestart(); });
+document.getElementById('nnData').onchange=()=>{ nnStop(); nnNewData(); };
+// 点击画布添加数据点（左键=红A，右键/Shift=蓝B）
+nnc.addEventListener('contextmenu',e=>e.preventDefault());
+nnc.addEventListener('mousedown',e=>{
+  const r=nnc.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*2-1, y=1-(e.clientY-r.top)/r.height*2;
+  data.push({x,y, l:(e.button===2||e.shiftKey)?0:1});
+  nnDraw();
+});
+document.getElementById('nnLrV').textContent=NLRS[5].toFixed(2);
+nnNewData();
+</script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>三大原语：Tools、Resources、Prompts | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="toolsresourcesprompts">三大原语：Tools、Resources、Prompts</h1>
+<p>MCP 把 Server 能向模型提供的能力，分成了<strong>三类原语（primitive）</strong>。理解这三类的区别，是写好、用好 MCP 的关键。它们分别是：<strong>Tools（工具）</strong>、<strong>Resources（资源）</strong>、<strong>Prompts（提示词模板）</strong>。</p>
+<h2 id="_1">一、为什么分三类，而不是「全是工具」</h2>
+<p>如果所有能力都叫「工具」，模型会分不清：哪些是自己「该主动去调」的，哪些只是「可以拿来看的参考资料」，哪些又是「人类预先写好的标准流程」。</p>
+<p>MCP 用三类原语表达这三种<strong>不同的语义</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>原语</th>
+<th>谁触发</th>
+<th>模型能不能主动调</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tools</strong></td>
+<td>模型（自主决定）</td>
+<td>✅ 能</td>
+<td>执行动作：读文件、调 API、跑命令</td>
+</tr>
+<tr>
+<td><strong>Resources</strong></td>
+<td>应用/用户（注入上下文）</td>
+<td>❌ 不能</td>
+<td>提供数据：文件内容、数据库记录</td>
+</tr>
+<tr>
+<td><strong>Prompts</strong></td>
+<td>用户（主动选）</td>
+<td>⚠️ 用户触发，模型套用</td>
+<td>复用的工作流模板</td>
+</tr>
+</tbody>
+</table>
+<p>一句话：<strong>Tools 是「动手」，Resources 是「喂料」，Prompts 是「套路」</strong>。</p>
+<h2 id="tools">二、Tools（工具）：模型主动调用的动作</h2>
+<p>Tool 是三类里最常用的。它代表一个<strong>有副作用的动作</strong>——会真的去执行点什么。</p>
+<h3 id="_2">特征</h3>
+<ul>
+<li><strong>模型自主决定是否调用</strong>（根据对话需要）；</li>
+<li>有清晰的 <code>name</code> + <code>description</code> + <code>input_schema</code>；</li>
+<li>返回结果给模型，模型再组织回答；</li>
+<li>通常<strong>有副作用</strong>（读/写/发/算）。</li>
+</ul>
+<h3 id="_3">例子</h3>
+<pre class="codehilite"><code class="language-json">{
+  &quot;name&quot;: &quot;query_database&quot;,
+  &quot;description&quot;: &quot;对销售数据库执行一条只读 SQL，返回结果表&quot;,
+  &quot;input_schema&quot;: {
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;properties&quot;: {
+      &quot;sql&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;只读 SELECT 语句&quot;}
+    },
+    &quot;required&quot;: [&quot;sql&quot;]
+  }
+}
+</code></pre>
+
+<p>模型看到用户问「上季度销售额最高的产品」，就会主动调 <code>query_database</code>。</p>
+<h3 id="_4">设计要点</h3>
+<ul>
+<li>description 要写清「做什么、何时用、参数含义」；</li>
+<li>参数用 JSON Schema 约束，减少模型填错；</li>
+<li>危险动作（写、删、发）要在 Server 内加权限闸门（见第九章）。</li>
+</ul>
+<h2 id="resources">三、Resources（资源）：喂给模型的上下文</h2>
+<p>Resource 代表<strong>一段可被读取的数据</strong>，比如一个文件、一条数据库记录、一个网页。它和 Tool 最大的区别是：<strong>Resource 是「被拿来看的」，不是「被调来做事的」</strong>。</p>
+<h3 id="_5">特征</h3>
+<ul>
+<li><strong>模型一般不主动「调用」Resource</strong>；</li>
+<li>由 Host / 用户决定「把哪些 Resource 注入到上下文」；</li>
+<li>无副作用，纯读取；</li>
+<li>常带 URI 标识，如 <code>file:///notes.txt</code>、<code>db://sales/2025</code>。</li>
+</ul>
+<h3 id="_6">例子</h3>
+<pre class="codehilite"><code>资源 URI:  file:///project/README.md
+内容:      （README 的全文）
+</code></pre>
+
+<p>当用户问「这个项目是干嘛的」，Host 可以把这个 Resource 的文本内容塞进对话，让模型基于它回答。</p>
+<h3 id="tool">和 Tool 的边界</h3>
+<ul>
+<li>想让模型<strong>读取某份资料</strong> → Resource；</li>
+<li>想让模型<strong>执行某个动作</strong>（即使动作是「读取」）→ Tool。</li>
+</ul>
+<p>有些 Server 两者都提供：既暴露 <code>read_file</code> 这个 Tool（模型主动读），也暴露 <code>file://</code> 这个 Resource（Host 预先加载）。具体怎么分，看你的产品交互设计。</p>
+<h2 id="prompts">四、Prompts（提示词模板）：可复用的「套路」</h2>
+<p>Prompt 是一段<strong>预先写好的提示词模板</strong>，用户（或应用）可以主动选它来「套用」。它解决的是「常见任务有标准流程」的需求。</p>
+<h3 id="_7">特征</h3>
+<ul>
+<li><strong>由用户/应用触发</strong>，不是模型自己蹦出来的；</li>
+<li>本质是「带占位符的提示词」；</li>
+<li>帮助用户快速启动一类任务。</li>
+</ul>
+<h3 id="_8">例子</h3>
+<p>一个「代码评审」Prompt 模板：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;name&quot;: &quot;code_review&quot;,
+  &quot;description&quot;: &quot;对一段代码做结构化评审&quot;,
+  &quot;arguments&quot;: [
+    {&quot;name&quot;: &quot;code&quot;, &quot;description&quot;: &quot;待评审的代码&quot;, &quot;required&quot;: true}
+  ]
+}
+</code></pre>
+
+<p>用户选中它、填入代码，Host 就生成一段「请按以下维度评审这段代码：正确性、可读性、性能……」的提示词发给模型。</p>
+<h3 id="_9">价值</h3>
+<ul>
+<li>把团队沉淀的最佳实践，固化成可复用的模板；</li>
+<li>降低用户「不知道怎么问」的门槛；</li>
+<li>和 Tool 不同，Prompt 不执行动作，只<strong>组织语言</strong>。</li>
+</ul>
+<h2 id="_10">五、三类怎么配合使用</h2>
+<p>一个「智能编程助手」Host 可能同时用全三类：</p>
+<ul>
+<li><strong>Tools</strong>：<code>run_tests</code>（跑测试）、<code>edit_file</code>（改文件）——模型主动调；</li>
+<li><strong>Resources</strong>：<code>file://src/main.py</code>（把源码作为上下文注入）——Host 预先加载；</li>
+<li><strong>Prompts</strong>：<code>code_review</code>（评审套路）、<code>write_tests</code>（补测试套路）——用户主动选。</li>
+</ul>
+<p>三者在一次对话里各司其职，模型负责「动手」那部分，人和应用负责「喂料」和「选套路」。</p>
+<h2 id="_11">六、常见误区</h2>
+<table>
+<thead>
+<tr>
+<th>误区</th>
+<th>正解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>什么都做成 Tool</td>
+<td>纯数据用 Resource，固定流程用 Prompt</td>
+</tr>
+<tr>
+<td>Resource 也能被模型调</td>
+<td>Resource 由 Host/用户注入，模型不主动调</td>
+</tr>
+<tr>
+<td>Prompt 会自己执行</td>
+<td>Prompt 只生成提示词，不做事</td>
+</tr>
+<tr>
+<td>三类越多越好</td>
+<td>多了模型反而选不准，按需暴露</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_12">七、本章小结</h2>
+<ul>
+<li>MCP 三类原语：<strong>Tools（动手，模型主动调）/ Resources（喂料，Host 注入）/ Prompts（套路，用户选）</strong>；</li>
+<li>Tool 有副作用、模型自主调；Resource 纯读取、做上下文；Prompt 是模板、复用流程；</li>
+<li>三者配合：Tool 干活、Resource 供料、Prompt 定式；</li>
+<li>设计原则：按语义选对原语，别全堆成 Tool；按需暴露，避免模型选择过载。</li>
+</ul>
+<p>下一章我们真刀真枪<strong>写一个 MCP Server</strong>（用官方 Python SDK），把前面这些概念落成可运行的代码。</p>
+<hr />
+<p><em>小练习：给你一个需求「让模型能总结我某个 GitHub 仓库的 README」。请判断应该暴露成 Tool、Resource 还是 Prompt？如果既要「拉取 README」又要「总结它」，两者分别是什么原语？</em></p></body></html>

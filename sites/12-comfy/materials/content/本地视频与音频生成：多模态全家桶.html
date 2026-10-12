@@ -1,0 +1,293 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>本地视频与音频生成：多模态全家桶 | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="_1">本地视频与音频生成：多模态全家桶</h1>
+<p>前六篇，我们把「图」这件事做透了：生成、控制、精修。但多模态的世界远不止静止的图片——你可能想要一段「猫跳上桌」的小视频，或者一段配乐。这一篇，我们把视野拉向<strong>视频和音频</strong>，讲清楚：</p>
+<ol>
+<li>视频生成的底层逻辑（一句话：视频=逐帧图像+运动一致性）；</li>
+<li>本地能跑的文生视频方案（AnimateDiff、Wan 2.1、CogVideo）；</li>
+<li>本地/云端音频生成方案（AudioCraft、Suno 等）；</li>
+<li>对你钱包和显卡都友好的入门建议。</li>
+</ol>
+<blockquote>
+<p>先打个预防针：<strong>视频比图片难得多、吃显存得多。</strong> 本篇给的是「路线图」和「理性预期」，不是让零基础读者今天就跑通 4K 视频。</p>
+</blockquote>
+<h2 id="_2">一、视频生成的底层逻辑：不是「会动的图」那么简单</h2>
+<p>很多人以为「文生视频 = 多生成几张图拼起来」，这个直觉只对了一半。如果只是把每帧分别画出来，你会发现一个灾难：<strong>每一帧画面都在变，物体忽大忽小、人物前后跳，看起来像幻灯片，而不是视频。</strong></p>
+<p>为什么？因为视频要求<strong>帧与帧之间连贯</strong>——这帧猫在跳，上一帧就得有起跳的预备姿势，再上一帧得是蹲着。专业上叫<strong>时序一致性（temporal consistency）</strong>。</p>
+<blockquote>
+<p>一句话讲清视频生成：<strong>视频 = 逐帧图像 + 运动一致性。</strong> 图像模型负责「每一帧画得美」，运动模型负责「帧与帧动得顺」。</p>
+</blockquote>
+<p>打个生活化比喻：<strong>拍动画片。</strong> 每个关键帧是一张精美的画（图像生成的能力），但动画师还必须保证上一张和下一张之间动作连贯（运动一致性的能力）。文生视频模型，就是那个「既会画、又懂动画原理」的动画师。</p>
+<h2 id="animatediff">二、本地方案一：AnimateDiff——给图片模型装上「动起来」的能力</h2>
+<p><strong>AnimateDiff</strong> 是目前最成熟的本地视频生成方案之一。它的思路非常讨巧：<strong>不动大模型，而是在图片模型外面加一个「运动模块」（Motion Module）。</strong> 图片模型负责画帧，运动模块负责保证帧与帧连贯。</p>
+<ul>
+<li>安装方式：在 ComfyUI 的 Manager 里搜索 AnimateDiff 相关节点安装，再下载配套的运动模块文件放进 <code>models/</code> 对应目录；</li>
+<li>使用方法：在已有的文生图工作流上，把 <code>KSampler</code> 换成 AnimateDiff 的采样环节，多设置一个参数——<strong>帧数</strong>（生成多少帧，通常 8~32 帧）；</li>
+<li>出片方式：生成一系列连续帧，再用视频工具把这些帧「拼」成 mp4 视频文件（ComfyUI 有对应的「保存视频」节点）。</li>
+</ul>
+<p><strong>显存预期</strong>：这是第一个要泼冷水的地方。AnimateDiff 跑 16 帧、512×512，大约需要 <strong>8~12G 显存</strong>；帧数更多或分辨率更高，16G 也会吃力。新手想试，请先把心态放在「跑通流程」而不是「出大片」。</p>
+<blockquote>
+<p>从哪开始：先别直接上视频。<strong>先把第 4 篇的文生图跑得滚瓜烂熟</strong>，再在它上面加运动模块——因为 AnimateDiff 工作流 90% 的内容就是你熟悉的图片工作流。</p>
+</blockquote>
+<h2 id="wan-21-cogvideo">三、本地方案二：Wan 2.1 与 CogVideo——真正的「视频大模型」</h2>
+<p>AnimateDiff 是「图片模型 + 运动插件」，而下面两个是<strong>真正的原生视频大模型</strong>：</p>
+<ul>
+<li><strong>Wan 2.1</strong>：阿里通义团队开源的中文友好视频模型，支持文生视频、图生视频，效果相当能打。有不同尺寸版本，小版本对显存更友好；</li>
+<li><strong>CogVideo</strong>：智谱 AI 开源的视频生成模型，同样有 ComfyUI 节点支持。</li>
+</ul>
+<p>它们在 ComfyUI 里都能找到官方节点或社区节点。但请注意<strong>显存门槛</strong>——这类模型的完整版本通常需要 <strong>12G 起步，推荐 16G 以上</strong>，跑起来耗时也长（几分钟到几十分钟一段小视频）。</p>
+<blockquote>
+<p>给普通读者的直白建议：<strong>如果你只有 8G 显存，视频这块先围观、别硬上。</strong> 先把图片的十八般武艺练熟，等升级显卡或租用云端算力后再回头玩视频——到时候你会发现，因为图片基础打得牢，视频上手极快。</p>
+</blockquote>
+<h2 id="suno">四、音频生成：Suno 们与开源替代</h2>
+<p>说完视频说音频。音频领域可以细分成三块，难度和方案各不相同：</p>
+<h3 id="41">4.1 音乐生成</h3>
+<ul>
+<li><strong>云端</strong>：<strong>Suno</strong> 是目前最火的 AI 音乐生成工具，你写歌词和风格，它给你整首歌，质量惊人；同类还有 Udio。属于「云端按次付费/订阅」模式。</li>
+<li><strong>开源本地</strong>：Meta 开源的 <strong>AudioCraft</strong>（含 MusicGen 音乐生成、AudioGen 音效生成），可以在本地跑。效果不如 Suno 精致，但胜在免费、私有、可批量。</li>
+</ul>
+<h3 id="42-tts-ai">4.2 语音合成（TTS，让 AI 说话）</h3>
+<ul>
+<li>开源方案非常成熟：<strong>GPT-SoVITS</strong>、<strong>Edge-TTS</strong>、<strong>CosyVoice</strong> 等都能本地部署，把文字转成自然语音，甚至可以模仿特定音色；</li>
+<li>应用场景：视频配音、有声书、解说旁白——这是多模态创作里最「低门槛高回报」的一环。</li>
+</ul>
+<h3 id="43">4.3 音效生成</h3>
+<ul>
+<li>可以用 <strong>AudioGen</strong>（AudioCraft 的一部分）生成雨声、脚步声、环境音等，用于视频后期。</li>
+</ul>
+<blockquote>
+<p>优先级建议：<strong>如果对「配乐+配音」有需求，优先攻克「语音合成」</strong>，它最稳定、最好用、最有即战力。音乐生成（Suno 或 MusicGen）可以放在后面当「锦上添花」。</p>
+</blockquote>
+<h2 id="_3">五、显存门槛与「先图后视频」的策略</h2>
+<p>把本阶视频/音频的硬件要求放一张表，让你心里有底：</p>
+<table>
+<thead>
+<tr>
+<th>任务</th>
+<th>最低显存</th>
+<th>推荐显存</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文生图（SD 1.5）</td>
+<td>4G</td>
+<td>8G</td>
+<td>你已经会了</td>
+</tr>
+<tr>
+<td>文生图（SDXL）</td>
+<td>8G</td>
+<td>12G</td>
+<td>你已经会了</td>
+</tr>
+<tr>
+<td>图生图/ControlNet</td>
+<td>8G</td>
+<td>12G</td>
+<td>你已经会了</td>
+</tr>
+<tr>
+<td>AnimateDiff 视频</td>
+<td>8G</td>
+<td>12G+</td>
+<td>16 帧短片段</td>
+</tr>
+<tr>
+<td>Wan 2.1 / CogVideo</td>
+<td>12G</td>
+<td>16G+</td>
+<td>完整版吃显存大</td>
+</tr>
+<tr>
+<td>AudioCraft 音乐</td>
+<td>8G</td>
+<td>12G</td>
+<td>相对亲民</td>
+</tr>
+<tr>
+<td>TTS 语音合成</td>
+<td>4G</td>
+<td>8G</td>
+<td>最亲民，强烈推荐先玩</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>给大多数读者的路线图：先图、后声、再视频。</strong> 声音比视频简单得多，先拿下 TTS 配音，建立「多模态创作」的信心；视频留到硬件升级或云端算力到位后再攻。这不是妥协，是性价比最高的学习顺序。</p>
+</blockquote>
+<h2 id="animatediff_1">六、本地视频工作流：一个 AnimateDiff 最小示例</h2>
+<p>下面给一个 AnimateDiff 的最小工作流骨架，帮你看清「它和图片工作流差在哪」。完整操作请配合你所用整合包的节点说明，这里重在建立认知：</p>
+<pre class="codehilite"><code class="language-text">Load Checkpoint（选一个画风合适的图片模型）
+   ↓
+CLIP Text Encode（正向/负向提示词，描述「会动的场景」）
+   ↓
+KSampler（AnimateDiff 版）：
+      model 端先接 Motion Module（运动模块）节点
+      length 设帧数（如 16）
+      seed 固定，保证帧间稳定
+   ↓
+VAE Decode（逐帧解码）
+   ↓
+Save Video（把帧拼成 mp4）
+</code></pre>
+
+<p>提示词示例（强调动作，让模型知道「要动」）：</p>
+<pre class="codehilite"><code class="language-text">正向：a cat jumping onto a table, slow motion, cinematic lighting, detailed fur
+负向：blurry, distorted, flickering, extra limbs
+</code></pre>
+
+<p>关键点：<strong>提示词里最好写动作词</strong>（jumping、walking、flowing）——模型需要从文字里读出「运动意图」，否则画面会像「静止照片」。</p>
+<h2 id="audiocraft">七、音频工作流：AudioCraft 最小示例</h2>
+<p>AudioCraft（MusicGen）跑一段音乐，流程短得多：</p>
+<pre class="codehilite"><code class="language-bash"># 1. 安装（需要 Python 环境）
+pip install audiocraft
+
+# 2. 最小调用示例（Python 脚本）
+from audiocraft.models import MusicGen
+model = MusicGen.get_pretrained('facebook/musicgen-small')
+model.set_generation_params(duration=8)   # 生成 8 秒
+wav = model.generate(['一段轻松的钢琴曲，节奏舒缓'])
+# wav 即为生成的音频数据，可保存为 wav 文件
+</code></pre>
+
+<blockquote>
+<p>中文提示词 AudioCraft 也能理解，但英文效果通常更好。如果想省事，TTS 方向用现成的「GPT-SoVITS 一键包」更快上手。</p>
+</blockquote>
+<h2 id="_4">八、给你的理性预期</h2>
+<p>最后，说几句掏心窝的话，帮你管理预期：</p>
+<ol>
+<li><strong>视频是「显卡大户」</strong>。别被网上「8G 跑视频」的标题骗了——那些多是低帧数、低分辨率、或用了分块优化的小技巧，质量与体验和云端 Sora 差距不小；</li>
+<li><strong>先完整掌握图片，再碰视频</strong>。你在图片阶段学到的每一步（模型、采样器、denoise、ControlNet）在视频阶段全部复用——这就是为什么本阶前面 6 篇那么重要；</li>
+<li><strong>音频是最被低估的惊喜</strong>。TTS 配音几乎是零门槛的多模态能力，建议你今天就试试，它会立刻提升你所有创作的「完成度」；</li>
+<li><strong>云端作为补充</strong>。本地跑不动的（Sora、可灵、Suno），就用云端按次付费尝鲜，两条腿走路。</li>
+</ol>
+<h2 id="_5">八、视频提示词与后期拼接小技巧</h2>
+<h3 id="81">8.1 视频提示词：多写「动作与运镜」</h3>
+<p>文生视频的提示词和文生图有区别：<strong>必须写出「动」的感觉</strong>。三类词最重要：</p>
+<pre class="codehilite"><code class="language-text">动作类：walking, jumping, flying, flowing, dancing, turning around
+运镜类：camera pan, zoom in, tracking shot, close-up
+氛围类：slow motion, cinematic, atmospheric lighting, motion blur
+</code></pre>
+
+<p>示例：</p>
+<pre class="codehilite"><code class="language-text">a dog running through a field of flowers, camera tracking,
+slow motion, golden light, cinematic
+</code></pre>
+
+<blockquote>
+<p>记住：模型从文字里读「运动意图」。只写「一只狗在花田里」而没写动作，出来的往往是「静止照片」。</p>
+</blockquote>
+<h3 id="82">8.2 帧率、时长与拼接</h3>
+<p>生成视频前先算清参数。帧数、帧率、时长的关系：</p>
+<pre class="codehilite"><code class="language-text">时长（秒） = 帧数 ÷ 帧率（fps）
+例：16 帧 ÷ 8 fps = 2 秒；24 帧 ÷ 12 fps = 2 秒
+</code></pre>
+
+<p>常用组合：<strong>短片段 8~16 帧、8~12 fps</strong>。帧率太低会「卡顿」，太高显存和时间翻倍。生成的帧序列最后需要拼接成 mp4，ComfyUI 的 <code>Save Video</code> 节点会自动完成；如果没有，可以手动把帧交给视频软件（剪映、格式工厂）或 ffmpeg 命令行工具合成。</p>
+<pre class="codehilite"><code class="language-bash"># ffmpeg 把一帧帧的图片合成视频（进阶用法，了解即可）
+ffmpeg -framerate 8 -i frame_%04d.png -c:v libx264 output.mp4
+</code></pre>
+
+<h3 id="83">8.3 配乐与配音的合流</h3>
+<p>有了 AI 配音（TTS）和 AI 音乐（Suno/AudioCraft），把它们和生成的视频拼在一起，就是一段「有声短片」。拼合工具可以是剪映这类大众软件：视频拖进去，配音和音乐各拖一轨，调节音量即可。<strong>到这里，你的「多模态全家桶」就真正闭环了：画面、旁白、配乐，全部由你本地的 AI 出产。</strong></p>
+<h3 id="84">8.4 升级建议：先加内存条还是先换显卡？</h3>
+<ul>
+<li>显存（显卡）不够 = 换显卡，这是硬件天花板；</li>
+<li>内存（电脑内存）不够 = 加内存条，便宜得多；</li>
+<li>实践建议：<strong>先把软件层面的省显存招数用尽（第 8 篇），再考虑花钱。</strong></li>
+</ul>
+<h2 id="_6">九、视频音频常见问题速查</h2>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因</th>
+<th>解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>视频像「跳帧幻灯片」</td>
+<td>帧数太少或帧率太低</td>
+<td>帧数加到 16，帧率设 8~12 fps</td>
+</tr>
+<tr>
+<td>画面物体闪烁变形</td>
+<td>运动一致性差，提示词缺动作</td>
+<td>提示词写清楚动作词；固定种子；降低分辨率换取稳定性</td>
+</tr>
+<tr>
+<td>视频生成显存爆</td>
+<td>帧数×分辨率太大</td>
+<td>降分辨率、降帧数、用 --lowvram（第 8 篇）</td>
+</tr>
+<tr>
+<td>音乐生成节奏散乱</td>
+<td>模型太小/描述太抽象</td>
+<td>用更大模型；描述写「风格+速度+乐器」，如「舒缓的钢琴独奏，每分钟 60 拍」</td>
+</tr>
+<tr>
+<td>配音语气平淡</td>
+<td>文本太长无标点</td>
+<td>加标点、换行，必要时加语气提示词</td>
+</tr>
+<tr>
+<td>生成的视频没有声音</td>
+<td>文生视频模型默认不含音频</td>
+<td>用 TTS 配音 + 配乐另行合成（见 8.3）</td>
+</tr>
+<tr>
+<td>生成特别慢</td>
+<td>视频是逐帧计算，成本是图片的数倍</td>
+<td>先降分辨率、降帧数验证效果，再放量</td>
+</tr>
+<tr>
+<td>生成的视频文件太大</td>
+<td>帧数多、分辨率高</td>
+<td>用视频软件压缩输出，或降低帧率</td>
+</tr>
+<tr>
+<td>想精确控制时长</td>
+<td>时长总是对不上</td>
+<td>按「帧数 ÷ 帧率 = 秒数」提前算好，见 8.2</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>视频音频的调试逻辑和图片完全一样：<strong>一次只改一个变量，先跑通再优化。</strong> 把第 4 篇养成的「自查清单」习惯迁移过来，你就已经会调视频了。</p>
+</blockquote>
+<h2 id="_7">十、本篇小结</h2>
+<ul>
+<li><strong>视频 = 逐帧图像 + 运动一致性</strong>，难点不在「画得美」而在「动得顺」；</li>
+<li>本地视频三方案：<strong>AnimateDiff</strong>（图片模型+运动插件，最亲民）、<strong>Wan 2.1</strong>（阿里开源，中文友好）、<strong>CogVideo</strong>（智谱开源），均在 ComfyUI 有节点；</li>
+<li>音频三块：<strong>音乐</strong>（Suno 云端 / AudioCraft 本地）、<strong>语音合成 TTS</strong>（GPT-SoVITS 等，最推荐先玩）、<strong>音效</strong>（AudioGen）；</li>
+<li>显存门槛：视频 12G 起，音频 8G 起，TTS 4G 起；</li>
+<li>学习顺序建议：<strong>先图 → 后声 → 再视频</strong>，图片基础是通往视频的桥梁。</li>
+</ul>
+<p>至此，「创作」的能力已经齐了。但工欲善其事，必先利其器——你电脑上的模型会越攒越多、越来越乱，显存也总是不够用。下一篇我们进入「工具房整理术」：模型管理。</p>
+<blockquote>
+<p>相关篇章：视频工作流建立在图片工作流之上，务必先回看 <a href="content/文生图工作流：从提示词到一张图.html">文生图工作流：从提示词到一张图</a>；最终组装见 <a href="content/实战路线：搭建本地多模态创作台.html">实战路线：搭建本地多模态创作台</a>。</p>
+</blockquote></body></html>

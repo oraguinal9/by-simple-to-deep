@@ -1,0 +1,118 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>记忆与上下文管理：让 Agent 记住过去 | AI Agent 实战 L9</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#053b3a;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0f766e;line-height:1.35;}
+  h1{border-bottom:3px solid #0d9488;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #14b8a6;padding-left:11px;}
+  code{background:#f0fdfa;padding:2px 6px;border-radius:5px;font-size:90%;color:#0f766e;}
+  pre{background:#022c2b;color:#99f6e4;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #99f6e4;padding:8px 11px;text-align:left;}
+  th{background:#ccfbf1;color:#0f766e;}
+  tr:nth-child(even){background:#f0fdfa;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #14b8a6;background:#f0fdfa;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0d9488;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #99f6e4;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0d9488;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L9 学习路线图</a><span class='r'>AI Agent 实战 · agent.zbjh.top</span></div><h1 id="agent">记忆与上下文管理：让 Agent 记住过去</h1>
+<p>一个没有记忆的 Agent 是什么样？你昨天让它记住「我的预算上限 3000 元」，今天它订机票时照样给你订 5000 的头等舱——因为它「失忆」了。</p>
+<p>记忆（Memory）是 Agent 四大件之一，也是工程上最容易出问题的一环。这一章我们把记忆拆开讲清楚。</p>
+<h2 id="_1">两种记忆：短期与长期</h2>
+<p>像人一样，Agent 也有两套记忆系统：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>短期记忆（上下文窗口）</th>
+<th>长期记忆（外部存储）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>存在哪</td>
+<td>当前发给模型的那一堆 token</td>
+<td>向量数据库 / 普通数据库 / 文件</td>
+</tr>
+<tr>
+<td>时长</td>
+<td>一次任务内（几秒到几小时）</td>
+<td>跨任务、跨天、跨月</td>
+</tr>
+<tr>
+<td>容量</td>
+<td>有限（上下文窗口，几千到几百万 token）</td>
+<td>几乎无限</td>
+</tr>
+<tr>
+<td>丢失成本</td>
+<td>一结束任务就丢</td>
+<td>精心维护，长期保留</td>
+</tr>
+<tr>
+<td>例子</td>
+<td>这次对话的问答、工具调用记录</td>
+<td>「用户预算 3000」「用户常去杭州」</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">上下文溢出的问题</h2>
+<p>短期记忆就是<strong>上下文窗口</strong>——模型一次能「看到」的文字上限。Agent 跑长任务时，思考记录、工具返回、多轮对话会越来越多，最终<strong>挤爆窗口</strong>。挤爆之后怎么办？常见的粗暴做法：</p>
+<ol>
+<li><strong>截断</strong>：把最旧的历史砍掉 → 模型忘了开头，行为漂移。</li>
+<li><strong>压缩</strong>：用另一个模型把历史「摘要」成几句话 → 细节丢失。</li>
+<li><strong>滑动窗口</strong>：只保留最近 N 轮 → 长任务前后脱节。</li>
+</ol>
+<p>这些都是「兜底方案」。聪明的 Agent 用<strong>长期记忆</strong>来补：重要信息落盘，需要时再取回，而不是把一切堆在窗口里。</p>
+<h2 id="_3">长期记忆的经典做法：向量库 + 检索</h2>
+<p>「记住用户预算 3000」这样的信息，放进普通数据库用 SQL 查也行。但 Agent 的记忆更多是<strong>自然语言</strong>的、模糊的、需要「凭印象召回」的，于是业界主流做法是：</p>
+<p><strong>向量数据库 + 语义检索</strong>，流程四步：</p>
+<ol>
+<li><strong>写入（Embedding）</strong>：把一条记忆文本转成一组数字向量。语义相近的文本，向量也相近。</li>
+<li><strong>存储</strong>：向量连同原文一起存进向量库（Chroma、Milvus、Qdrant、pgvector 等）。</li>
+<li><strong>检索（Recall）</strong>：把当前问题也转成向量，在库里找「最相似」的若干条记忆。</li>
+<li><strong>注入</strong>：把命中的记忆文本拼进上下文，让模型「想起来」。</li>
+</ol>
+<pre class="codehilite"><code class="language-python"># 示意：写一条记忆
+memory.add(&quot;用户喜欢住高铁站附近的酒店，预算 3000 以内&quot;)
+
+# 示意：用户问「订个杭州的酒店」，先召回相关记忆
+hits = memory.search(&quot;杭州 酒店 预算&quot;)
+# 命中: [&quot;用户喜欢住高铁站附近的酒店，预算 3000 以内&quot;]
+# 再把 hits 拼进系统提示或上下文
+</code></pre>
+
+<blockquote>
+<p>直观理解：向量库就像你脑中的「联想索引」——想起「订酒店」时，自动连带想起「预算 3000」「爱住高铁站附近」。</p>
+</blockquote>
+<h2 id="_4">记忆的类型：不止「记住事实」</h2>
+<p>工程上记忆还分得更细：</p>
+<ul>
+<li><strong>短期记忆</strong>：本次任务的对话历史（就在上下文里）。</li>
+<li><strong>工作记忆</strong>：任务进行中的中间结果、待办清单（常结构化存储，比如一个 JSON 状态）。</li>
+<li><strong>长期记忆</strong>：用户画像、偏好、历史任务结果（向量库/数据库）。</li>
+<li><strong>情景记忆</strong>：每次任务的完整记录（日志，用于回放和审计）。</li>
+<li><strong>程序性记忆</strong>：Agent「会做的技能」——比如你教会它「订票前先确认预算」，可复用的流程。</li>
+</ul>
+<p>一个成熟的 Agent 框架（LangGraph、Mem0 等）会把这些记忆分层管理。理解分层，你就能设计自己的记忆方案。</p>
+<h2 id="_5">记忆管理的三个工程原则</h2>
+<ol>
+<li><strong>重要信息主动落盘</strong>：不要等上下文爆了才想起来存。关键事实（用户偏好、任务结论）在发生时就写入长期记忆。</li>
+<li><strong>检索结果要「新鲜」</strong>：记忆会过期（预算可能变、口味可能改）。写入时记时间戳，检索时优先近期内容，并允许用户主动纠正。</li>
+<li><strong>记忆要可控可删</strong>：用户有权查看、修改、删除 Agent 记下的关于自己的信息（隐私合规要求，也是信任基础）。</li>
+</ol>
+<h2 id="_6">本章小结</h2>
+<ul>
+<li>短期记忆 = 上下文窗口，有限且会溢出；长期记忆 = 外部存储，靠向量库 + 语义检索。</li>
+<li>上下文溢出有三招兜底：截断、压缩、滑动窗口——但都不如「重要信息落盘」实在。</li>
+<li>向量库四步：Embedding → 存储 → 语义检索 → 注入上下文。</li>
+<li>记忆分类型：短期/工作/长期/情景/程序性，框架帮你分层管理。</li>
+<li>三条原则：主动落盘、检索要新鲜、记忆可删可控。</li>
+</ul>
+<p>下一章：Agent 怎么「想大事」——<strong>规划与任务分解</strong>。</p></body></html>

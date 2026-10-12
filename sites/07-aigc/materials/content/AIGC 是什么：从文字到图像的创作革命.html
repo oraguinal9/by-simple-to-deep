@@ -1,0 +1,97 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>AIGC 是什么：从文字到图像的创作革命 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="aigc">第一章 AIGC 是什么：从文字到图像的创作革命</h1>
+<p>当你在对话框里输入「一只戴帽子的猫，水彩风格，夕阳下」，几秒钟后屏幕上就出现了一张从未存在过的图画——这不是从图库里搜出来的，而是<strong>模型当场画出来的</strong>。这就是 AIGC（AI Generated Content，人工智能生成内容）最直观的样子。</p>
+<p>本章我们要搞清楚三件事：AIGC 到底生成了什么、它和我们熟悉的「搜索」有什么本质不同、以及为什么最近几年它才突然爆发。</p>
+<h2 id="11">1.1 从「检索」到「生成」</h2>
+<p>过去几十年，计算机处理图像的主流思路是<strong>检索</strong>：你给一个关键词，它去数据库里找一张最接近的现成图片。数据库里没有，就搜不到。</p>
+<p>AIGC 走的是另一条路——<strong>生成</strong>：模型在训练时「看过」上亿张图，并理解了「文字描述」和「图像像素」之间的对应关系。当你给出新描述时，它并不是去翻旧图，而是<strong>从头把像素「算」出来</strong>。</p>
+<p>这带来了一个质的差别：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>检索式</th>
+<th>生成式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>没见过的组合</td>
+<td>搜不到</td>
+<td>照样能画</td>
+</tr>
+<tr>
+<td>风格迁移</td>
+<td>难</td>
+<td>一句话切换</td>
+</tr>
+<tr>
+<td>微调细节</td>
+<td>几乎不能</td>
+<td>改提示词即可</td>
+</tr>
+<tr>
+<td>版权与唯一性</td>
+<td>来自他人</td>
+<td>全新生成</td>
+</tr>
+</tbody>
+</table>
+<p>所以 AIGC 不是「更聪明的搜索引擎」，而是一种全新的内容生产方式。</p>
+<h2 id="12-aigc">1.2 AIGC 都能生成什么</h2>
+<p>今天我们已经能看到 AIGC 在多条赛道上落地：</p>
+<ul>
+<li><strong>文生图（Text-to-Image）</strong>：给文字出图，代表有 Stable Diffusion、Midjourney、DALL·E。</li>
+<li><strong>文生视频（Text-to-Video）</strong>：给文字出短视频，代表有 Sora、可灵、Runway。</li>
+<li><strong>图生图（Image-to-Image）</strong>：给一张参考图 + 文字，做风格迁移或局部修改。</li>
+<li><strong>文生音频 / 音乐</strong>：给歌词或情绪描述生成配乐。</li>
+<li><strong>文生 3D / 模型</strong>：给描述直接产出三维模型，用于游戏与工业设计。</li>
+</ul>
+<p>本系列（L7）聚焦最成熟的两条：<strong>文生图</strong>与<strong>文生视频</strong>，并把背后的「扩散模型」原理讲透。</p>
+<h2 id="13">1.3 为什么是最近几年才爆发</h2>
+<p>AIGC 不是突然出现的技术。它的爆发依赖三个条件在 2020 年前后同时成熟：</p>
+<ol>
+<li><strong>数据</strong>：互联网积累了数十亿张带文字说明的图片（如 LAION 数据集），让模型有足够「教材」。</li>
+<li><strong>算力</strong>：消费级 GPU 和云算力成本下降，训练一个图像生成模型从「国家级工程」变成「团队级工程」。</li>
+<li><strong>算法</strong>：2015 年提出的扩散模型（Diffusion Model）在 2020 年后被证明既能生成高质量图像，又训练稳定——它成了今天几乎所有文生图工具的底层。</li>
+</ol>
+<p>一个形象的比喻：数据像教材、算力像印刷厂、算法像排版术。三者齐备，书才印得出来。</p>
+<h2 id="14">1.4 一个最小直觉：生成 = 从噪声里「显影」</h2>
+<p>你可以先把 AIGC 想象成<strong>洗照片的暗房</strong>：</p>
+<ul>
+<li>一开始是一张<strong>全是随机噪点</strong>的「空白底片」；</li>
+<li>模型根据文字提示，一步一步把噪点「擦掉」，让真正符合描述的画面<strong>慢慢显影</strong>出来。</li>
+</ul>
+<p>这个「从噪声到清晰」的过程，就是后续章节要拆解的核心机制（扩散模型）。记住这个画面，后面会反复用到。</p>
+<h2 id="15">1.5 本章小结</h2>
+<ul>
+<li>AIGC 是<strong>生成式</strong>的，不是检索式的：它产出的是全新的内容。</li>
+<li>文生图、文生视频是当下最成熟的方向，底层几乎都是<strong>扩散模型</strong>。</li>
+<li>它的爆发是数据、算力、算法三者在 2020 年前后同时成熟的结果。</li>
+<li>生成的核心直觉：从一团噪声出发，按文字指引逐步「显影」出画面。</li>
+</ul>
+<blockquote>
+<p><strong>思考题</strong>：如果让模型「生成一张不存在的、但合理的猫」，它和「从图库搜猫」的本质区别在哪？带着这个问题读第二章，你会更清楚「生成」到底生成了什么。</p>
+</blockquote></body></html>

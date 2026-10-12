@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>扩散模型原理：从噪声中雕刻图像 | AIGC 创作 L7</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2a1f0c;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9a5a00;line-height:1.35;}
+  h1{border-bottom:3px solid #ff8a3c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ffb648;padding-left:11px;}
+  code{background:#fdf3e0;padding:2px 6px;border-radius:5px;font-size:90%;color:#b4530a;}
+  pre{background:#1a1205;color:#fbe9c8;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f0e2c8;padding:8px 11px;text-align:left;}
+  th{background:#fff4e0;color:#9a5a00;}
+  tr:nth-child(even){background:#fffaf0;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ffb648;background:#fff7ea;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#d97706;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f0e2c8;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#ff8a3c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L7 学习路线图</a><span class='r'>AIGC 创作：文生图与文生视频 · aigc.zbjh.top</span></div><h1 id="_1">第三章 扩散模型原理：从噪声中雕刻图像</h1>
+<p>前两章我们建立了直觉：生成 = 从噪声逐步去噪，搬到「符合提示词」的图像区域。这一章把直觉变成<strong>可计算的机制</strong>——这就是今天文生图工具背后的核心算法：扩散模型（Diffusion Model），具体以 DDPM（去噪扩散概率模型）为代表。</p>
+<p>读完后你会明白：为什么训练时要「加噪」、推理时要「去噪」、以及模型到底在每一步预测什么。</p>
+<h2 id="31">3.1 扩散模型的两条时间线</h2>
+<p>扩散模型有<strong>两个阶段</strong>，方向相反：</p>
+<ul>
+<li><strong>前向过程（加噪）</strong>：拿一张真实图片，一步一步往里加高斯噪声，直到 1000 步后变成纯噪声。这是<strong>固定公式</strong>，不需要学。</li>
+<li><strong>反向过程（去噪）</strong>：训练一个神经网络，学会「看到一张带噪图，预测它应该少一点噪声长什么样」，然后反复应用，从纯噪声还原出清晰图。这是<strong>需要学</strong>的部分。</li>
+</ul>
+<p>训练时我们走「前向」得到带噪图，再让网络走「反向」去预测噪声；推理时我们直接拿纯噪声走「反向」生成新图。</p>
+<h2 id="32">3.2 前向过程：给图「上噪」</h2>
+<p>设真实图是 $x_0$（第 0 步）。第 $t$ 步的带噪图 $x_t$ 是这样造出来的：</p>
+<p>$$x_t = \sqrt{\bar\alpha_t}\, x_0 + \sqrt{1-\bar\alpha_t}\, \epsilon$$</p>
+<p>其中：</p>
+<ul>
+<li>$\epsilon$ 是随机采样的纯高斯噪声；</li>
+<li>$\bar\alpha_t$ 是一个随步数 $t$ 递减的系数（比如从接近 1 降到接近 0）；</li>
+<li>当 $t$ 很大时，$\sqrt{\bar\alpha_t}$ 趋近 0，图几乎全是噪声。</li>
+</ul>
+<p>这个公式的妙处在于：<strong>任意一步的带噪图，都可以直接从原图一步采样得到</strong>，不用真的走 1000 步。这让训练极其高效——我们随机抽一个 $t$，立刻有 $x_t$。</p>
+<h2 id="33">3.3 反向过程：让网络「猜噪声」</h2>
+<p>训练目标很简洁：给网络输入「带噪图 $x_t$ 和步数 $t$」，让它<strong>预测刚才加进去的那份噪声 $\epsilon$</strong>。</p>
+<p>损失函数就是：预测噪声 $\epsilon_\theta$ 和真实噪声 $\epsilon$ 之间的误差（通常是均方误差）：</p>
+<p>$$L = |\epsilon - \epsilon_\theta(x_t, t)|^2$$</p>
+<p>为什么预测噪声就够了？因为一旦知道「此刻图里混进了多少噪声」，用前向公式反着一减，就能得到更干净的图：</p>
+<p>$$x_{t-1} \approx \frac{1}{\sqrt{\alpha_t}}\left(x_t - \frac{1-\alpha_t}{\sqrt{1-\bar\alpha_t}}\,\epsilon_\theta(x_t,t)\right) + \text{一点新噪声}$$</p>
+<p>这个「减噪声 → 得到上一步图」的动作，就是去噪的一步。重复约 20–50 次（实际推理常少于训练步数），噪声就被「雕刻」成清晰图像。</p>
+<h2 id="34">3.4 一个关键洞察：模型学的是「结构」，不是「复制」</h2>
+<p>注意，模型在训练时<strong>从没被要求输出某张具体训练图</strong>。它只被要求「把噪声去掉」。但因为它在海量图上见过无数结构（猫有耳、天有云、光有渐变），去噪时这些结构会自然「长回来」。</p>
+<p>这也解释了为什么 AIGC 能生成<strong>训练集里没有</strong>的新图——它学到的是「世界长什么样」的统计规律，而不是「背下某张图」。</p>
+<h2 id="35">3.5 推理：从纯噪声开始生成</h2>
+<p>真正用的时候，流程是：</p>
+<ol>
+<li>随机采样一张纯噪声 $x_T$（比如 $T=50$）；</li>
+<li>拿到文字提示，把提示也送进网络（提示怎么进网络，第四章讲）；</li>
+<li>循环 $T$ 次：网络预测噪声 → 减去噪声得到 $x_{T-1}$ → 再预测、再减；</li>
+<li>得到 $x_0$，解码回像素图。</li>
+</ol>
+<p>步数越多通常越精细但越慢；步数少则快但可能糊。这就是「采样步数」这个常用参数（第七章详述）。</p>
+<h2 id="36">3.6 为什么扩散模型这么受欢迎</h2>
+<p>相比更早的生成对抗网络（GAN），扩散模型的优势是：</p>
+<ul>
+<li><strong>训练稳定</strong>：GAN 那种「两个网络互搏」容易崩溃，扩散只用简单的回归损失。</li>
+<li><strong>质量高、多样性好</strong>：不易出现 GAN 的「模式崩溃」（只生成少数几种脸）。</li>
+<li><strong>可控性强</strong>：天然支持文本条件、图生图、局部重绘等扩展。</li>
+</ul>
+<p>代价是<strong>慢</strong>——要迭代很多步。后续研究（如 LCM、蒸馏）正是在解决这个问题。</p>
+<h2 id="37">3.7 本章小结</h2>
+<ul>
+<li>扩散模型 = 前向加噪（固定公式）+ 反向去噪（神经网络学习）。</li>
+<li>训练目标极简：预测混进图里的那份噪声。</li>
+<li>推理从纯噪声出发，反复「减噪声」约 20–50 步，雕刻出清晰图。</li>
+<li>模型学到的是「世界的结构规律」，所以能生成训练集里没有的新图。</li>
+<li>相比 GAN，扩散更稳、更可控，代价是生成较慢。</li>
+</ul>
+<blockquote>
+<p><strong>动手看一眼</strong>：本站「扩散去噪可视化台」会把一张图先逐步加噪到纯雪花，再从纯噪声逐步去噪还原（用简化模拟），帮你把这一章的公式变成眼睛看得见的动画。</p>
+</blockquote></body></html>

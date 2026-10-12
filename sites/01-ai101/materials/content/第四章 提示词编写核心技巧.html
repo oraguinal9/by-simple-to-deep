@@ -1,0 +1,80 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><title>第四章 提示词编写核心技巧</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.8;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0ea5e9;padding-bottom:8px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;}
+  pre{background:#0f172a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 10px;text-align:left;}
+  th{background:#e0f2fe;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #7dd3fc;background:#f0f9ff;margin:12px 0;padding:8px 14px;color:#374151;}
+  a{color:#0ea5e9;}
+  .topbar{position:sticky;top:0;background:#0ea5e9;color:#fff;padding:8px 14px;margin:-28px -22px 22px;border-radius:0;}
+  .topbar a{color:#fff;font-weight:700;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回学习路线图</a></div><h1 id="_1">第四章 提示词编写核心技巧</h1>
+<p>这一章是 L1 的「干货核心」。掌握下面 6 个技巧，你写出的提示词质量会立刻上一个台阶。</p>
+<h2 id="41-role">4.1 技巧一：给角色（Role）</h2>
+<p>在开头指定身份，模型会切换到对应「口吻」和「知识框架」。</p>
+<pre class="codehilite"><code>你是一名有 10 年经验的新能源汽车销售顾问。
+</code></pre>
+
+<p>为什么有用：模型训练数据里，「销售顾问怎么说话」是有固定风格的，给它角色，它就调取那套风格。</p>
+<h2 id="42-task">4.2 技巧二：把任务说具体（Task）</h2>
+<p>避免「写点东西」「分析一下」这种空话。用<strong>动词 + 对象 + 范围</strong>。</p>
+<ul>
+<li>弱：「分析这个产品」</li>
+<li>强：「列出这款智能水杯相比普通水杯的 3 个核心卖点，并各配一句用户视角的文案」</li>
+</ul>
+<h2 id="43-context">4.3 技巧三：交代背景（Context）</h2>
+<p>模型不知道你的具体情况，相关信息要主动给。</p>
+<pre class="codehilite"><code>背景：我们是一家刚成立 3 个月、预算有限的小团队，
+产品是面向程序员的笔记软件。
+</code></pre>
+
+<p>背景越贴你真实场景，输出越能用。</p>
+<h2 id="44-format">4.4 技巧四：规定输出格式（Format）</h2>
+<p>告诉它「长什么样」，你拿到手就能直接用。</p>
+<ul>
+<li>「用表格，列：功能 / 面向人群 / 价格区间」</li>
+<li>「输出 JSON：{"title":..., "points":[...]}」</li>
+<li>「分 3 段：现象 / 原因 / 建议」</li>
+</ul>
+<h2 id="45-constraints">4.5 技巧五：加约束（Constraints）</h2>
+<p>明确「不要什么」「必须什么」，能挡掉一大半废话。</p>
+<ul>
+<li>「不要使用专业术语，给完全的外行也能看懂」</li>
+<li>「必须基于我提供的资料，不要编造数据」</li>
+<li>「不超过 200 字」</li>
+</ul>
+<h2 id="46-few-shot">4.6 技巧六：给示例（Few-shot）</h2>
+<p>当你要的格式很特别，直接给一个样板，让它「照着学」最稳。</p>
+<pre class="codehilite"><code>请把用户评价分类。示例：
+输入：「物流太慢了」→ 输出：物流
+输入：「客服很耐心」→ 输出：服务
+现在分类：
+输入：「包装破损」→ 输出：
+</code></pre>
+
+<p>给 1~3 个示例，模型立刻懂你要什么。</p>
+<h2 id="47">4.7 一个万能模板</h2>
+<p>把上面六块拼起来，就是可复用的「提示词骨架」：</p>
+<pre class="codehilite"><code>你是一位【角色】。
+【背景：我的情况/信息】。
+请帮我【具体任务】。
+输出要求：【格式】。
+限制：【约束】。
+（可选）参考示例：【示例】。
+</code></pre>
+
+<blockquote>
+<p>先用模板写一版 → 看结果 → 哪不满意就补哪块，这是最高效的迭代方式。</p>
+</blockquote>
+<h2 id="48">4.8 衔接</h2>
+<p>技巧会用了，但还要知道<strong>什么时候该用、什么时候别指望 AI</strong>。下一章讲清 AI 的能力边界。</p>
+<blockquote>
+<p>✅ 自测：用万能模板，写一条「让 AI 帮我把一段会议录音要点整理成待办清单」的提示词。</p>
+</blockquote></body></html>

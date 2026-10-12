@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第一章 为什么需要人类反馈：从「会说话」到「说得对」 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="_1">第一章 为什么需要人类反馈：从「会说话」到「说得对」</h1>
+<p>你一定见过这样的现象：一个刚训练好的大模型，能流畅地写出几百字，语法通顺、辞藻华丽，可你越读越觉得「哪里不对」——它可能在一本正经地胡说八道，可能在你问敏感问题时给出危险的建议，也可能答非所问却自信满满。</p>
+<p>这就引出了一个核心问题：<strong>让模型「会说话」不难，难的是让它「说得对、说得有用、说得安全」。</strong></p>
+<p>这一章我们就来讲清楚：为什么在预训练和指令微调（SFT）之后，还需要一道叫做 <strong>RLHF</strong>（Reinforcement Learning from Human Feedback，基于人类反馈的强化学习）的关键工序。</p>
+<h2 id="_2">一、预训练给了模型「知识」，没给「品味」</h2>
+<p>大模型的第一阶段是<strong>预训练</strong>（Pre-training）。模型在成千上万本书、网页、代码上预测「下一个词」，从而学会语言规律和世界知识。你可以把它想象成一个读完了图书馆所有书的人——他什么都懂一点，但说话方式、价值取向、该怎么回答一个问题，全都没人教过。</p>
+<p>预训练的目标函数是「预测下一个 token 的概率」，<strong>它并不关心回答是否 helpful（有用）、honest（诚实）、harmless（无害）</strong>。一个把谣言说得很顺溜的回答，和一个严谨澄清的回答，在预训练损失面前可能差别不大。</p>
+<h2 id="sft">二、SFT 让模型「听懂指令」，但仍不够</h2>
+<p>第二阶段是<strong>监督微调</strong>（Supervised Fine-Tuning，SFT）。我们给模型看大量「问题—标准回答」的示范，教它按照指令格式来回答。这一步之后，模型会变得像助手：你问「怎么煮咖啡」，它不再续写小说，而是真的给你步骤。</p>
+<p>但 SFT 有几个绕不开的短板：</p>
+<ul>
+<li><strong>「标准回答」本身有限</strong>：标注者能写出的示范数量有限，而且每个人写的风格不同。模型只是「模仿」了这些示范，并没有真正理解「什么样算好」。</li>
+<li><strong>「好」是主观的、多维的</strong>：同一个问题，A 回答简洁、B 回答详尽，哪个更好？往往没有唯一正确答案，SFT 没法把这种微妙偏好编码进去。</li>
+<li><strong>分布之外的泛化弱</strong>：一旦问题超出示范覆盖的范围，模型容易回到预训练时的「自由发挥」坏习惯。</li>
+</ul>
+<h2 id="_3">三、为什么「人类反馈」是关键拼图</h2>
+<p>很多任务（下棋、玩游戏）的好坏可以用一个客观分数衡量：赢了就是 +1，输了就是 -1。但<strong>语言的质量是主观的</strong>——同一个回答，有人喜欢幽默，有人喜欢严谨；有人要一句话结论，有人要万字长文。</p>
+<p>这种「主观好坏」无法写成一条规则，却可以由<strong>人</strong>来判断：把两个回答摆在一起，人一眼就知道哪个更好。RLHF 的妙处，就是把这个「人的判断」变成了模型可以学习的信号。</p>
+<p>它分三步（后面章节会逐一展开）：</p>
+<ol>
+<li><strong>收集人类偏好</strong>：让标注者比较模型生成的多个回答，选出更好的那个（第二章）。</li>
+<li><strong>训练奖励模型（RM）</strong>：用一个模型去「学会」人类的偏好，给它看到的回答打分（第三章）。</li>
+<li><strong>用强化学习优化策略</strong>：让模型在生成回答时，尽量拿到高奖励分，同时别离原始模型太远（第四~六章）。</li>
+</ol>
+<h2 id="rlhf">四、一个直觉：RLHF 在做什么</h2>
+<p>打个比方。SFT 像老师给你做了几道例题，你照猫画虎；而 RLHF 像你进入了一个「练习—反馈—再练习」的循环：你写了很多答案，老师不直接告诉你标准答案，只告诉你「这版比上一版好 / 差」，久而久之你摸索出了老师心里的评判标准，写出来的东西越来越对路。</p>
+<p>这正是 RLHF 相比纯 SFT  powerful 的地方——它用的是<strong>相对比较信号</strong>，而人恰恰最擅长做比较，不擅长凭空写出完美答案。</p>
+<h2 id="rlhf_1">五、RLHF 不是银弹</h2>
+<p>需要泼一盆冷水：RLHF 也有代价和副作用。它会让模型变得「更讨喜」，但有时也会让模型更保守、更爱说套话（所谓「谄媚」sycophancy）；如果偏好数据有偏差，模型就会学到偏差；而且整个流程工程复杂、成本高。</p>
+<p>因此后来才有了 <strong>DPO</strong>（Direct Preference Optimization，直接偏好优化，第八章）——试图跳过强化学习这一步，直接用一个简单的分类损失完成对齐。理解 RLHF，是理解今天几乎所有主流对话模型（以及它的替代方案）的基础。</p>
+<h2 id="_4">本章小结</h2>
+<ul>
+<li>预训练给「知识」，SFT 给「指令格式」，但二者都不足以让模型「说得对、有用、安全」。</li>
+<li>语言质量本质上是<strong>主观</strong>的，难以写成规则，却适合由人做<strong>相对比较</strong>。</li>
+<li>RLHF 用「人类偏好 → 奖励模型 → 强化学习」三步，把主观判断变成可优化的目标。</li>
+<li>RLHF 有副作用（谄媚、保守、成本高），DPO 是它的热门简化替代。</li>
+</ul>
+<h2 id="_5">思考与延伸</h2>
+<ul>
+<li>你能想到生活中哪些「好坏很难量化、但人能比较」的例子？它们是否也可以用「偏好学习」来解决？</li>
+<li>如果让你标注「哪个回答更好」，你会从哪些维度打分？（提示：有用性、真实性、安全性、简洁性……）</li>
+<li>延伸阅读：InstructGPT 论文（Ouyang et al., 2022）是 RLHF 进入大众视野的里程碑，可以搜「InstructGPT」了解原始实验。</li>
+</ul></body></html>

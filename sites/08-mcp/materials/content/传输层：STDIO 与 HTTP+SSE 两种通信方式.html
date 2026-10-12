@@ -1,0 +1,165 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>传输层：STDIO 与 HTTP+SSE 两种通信方式 | MCP 模型上下文协议 L8</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#3b0a26;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#be185d;line-height:1.35;}
+  h1{border-bottom:3px solid #db2777;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #ec4899;padding-left:11px;}
+  code{background:#fff0f7;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#2b0a1c;color:#ffd6ea;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #f7d4e6;padding:8px 11px;text-align:left;}
+  th{background:#ffe9f4;color:#be185d;}
+  tr:nth-child(even){background:#fff7fb;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #ec4899;background:#fff0f7;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#db2777;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #f7d4e6;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#db2777;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L8 学习路线图</a><span class='r'>MCP 模型上下文协议 · mcp.zbjh.top</span></div><h1 id="stdio-httpsse">传输层：STDIO 与 HTTP+SSE 两种通信方式</h1>
+<p>MCP 规定 Client 和 Server 之间用 <strong>JSON-RPC 2.0</strong> 格式传消息。但具体这些消息通过什么「管道」传，有两种官方支持的传输方式：<strong>STDIO（标准输入输出）</strong> 和 <strong>HTTP + SSE（Server-Sent Events）</strong>。这一章讲清两者的区别、适用场景和底层原理。</p>
+<h2 id="_1">一、先理解「传输层」管什么</h2>
+<p>不管用哪种传输，消息的内容（JSON-RPC）是一样的。传输层只负责一件事：<strong>把这些 JSON 字符串可靠地从 A 送到 B</strong>。</p>
+<p>类比：你写信的内容不变，但可以选择「让邮差当面递」（STDIO，本地）还是「走快递网络」（HTTP+SSE，远程）。</p>
+<h2 id="stdio">二、STDIO 模式（本地、子进程）</h2>
+<h3 id="_2">原理</h3>
+<p>STDIO 适合 <strong>Server 跑在你自己电脑上</strong> 的场景。Host 启动时，直接把 Server 当作一个<strong>子进程</strong>拉起来，然后通过操作系统的「标准输入（stdin）/ 标准输出（stdout）」跟它说话。</p>
+<pre class="codehilite"><code>Host 进程
+  └─ 启动子进程：文件系统 MCP Server
+        Host 写消息 → Server 的 stdin
+        Server 写消息 → Host 的 stdout
+</code></pre>
+
+<ul>
+<li>Host 往 Server 的 <strong>stdin</strong> 写一行 JSON（一条请求）；</li>
+<li>Server 从 stdin 读，处理，往自己的 <strong>stdout</strong> 写回一行 JSON（响应）；</li>
+<li>Host 从 Server 的 stdout 读响应。</li>
+</ul>
+<p>注意是<strong>逐行</strong>的：一条消息 = 一行 JSON（以换行符分隔）。</p>
+<h3 id="_3">优点</h3>
+<ul>
+<li><strong>零网络配置</strong>：不用开端口、不用管 IP、不用 HTTPS；</li>
+<li><strong>天然隔离</strong>：子进程崩了不影响 Host；</li>
+<li><strong>安全默认好</strong>：Server 只在你本机跑，数据不出电脑；</li>
+<li><strong>简单</strong>：适合「我电脑上的文件 / 本地数据库」这类场景。</li>
+</ul>
+<h3 id="_4">缺点 / 限制</h3>
+<ul>
+<li>Server 必须和 Host <strong>同一台机器</strong>（子进程嘛）；</li>
+<li>一个 Server 进程通常只服务一个 Client（1 对 1）。</li>
+</ul>
+<h3 id="_5">典型场景</h3>
+<p>文件系统访问、本地 SQLite、本机 shell、读取本地配置——凡是「能力在本地、不想出网」的，都用 STDIO。</p>
+<h2 id="http-sse">三、HTTP + SSE 模式（远程、跨网络）</h2>
+<h3 id="_6">原理</h3>
+<p>当 Server 跑在<strong>另一台服务器</strong>（比如云上的 SaaS），就不能用子进程了，得走网络。MCP 的远程传输用两套 HTTP 机制配合：</p>
+<pre class="codehilite"><code>Client (Host 内)                        Server (远程)
+     │                                        │
+     │  POST /mcp  (发 JSON-RPC 请求)  ──────▶│
+     │                                        │
+     │  ◀────────  SSE 长连接 (Server 推响应/事件)
+     │            GET /sse                    │
+</code></pre>
+
+<ul>
+<li><strong>客户端 → 服务端</strong>：用普通 <code>POST</code> 把 JSON-RPC 请求发过去；</li>
+<li><strong>服务端 → 客户端</strong>：用 <strong>SSE（Server-Sent Events）</strong> 建立一条长连接，服务端有结果了就顺着这条连接推回来。</li>
+</ul>
+<p>SSE 是浏览器/HTTP 原生支持的「服务端单向推送」机制（比 WebSocket 简单，只能服务端推、客户端收）。</p>
+<h3 id="_7">优点</h3>
+<ul>
+<li><strong>跨机器</strong>：Server 可以部署在任何能访问的服务器上；</li>
+<li><strong>多客户端共享</strong>：一个远程 Server 可被多个 Host 连；</li>
+<li><strong>适合 SaaS</strong>：比如「云端知识库 MCP」「团队共享的数据库 MCP」。</li>
+</ul>
+<h3 id="_8">缺点 / 限制</h3>
+<ul>
+<li>要处理<strong>网络、认证、HTTPS、跨域</strong>；</li>
+<li>部署复杂度高；</li>
+<li>数据出网，需要考虑隐私和权限。</li>
+</ul>
+<h3 id="_9">典型场景</h3>
+<p>团队共享的工具、云端 API 封装、需要被很多人同时用的能力。</p>
+<h2 id="_10">四、两种模式怎么选</h2>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>STDIO</th>
+<th>HTTP+SSE</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Server 位置</td>
+<td>本机子进程</td>
+<td>远程服务器</td>
+</tr>
+<tr>
+<td>网络配置</td>
+<td>无</td>
+<td>需端口/域名/证书</td>
+</tr>
+<tr>
+<td>安全默认</td>
+<td>高（不出网）</td>
+<td>需自行加固</td>
+</tr>
+<tr>
+<td>共享性</td>
+<td>单人</td>
+<td>可多人</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>本地文件、本地库</td>
+<td>SaaS、团队工具</td>
+</tr>
+</tbody>
+</table>
+<p><strong>经验</strong>：先从 STDIO 开始。绝大多数个人场景（读文件、跑本地脚本、查本地库）STDIO 就够了，省去一堆部署麻烦。等真要「让别人也能用这个能力」，再上 HTTP+SSE。</p>
+<h2 id="_11">五、消息格式本身（两种模式相同）</h2>
+<p>无论 STDIO 还是 HTTP+SSE，消息体都是 JSON-RPC 2.0。例如 Client 问 Server「你会什么」：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 1,
+  &quot;method&quot;: &quot;tools/list&quot;,
+  &quot;params&quot;: {}
+}
+</code></pre>
+
+<p>Server 回：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;jsonrpc&quot;: &quot;2.0&quot;,
+  &quot;id&quot;: 1,
+  &quot;result&quot;: {
+    &quot;tools&quot;: [
+      {&quot;name&quot;: &quot;read_file&quot;, &quot;description&quot;: &quot;读取文件&quot;, &quot;input_schema&quot;: {...}}
+    ]
+  }
+}
+</code></pre>
+
+<p>STDIO 把这段 JSON 写成一行喂给 stdin；HTTP+SSE 把它放进 POST 的 body。内容一模一样，只是「信封」不同。</p>
+<h2 id="_12">六、常见坑</h2>
+<ul>
+<li><strong>STDIO 下 Server 不能往 stdout 打日志</strong>（会污染协议流）——日志要写到 stderr 或文件；</li>
+<li><strong>SSE 连接要保持</strong>：断了要重连，否则收不到推送；</li>
+<li><strong>两种模式别混用</strong>：一个 Server 要么 STDIO 要么 HTTP，客户端按它的声明连。</li>
+</ul>
+<h2 id="_13">七、本章小结</h2>
+<ul>
+<li>MCP 传输层只负责「把 JSON-RPC 消息可靠送达」，内容两种模式一致；</li>
+<li><strong>STDIO</strong>：本地子进程，经 stdin/stdout 逐行传，零网络配置、安全默认好，适合本机能力；</li>
+<li><strong>HTTP+SSE</strong>：远程部署，POST 发请求 + SSE 收推送，支持多人共享，但要管网络/认证/证书；</li>
+<li>选型原则：个人本地优先 STDIO，团队/云端再上 HTTP+SSE；</li>
+<li>坑点：STDIO 的 Server 日志要走 stderr；SSE 要处理重连。</li>
+</ul>
+<p>下一章我们讲 MCP 的<strong>三大能力原语</strong>：Tools（工具）、Resources（资源）、Prompts（提示词）——这是 Server 能向模型提供的具体「货」。</p>
+<hr />
+<p><em>小练习：你打算做一个「团队共享的 Wiki 搜索 MCP」，应该选 STDIO 还是 HTTP+SSE？如果改成「只读我自己电脑上的笔记」，又该选哪个？</em></p></body></html>

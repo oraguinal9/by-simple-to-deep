@@ -1,0 +1,313 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>图生图与 ControlNet：精确控制生成 | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="controlnet">图生图与 ControlNet：精确控制生成</h1>
+<p>上一篇，我们掌握了文生图：给一句话，得到一张图。但你可能很快发现一个痛点：<strong>文生图像「开盲盒」</strong>——提示词写得很详细，构图却总是不如想象，猫的位置、光线、姿势全都不可控。</p>
+<p>这一篇就来解决「不可控」。我们会做三件事：</p>
+<ol>
+<li>学会<strong>图生图（img2img）</strong>：给 AI 一张图当「草稿」，让它顺着草稿再画；</li>
+<li>学会<strong>ControlNet</strong>：用边缘线、人体骨架、深度图来「强行控制构图」——这是精确控制的核心武器；</li>
+<li>认识 <strong>LoRA</strong>：给模型「换皮肤、换角色」。</li>
+</ol>
+<p>这三样一旦学会，你就从「盲盒开图」进化到「指哪打哪」。</p>
+<h2 id="ai">一、图生图：给 AI 一张「参考草稿」</h2>
+<h3 id="11">1.1 直觉理解</h3>
+<p>文生图是「凭空捏造」，图生图则是「拿着草稿再创作」。你给 AI 一张图，告诉它「照着这张的构图和色彩，帮我重画一遍」，它会在你给的原图基础上重做。</p>
+<p>生活化比喻：<strong>请一位画师改稿</strong>。你把自己画的一张歪歪扭扭的草图递给画师，说「轮廓按这个来，但请画得专业一点」。画师会保留你草稿的大体布局，但填充进精致的细节。图生图就是这个「改稿画师」。</p>
+<h3 id="12">1.2 工作原理：从「纯噪声」变成「半成品噪声」</h3>
+<p>还记得第 4 篇的流程吗？文生图从<strong>纯噪声</strong>开始去噪。图生图的差别只有一处：<strong>起点不是纯噪声，而是「原图 + 一定比例的噪声」</strong>。</p>
+<p>原图先被加上一部分噪声，变得模糊、抽象，然后采样器从这个「加了噪声的原图」出发去噪。加噪声的比例由 <strong>denoise（降噪强度）</strong> 这个参数控制：</p>
+<table>
+<thead>
+<tr>
+<th>denoise 值</th>
+<th>效果</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.1~0.3</td>
+<td>几乎不改原图，只做细微润色</td>
+<td>磨皮、改光线、提画质</td>
+</tr>
+<tr>
+<td>0.4~0.6</td>
+<td>保留构图和色彩，重画细节</td>
+<td>改画风、加细节</td>
+</tr>
+<tr>
+<td>0.7~1.0</td>
+<td>基本抛弃原图，只留一点影子</td>
+<td>大幅改动、换主题</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>一句话：<strong>denoise 越高 = 改得越狠；denoise 越低 = 原图保留越多。</strong> 新手先记这一个参数，图生图就入门了。</p>
+</blockquote>
+<h3 id="13">1.3 图生图工作流怎么搭</h3>
+<p>只需要在文生图工作流上做一处小改动：把 KSampler 的「latent_image（潜空间）」输入，从「空白画布（Empty Latent Image）」换成「一张真实图片经过编码后的潜空间」。</p>
+<p>节点步骤：</p>
+<pre class="codehilite"><code class="language-text">加载图片（Load Image）→ VAE Encode（编码成潜空间）→ KSampler → VAE Decode → Save Image
+</code></pre>
+
+<p>在 ComfyUI 里：</p>
+<ol>
+<li>双击添加 <code>Load Image</code> 节点，选择你要用的参考图；</li>
+<li>添加 <code>VAE Encode</code> 节点：把 Load Image 的图片输出连进来，vae 端连 checkpoint 的 VAE 输出；</li>
+<li>把 VAE Encode 的 LATENT 输出，连到 KSampler 的 latent_image 输入端；</li>
+<li>KSampler 里把 <strong>denoise 调到 0.5 左右</strong>；</li>
+<li>提示词照写你想「改造成什么」——比如原图是白天街景，提示词写「夜晚，霓虹灯」，就能把图改成夜景。</li>
+</ol>
+<blockquote>
+<p>注意：Load Image 节点的尺寸要和你想要的输出一致或成比例，否则 KSampler 会按自己的尺寸设置缩放原图，导致构图变形。</p>
+</blockquote>
+<h2 id="controlnet-ai">二、ControlNet：给 AI 戴上「紧箍咒」</h2>
+<p>图生图已经能控制大概了，但还不够精确。比如你想让 AI「严格按照某个人物的骨架姿势画图」，图生图做不到——它只能参考颜色和轮廓，管不住肢体姿态。</p>
+<p>这时轮到 <strong>ControlNet</strong> 出场。</p>
+<h3 id="21-controlnet">2.1 ControlNet 是什么</h3>
+<p>ControlNet 是一种「附加控制模块」，它允许你用一张<strong>额外的指导图</strong>，去约束生成图的结构。你可以输入：</p>
+<ul>
+<li>一张线稿（只留轮廓线）；</li>
+<li>一张深度图（黑白灰表示远近，越白越近）；</li>
+<li>一张人体骨架图（火柴人一样的线条）；</li>
+<li>一张边缘检测图（像素描一样勾勒出物体边界）。</li>
+</ul>
+<p>模型会<strong>严格照着这张指导图的结构来画</strong>，你再用提示词告诉它「这里面应该是什么」——结构由 ControlNet 保证，内容由提示词填充。</p>
+<blockquote>
+<p>比喻：<strong>ControlNet 是模具，提示词是馅料。</strong> 你把模具（骨架/线稿/深度）压下去，再往里倒馅料（提示词描述的内容），出来的每一个都形状规整。</p>
+</blockquote>
+<h3 id="22-controlnet">2.2 常用 ControlNet 类型</h3>
+<p>社区最常用的几款，做成一张表：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>指导图是什么</th>
+<th>管住什么</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Canny（边缘）</strong></td>
+<td>边缘检测后的线稿</td>
+<td>物体的轮廓、边界</td>
+<td>照片转线稿、按素描上色</td>
+</tr>
+<tr>
+<td><strong>Depth（深度）</strong></td>
+<td>灰度图，白近黑远</td>
+<td>物体前后层次、空间关系</td>
+<td>把照片摆到新场景、改背景</td>
+</tr>
+<tr>
+<td><strong>OpenPose（姿态）</strong></td>
+<td>人体关键点骨架图</td>
+<td>人物动作、姿势</td>
+<td>让人物摆指定姿势</td>
+</tr>
+<tr>
+<td><strong>MLSD（直线）</strong></td>
+<td>只保留直线线条</td>
+<td>直线结构、透视</td>
+<td>室内设计、建筑效果图</td>
+</tr>
+<tr>
+<td><strong>Scribble（涂鸦）</strong></td>
+<td>随便画的线条</td>
+<td>大致轮廓</td>
+<td>草稿快速成图</td>
+</tr>
+<tr>
+<td><strong>IPAdapter（图像提示）</strong></td>
+<td>参考图本身</td>
+<td>整体风格、内容参考</td>
+<td>风格迁移、换脸保持长相</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>一句话记忆：<strong>Canny 管轮廓、Depth 管远近、OpenPose 管姿势、MLSD 管直线。</strong> 别被名字吓到——它们本质都是「把一张图变成一种信息更简单的图，再拿它约束生成」。</p>
+</blockquote>
+<h3 id="23-controlnet-comfyui">2.3 ControlNet 在 ComfyUI 里怎么用</h3>
+<p>ComfyUI 对 ControlNet 的支持非常完善，而且节点化之后比 WebUI 更清晰。核心节点是：</p>
+<ul>
+<li><code>Load ControlNet Model</code>：加载 ControlNet 模型文件（<code>.safetensors</code>，放进 <code>models/controlnet</code> 目录）；</li>
+<li><code>ControlNet Apply</code>：把「控制条件」注入采样器；</li>
+<li><code>Canny</code> / <code>Depth Map</code> / <code>OpenPose</code> 等：把原始参考图<strong>预处理</strong>成对应的指导图（这些是「预处理节点」，负责从照片里提取线稿/深度/骨架）。</li>
+</ul>
+<p>一个 OpenPose 控制的工作流示意图：</p>
+<pre class="codehilite"><code class="language-text">Load Image（你的动作参考照片）
+   ↓
+OpenPose Preprocessor（自动提取人物骨架，生成骨架图）
+   ↓
+ControlNet Apply（骨架图 + 一个 ControlNet 模型）
+   ↓
+KSampler（加正向提示词描述角色外貌）→ VAE Decode → Save
+</code></pre>
+
+<p>在 ComfyUI 中你需要额外安装 ControlNet 相关节点（整合包一般自带，或在 ComfyUI Manager 插件里搜索安装），再下载 ControlNet 模型文件放到 <code>models/controlnet</code> 目录。</p>
+<h3 id="24-controlnet">2.4 ControlNet 强度参数</h3>
+<p>ControlNet Apply 节点上有一个 <strong>strength（强度）</strong> 参数，控制「听 ControlNet 的话」的程度：</p>
+<ul>
+<li>0.5~0.7：兼顾控制与自然，新手默认值；</li>
+<li>0.8~1.0：高度贴合指导图，但可能生硬；</li>
+<li>太低（&lt;0.3）：控制形同虚设。</li>
+</ul>
+<blockquote>
+<p>常见报错排查：如果 ControlNet 生效后图片「脏乱差」，通常是指导图与提示词冲突（比如骨架说站着、提示词说坐着）。<strong>让提示词和指导图「说同一件事」，是 ControlNet 的黄金法则。</strong></p>
+</blockquote>
+<h2 id="lora">三、LoRA：给模型「换皮肤」</h2>
+<p>控制住结构之后，我们再解决「风格」问题。你可能想要一种特定画风（水墨、像素、宫崎骏式手绘）或一个特定角色（某动漫人物、某个画师笔下的形象）。重新训练一个大模型？不现实。<strong>LoRA 就是为这个而生的低成本方案。</strong></p>
+<h3 id="31-lora">3.1 LoRA 是什么</h3>
+<p>第 2 篇我们说过，LoRA 是几十到几百 MB 的小文件，作用是在大模型基础上「微调出特定风格」。它不替换大模型，而是<strong>作为一层「叠加滤镜」附加在模型上</strong>，而且可以同时挂多个。</p>
+<p>比喻：<strong>checkpoint 是人体，LoRA 是衣服和妆容。</strong> ���一具身体（大模型），换上不同衣服（LoRA），看起来就是完全不同的人设。</p>
+<h3 id="32-lora">3.2 怎么用 LoRA</h3>
+<p>在 ComfyUI 里需要 <code>Load LoRA</code> 节点（整合包/Manager 通常已包含）：</p>
+<pre class="codehilite"><code class="language-text">Load LoRA：
+  model  ← 来自 Load Checkpoint 的 MODEL
+  clip   ← 来自 Load Checkpoint 的 CLIP
+  选择 LoRA 文件（.safetensors，放 models/loras）
+  输出 model / clip 再连给后面的采样器
+</code></pre>
+
+<p>每个 LoRA 节点上有两个关键参数：</p>
+<ul>
+<li><strong>strength_model</strong>：风格对画面的影响强度，一般 0.5~1.0；</li>
+<li><strong>strength_clip</strong>：对文字理解的影响强度，一般 0.5~1.0。</li>
+</ul>
+<p>同时挂多个 LoRA 时，按顺序叠加，强度别都拉满（容易「过拟合」导致图发糊、发腻）。</p>
+<blockquote>
+<p>挑 LoRA 的门道：在 Civitai 上看预览图挑，注意它适配哪个大模型版本（SD 1.5 的 LoRA 和 SDXL 的 LoRA 不通用，这点第 8 篇细讲）。<strong>版本不匹配是 LoRA 失效的头号原因。</strong></p>
+</blockquote>
+<h2 id="_1">四、组合实战：照片 → 线稿 → 重新上色</h2>
+<p>理论讲完，来一个完整的组合示例，把图生图、ControlNet、LoRA 串起来：<strong>把一张照片变成「线稿」，再让 AI 用指定风格重新上色。</strong> 这是最典型的「精确控制」综合演练。</p>
+<h3 id="_2">目标</h3>
+<p>输入一张人物照片，输出一张「相同构图、但用动漫插画风重新绘制」的图。</p>
+<h3 id="comfyui">工作流（在 ComfyUI 中依次搭建）</h3>
+<pre class="codehilite"><code class="language-text">① 加载照片：Load Image
+     ↓
+② Canny 预处理：Canny 节点，自动生成边缘线稿
+     ↓
+③ ControlNet 控制：Load ControlNet Model（选 canny 类型）+ ControlNet Apply
+     ↓
+④ LoRA 换风格：Load LoRA（选一个动漫风 LoRA）
+     ↓
+⑤ 采样：KSampler（denoise 0.6~0.7）
+     ↓
+⑥ 解码保存：VAE Decode + Save Image
+</code></pre>
+
+<h3 id="_3">提示词参考</h3>
+<pre class="codehilite"><code class="language-text">正向：an anime girl, blue hair, school uniform, same pose,
+      clean lineart, vibrant colors, masterpiece, best quality
+负向：blurry, low quality, deformed, watermark
+</code></pre>
+
+<h3 id="_4">操作要点</h3>
+<ol>
+<li>Canny 预处理节点会自动把照片变成线稿图，你可以在它的预览里看到线稿效果；</li>
+<li>ControlNet Apply 的 strength 先设 0.7；</li>
+<li>LoRA 选一个「动漫风」LoRA，强度先设 0.8；</li>
+<li>KSampler 的 denoise 设为 0.6~0.7——太高会丢失线稿结构，太低会保留照片质感；</li>
+<li>跑���对比：如果你要「更接近线稿」，把 denoise 调低到 0.5；要「更像照片」，调高到 0.8。</li>
+</ol>
+<blockquote>
+<p>这个组合拳的逻辑值得反复体会：<strong>ControlNet 保「形」，LoRA 定「风」，提示词说「内容」，denoise 管「创新程度」。</strong> 四个旋钮各管一件事，互不打架——这就是精确控制的全部秘密。</p>
+</blockquote>
+<h2 id="_5">五、常见问题速查</h2>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因</th>
+<th>解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ControlNet 没反应</td>
+<td>模型没配对：用了 canny 模型却喂了深度图</td>
+<td>让预处理类型与 ControlNet 模型类型一致</td>
+</tr>
+<tr>
+<td>图很糊/像贴纸</td>
+<td>强度太高 + 提示词不匹配</td>
+<td>降 strength 到 0.5，重写提示词与指导图一致</td>
+</tr>
+<tr>
+<td>LoRA 完全没效果</td>
+<td>LoRA 版本与大模型不匹配（1.5 vs SDXL）</td>
+<td>去模型页确认适配版本</td>
+</tr>
+<tr>
+<td>人物姿势被改掉了</td>
+<td>OpenPose 骨架没被遵守</td>
+<td>提高 ControlNet strength，检查骨架是否提取成功</td>
+</tr>
+<tr>
+<td>换了脸但长相不像</td>
+<td>只用提示词描述，没用参考图</td>
+<td>换用 IPAdapter 类控制，用参考图固定长相</td>
+</tr>
+</tbody>
+</table>
+<h2 id="controlnet_1">六、ControlNet 的安装、下载与多控叠加</h2>
+<p>把 ControlNet 用顺之前，先解决「怎么装上」和「怎么玩出花」两件事。</p>
+<h3 id="61">6.1 安装三步走</h3>
+<pre class="codehilite"><code class="language-text">第 1 步：安装节点插件
+  ComfyUI Manager → 搜索 ControlNet 相关节点集（整合包一般已内置）
+第 2 步：下载 ControlNet 模型
+  去 Civitai / Hugging Face，搜索 ControlNet，按适配版本下载
+  放到 ComfyUI/models/controlnet/
+第 3 步：下载预处理模型
+  部分预处理节点需要配套的检测模型，按节点提示下载即可
+</code></pre>
+
+<p>常见坑：ControlNet 模型同样要匹配 SD 版本（SD 1.5 的 ControlNet 不能用于 SDXL，反之亦然）。下载时看清文件名里的版本标注。</p>
+<h3 id="62-controlnet">6.2 多控叠加：同时用两个 ControlNet</h3>
+<p>ControlNet 支持<strong>同时挂多个</strong>。最经典的组合：</p>
+<ul>
+<li><strong>OpenPose（管姿势）+ Canny（管轮廓）</strong>：先锁死人物动作，再锁死画面边缘结构；</li>
+<li><strong>Depth（管层次）+ MLSD（管直线）</strong>：做室内效果图时，深度负责空间感，直线负责家具线条。</li>
+</ul>
+<p>在 ComfyUI 里，只需把多个 <code>ControlNet Apply</code> 节点<strong>串联</strong>：前一个 Apply 的输出连给下一个 Apply 的输入，最后再进 KSampler。每个 Apply 各配一个 ControlNet 模型和预处理节点，各设各的 strength。</p>
+<blockquote>
+<p>多控的代价是显存和时间翻倍，新手先玩单控，熟了再加第二个。<strong>强度从 0.5 起步，两个都别拉满。</strong></p>
+</blockquote>
+<h3 id="63-ipadapter">6.3 IPAdapter：让「参考图」本身当指令</h3>
+<p>表里提过的 IPAdapter 值得单独说一句：它和前几种都不同——<strong>输入就是一张图，输出也借鉴这张图的「长相、配色、风格」</strong>，不需要提取骨架或线稿。用它做「风格迁移」和「保持某个人物长相」特别顺手。理解它，你就能理解「多模态控制」的全貌：<strong>结构用骨架线稿，风格用 IPAdapter，内容用提示词，三层各管一层。</strong></p>
+<h2 id="_6">七、本篇小结</h2>
+<ul>
+<li><strong>图生图</strong> = 从「加了噪声的原图」出发去噪，<strong>denoise 控制改动的程度</strong>（低=润色，高=重画）；</li>
+<li><strong>ControlNet</strong> = 用额外的指导图（线稿/深度/骨架）<strong>强制控制构图</strong>，Canny 管轮廓、Depth 管远近、OpenPose 管姿势、MLSD 管直线；</li>
+<li><strong>LoRA</strong> = 小文件给模型「换皮肤/角色」，可多个叠加，注意版本匹配；</li>
+<li>精确控制的黄金组合：<strong>ControlNet 保形 + LoRA 定风 + 提示词说内容 + denoise 管创新</strong>；</li>
+<li>典型综合示例：照片 → Canny 线稿 → ControlNet + LoRA → 重新上色，就能「同一构图、换一种画风」。</li>
+</ul>
+<p>现在你已经能「指哪打哪」了。但生成出来的图往往还有一个问题：<strong>分辨率不够、或者局部有瑕疵</strong>。下一篇，我们进入后期处理环节——高清放大与局部重绘。</p>
+<blockquote>
+<p>相关篇章：ControlNet/LoRA 与第 4 篇的基础流水线是同一套，先回看 <a href="content/文生图工作流：从提示词到一张图.html">文生图工作流：从提示词到一张图</a>；下一章 <a href="content/高清放大与局部重绘：图片的后期处理.html">高清放大与局部重绘：图片的后期处理</a> 教你精修。</p>
+</blockquote></body></html>

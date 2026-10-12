@@ -1,0 +1,233 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>高清放大与局部重绘：图片的后期处理 | 多模态与ComfyUI L12</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#2e1065;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#6d28d9;line-height:1.35;}
+  h1{border-bottom:3px solid #7c3aed;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #8b5cf6;padding-left:11px;}
+  code{background:#f5f3ff;padding:2px 6px;border-radius:5px;font-size:90%;color:#6d28d9;}
+  pre{background:#2e1065;color:#ddd6fe;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #ddd6fe;padding:8px 11px;text-align:left;}
+  th{background:#ede9fe;color:#6d28d9;}
+  tr:nth-child(even){background:#f5f3ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#7c3aed;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #ddd6fe;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#7c3aed;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L12 学习路线图</a><span class='r'>多模态本地部署 · comfy.zbjh.top</span></div><h1 id="_1">高清放大与局部重绘：图片的后期处理</h1>
+<p>你现在已经能「指哪打哪」地生成图片了。但出了图之后，现实问题马上来：<strong>图只有 1024×1024，当壁纸、做印刷、放大看就模糊；或者整体挺好，就人物的手/脸崩了。</strong> 这正是本阶后期处理要解决的：<strong>放大（Upscale）</strong> 与 <strong>局部重绘（Inpaint）</strong>。</p>
+<p>这一篇，我们讲清楚三个问题：</p>
+<ol>
+<li>为什么生成图「天生」不够清晰？</li>
+<li>怎么把它变清晰？——三种放大思路；</li>
+<li>怎么只改局部、或把画面向外扩展？——局部重绘与扩图。</li>
+</ol>
+<h2 id="ai">一、为什么 AI 图不够清晰？</h2>
+<p>先理解病根。还记得第 2 篇的原理吗？SDXL 原生只能画 1024×1024 的图——这是它「训练时的分辨率上限」，就像一个画师只见过 1024 大的画布，你让他直接画 4096 的巨幅画，他画不动。</p>
+<p>如果你<strong>强行把输出尺寸调大</strong>（比如设成 2048×2048），会发生什么？扩散模型会在超出它「舒适区」的尺寸上出错——构图松散、物体变形、人物「多长一只手」。这就是为什么新手改大尺寸常常翻车。</p>
+<p>所以正确的思路是：<strong>先用原生分辨率出图，再通过「放大」技术把它变成高清大图。</strong> 放大不是简单拉伸（拉伸只会糊），而是「脑补」出更多细节——这也是它的技术难点所在。</p>
+<blockquote>
+<p>一句话：<strong>先在舒适区把图画好，再请「放大师」补细节。</strong> 放大师就是你接下来要认识的三种工具。</p>
+</blockquote>
+<h2 id="hires-fix">二、方法一：Hires Fix（高分辨率修复）</h2>
+<p>Hires Fix 是最经典的一招，思路简单粗暴：<strong>先小图出图，再按大图尺寸二次重绘。</strong></p>
+<p>流程是这样：</p>
+<pre class="codehilite"><code class="language-text">第一轮：原生分辨率（如 1024×1024）出图
+   ↓
+把图放大 1.5~2 倍（到 1536 或 2048）
+   ↓
+第二轮：以放大后的尺寸，用刚才的图再走一遍采样器去噪（denoise 设 0.3~0.5）
+</code></pre>
+
+<p>第二轮采样时，模型会根据你的提示词，在放大后的画布上「补全」更多细节——分辨率上去了，细节也多了，而不是单纯的像素拉伸。</p>
+<blockquote>
+<p>比喻：<strong>第一轮是「快速打草稿」，第二轮是「精修上细节」。</strong> 第二轮的 denoise 强度决定了「重画的力度」：太低（&lt;0.2）细节补不够，太高（&gt;0.7）会偏离第一轮构图。</p>
+</blockquote>
+<p>在 ComfyUI 里，Hires Fix 通过一个叫 <strong>Ultimate SD Upscale</strong> 的节点来实现（它是整合包常带、也可以在 ComfyUI Manager 里搜索安装的扩展节点），它内部会把大图切成小块逐块放大重绘，再拼回来，兼顾质量和显存。</p>
+<blockquote>
+<p>注意：第二轮去噪会让显存和耗时翻倍。显存小于 8G 的用户，建议把放大倍率控制在 1.5 倍以内，或使用下面方法三的「外挂放大模型」。</p>
+</blockquote>
+<h2 id="esrgan">三、方法二：外挂放大模型（ESRGAN 系）</h2>
+<p>第二种思路完全不一样：<strong>不重新采样，而是用专门训练过的「放大模型」直接「脑补」细节。</strong></p>
+<p>市面上有一类叫 <strong>ESRGAN 系</strong>的专用模型，它们只做一件事：输入一张小图，输出一张细节更丰富的大图。这类模型非常小（几十 MB），速度极快，而且不吃多少显存。常见的有：</p>
+<table>
+<thead>
+<tr>
+<th>放大模型</th>
+<th>特点</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Real-ESRGAN 4x</td>
+<td>通用性强，兼顾真实感</td>
+<td>照片、写实图</td>
+</tr>
+<tr>
+<td>4x-UltraSharp</td>
+<td>锐化效果强，线条清晰</td>
+<td>动漫、插画</td>
+</tr>
+<tr>
+<td>8x_NMKD-Superscale</td>
+<td>放大 8 倍</td>
+<td>需要超大图时</td>
+</tr>
+<tr>
+<td>SwinIR</td>
+<td>画质细腻，速度稍慢</td>
+<td>追求极致画质</td>
+</tr>
+</tbody>
+</table>
+<p>在 ComfyUI 里，用 <code>Upscale Image (using Model)</code> 节点加载这些模型即可：</p>
+<pre class="codehilite"><code class="language-text">Load Image（小图）→ Upscale Image (using Model)（加载一个 ESRGAN 模型，放大 4x）→ Save Image
+</code></pre>
+
+<blockquote>
+<p>对比：<strong>Hires Fix 是「重画」，放大模型是「脑补」。</strong> 重画更聪明但更贵；脑补更便宜更快但可能丢一些细节。实战里常把两者结合：先用 Hires Fix 画一遍，再用 ESRGAN 再放大一档。</p>
+</blockquote>
+<h2 id="inpaint">四、局部重绘（Inpaint）：哪里崩了补哪里</h2>
+<p>图生成之后，最常见的悲剧是：<strong>整体很好，就某一块坏了</strong>——手画崩了、脸有点歪、衣服上有杂物、背景混进奇怪的东西。整张重画成本高，还有可能越画越乱。这时候用<strong>局部重绘（Inpaint）</strong>：只重新生成指定区域，其他部分不动。</p>
+<h3 id="41-mask">4.1 工作流程：蒙版（Mask）是核心</h3>
+<p>局部重绘的核心是一个<strong>蒙版（Mask）</strong>——一个只覆盖「要重画区域」的黑白图：白色区域=要重画，黑色区域=保留原样。</p>
+<p>ComfyUI 的流程：</p>
+<pre class="codehilite"><code class="language-text">Load Image（原图）→ 在图上画出要修改的区域（生成蒙版）→ 输出蒙版给采样器 → 采样（denoise 0.5~0.8）→ VAE Decode → Save
+</code></pre>
+
+<p>在 ComfyUI 里画蒙版的操作：</p>
+<ol>
+<li>添加 <code>Load Image</code> 节点，选择图片；</li>
+<li>双击节点或点节点上的「画笔」图标，在弹出的图片编辑界面里，用鼠标<strong>涂抹</strong>要重画的区域（比如歪掉的那只手）；</li>
+<li>把这张「原图+蒙版」一起送入一个特殊的采样环节，通常用节点 <code>VAE Encode（for Inpainting）</code> 或直接用带蒙版输入的工作流模板；</li>
+<li>KSampler 的 denoise 建议 0.5~0.8（太高会连旁边一起改，太低会「盖不住」缺陷）；</li>
+<li>正向提示词描述「希望这里变成什么」——比如手部崩了，就写「完美的、自然的手」。</li>
+</ol>
+<blockquote>
+<p>蒙版的直觉：<strong>就像修图软件里的「局部马赛克+重建」</strong>——你圈出坏掉的地方，告诉 AI「这块重画」。蒙版画得越贴合缺陷，效果越好。</p>
+</blockquote>
+<h3 id="42">4.2 两个实用技巧</h3>
+<ul>
+<li><strong>手部修复</strong>：脸部、手部是最爱崩的部位。负向提示词里「畸形手、多余手指」，加上局部重绘指定手部区域，几乎能治好 90% 的翻车。</li>
+<li><strong>脸部修复</strong>：低分辨率下脸部细节容易糊，可以单独把脸部区域做一次高 denoise 重绘，或用专门的 FaceDetailer 类节点自动「检测脸→重画脸」，这也是整合包常带的便捷节点。</li>
+</ul>
+<h2 id="outpainting">五、向外扩图（Outpainting）：把画布往外撑</h2>
+<p>除了「改局部」，有时你还想把画面<strong>往外延伸</strong>：一张竖构图想扩展成横构图，或者想给图片「长出」更多背景。这叫作 <strong>Outpainting（外扩重绘）</strong>。</p>
+<p>实现思路和局部重绘相通，只是蒙版是「画布边缘的空白区域」：</p>
+<ol>
+<li>把原图放到一张更大画布的一侧；</li>
+<li>剩余空白区域作为「待填充」的蒙版；</li>
+<li>采样器在这个空白区域生成与原有画面衔接的内容；</li>
+<li>可能要多轮操作，像「砌砖」一样一块块往外长。</li>
+</ol>
+<blockquote>
+<p>比喻：<strong>Outpainting 像是「给照片接布」</strong>——摄影师拍到一张照片，再请画家在四周画上延续的风景，让布和照片衔接得毫无破绽。</p>
+</blockquote>
+<h2 id="_2">六、组合实战：一张图的完整精修流程</h2>
+<p>把本篇所有技巧串成一套「精修流水线」，你以后出图可以照着做：</p>
+<pre class="codehilite"><code class="language-text">第 1 步：原生尺寸出图（1024×1024）
+第 2 步：局部重绘修缺陷（歪脸、崩手 → 蒙版重画）
+第 3 步：Hires Fix 放大（到 2048）
+第 4 步：ESRGAN 再放大一档（到 4096，可选）
+第 5 步：若有需要，Outpainting 扩展构图
+</code></pre>
+
+<p>每一步都对应一句口诀：</p>
+<ul>
+<li><strong>先修后放</strong>：先重绘缺陷，再放大，避免「缺陷被放大」；</li>
+<li><strong>小步多轮</strong>：放大分两档（Hires Fix → ESRGAN）比一步到位更稳；</li>
+<li><strong>最后才扩图</strong>：扩图放最后，否则扩出来的区域又要重新精修。</li>
+</ul>
+<h2 id="_3">七、常见问题速查</h2>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因</th>
+<th>解法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>放大后更糊了</td>
+<td>直接用放大模型硬拉小图</td>
+<td>先 Hires Fix 重绘，再用 ESRGAN</td>
+</tr>
+<tr>
+<td>局部重绘把周边也改了</td>
+<td>denoise 太高、蒙版太大</td>
+<td>降到 0.5，把蒙版收窄贴合缺陷</td>
+</tr>
+<tr>
+<td>重绘区域和周围不衔接</td>
+<td>蒙版边缘太硬</td>
+<td>蒙版边缘涂得虚一些；或用「羽化」处理</td>
+</tr>
+<tr>
+<td>放大后显存爆了</td>
+<td>一次性放太大</td>
+<td>分档放大、缩小放大倍率、用 ESRGAN 代替 Hires Fix</td>
+</tr>
+<tr>
+<td>脸部越修越怪</td>
+<td>denoise 过高或提示词缺失</td>
+<td>降到 0.3~0.4，提示词明确写「完美面部细节」</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">八、进阶：分块放大与更省显存的方案</h2>
+<p>显存不够时，放大是第一个「卡脖子」的地方。介绍两招「省着放大」的硬技巧。</p>
+<h3 id="81-tiled">8.1 分块（Tiled）思路：一次只处理一小块</h3>
+<p>整张图直接放大重绘，显存瞬间爆炸。分块思路是把大图<strong>切成若干小方块</strong>，逐块放大重绘，再拼回整图——每次只占一块的显存。Ultimate SD Upscale 节点内部就是干这个的，ComfyUI 里对应的还有 <code>VAE Encode (for Tiled)</code> 等「分块 VAE」节点。</p>
+<blockquote>
+<p>比喻：<strong>整幅画太大搬不动，就把画裁成 9 块分别精修，再拼起来。</strong> 代价是接缝处偶尔不自然，需要重叠和羽化处理，普通用户默认参数即可。</p>
+</blockquote>
+<h3 id="82">8.2 放大参数的两个细节</h3>
+<ul>
+<li><strong>放大方式（Upscale Method）</strong>：Hires Fix 类节点里常有 <code>latent</code> 或 <code>nearest-exact</code> 等选项。<code>latent</code> 质量更好，<code>nearest-exact</code> 更省显存。先默认，出问题再换；</li>
+<li><strong>分块重叠（Tile Overlap）</strong>：两块之间的重叠像素数，默认 64~128。重叠太少会出现「拼接缝」，太多会变慢。新手不动它。</li>
+</ul>
+<h3 id="83">8.3 让精修更省心的「外挂节点」</h3>
+<p>社区有一些「半自动精修」节点，能减少手工操作，值得装：</p>
+<ul>
+<li><strong>FaceDetailer（脸部修复器）</strong>：自动检测画面里的人脸→放大→重绘脸部→贴回原图，一键解决「脸糊」；</li>
+<li><strong>Impact Pack（影响工具包）</strong>：FaceDetailer 就来自这个工具包，还含抠图、换脸等一批实用节点；</li>
+<li><strong>Ultimate SD Upscale</strong>：分块放大主力，前面反复提到的就是它。</li>
+</ul>
+<p>装了它们之后，你的「精修流水线」可以简化为：<strong>出图 → FaceDetailer 修脸 → Ultimate SD Upscale 放大 → 收工</strong>，人只需要盯着成果挑毛病。</p>
+<h3 id="84">8.4 后期软件的「最后一公里」</h3>
+<p>ComfyUI 修完图，最后的裁剪、拼图、调色，交给普通修图软件（美图秀秀、Photoshop、Canva 等）即可。<strong>AI 负责生成，人负责决定</strong>——好的工作流从来不排斥手工精修，两者是互补的。</p>
+<h2 id="_5">九、放大与重绘的效果验收</h2>
+<p>后期处理做得好不好，需要一个「验收标准」，不然容易陷入「越修越糟」的死循环。给你三把尺子：</p>
+<h3 id="91">9.1 原图放大对比法</h3>
+<p>把放大前后的图并排放大到 100% 看细节：毛发、皮肤纹理、物体边缘是否变清晰。<strong>放大不是「变亮变锐」就行，要看有没有新增合理的细节</strong>——真正的高清放大是「脑补出织物的纹理」，而不是把噪点一起放大了。</p>
+<h3 id="92">9.2 局部重绘的「衔接验收」</h3>
+<p>重绘完，把图缩到正常尺寸看三处：<strong>缺陷是否消除、重绘区域颜色光影是否与周围一致、边缘有没有明显的「补丁感」。</strong> 前两项不过就调整 denoise 和蒙版，第三项不过就检查蒙版边缘。</p>
+<h3 id="93">9.3 三档验收清单</h3>
+<pre class="codehilite"><code class="language-text">第一档：能看——没有畸形、没有大面积糊
+第二档：好看——细节丰富、光影自然、无补丁感
+第三档：能用——放大后打印/做壁纸不发虚
+</code></pre>
+
+<p>出图前先问自己「这次要哪一档」，目标不同，投入的时间完全不同。<strong>大部分日常用途，第二档就够了。</strong> 学会适可而止，是后期处理的最高心法。</p>
+<h2 id="_6">十、本篇小结</h2>
+<ul>
+<li>生成图「天生不大」是扩散模型的设计限制，<strong>正确做法是先原生尺寸出图、再放大</strong>；</li>
+<li><strong>Hires Fix（重绘式放大）</strong>：先小图出图，再放大尺寸二次去噪补细节，效果好但吃显存；</li>
+<li><strong>ESRGAN 系放大模型（脑补式放大）</strong>：专用模型直接补细节，快且省显存，适合二次放大；</li>
+<li><strong>局部重绘 Inpaint</strong>：用蒙版圈定缺陷区域只重画该处，是修手修脸的主力工具；</li>
+<li><strong>Outpainting 外扩</strong>：在画布边缘生成延续内容，用来扩展构图；</li>
+<li>精修口诀：<strong>先修后放、小步多轮、最后扩图</strong>。</li>
+</ul>
+<p>到这里，单张图片的「生成—控制—精修」闭环你已经完整掌握了。接下来，我们要把视野从「一张图」拉向「一段视频、一段音乐」——本地多模态全家桶。第 7 篇见。</p>
+<blockquote>
+<p>相关篇章：放大与重绘都建立在第 4 篇的基础流水线上，可回看 <a href="content/文生图工作流：从提示词到一张图.html">文生图工作流：从提示词到一张图</a>；下一章 <a href="content/本地视频与音频生成：多模态全家桶.html">本地视频与音频生成：多模态全家桶</a>。</p>
+</blockquote></body></html>

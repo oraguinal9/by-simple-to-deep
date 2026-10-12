@@ -1,0 +1,151 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>应用发布：API、嵌入与分享 | AI 应用开发平台 L15</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#4c0519;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#9f1239;line-height:1.35;}
+  h1{border-bottom:3px solid #be123c;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #e11d48;padding-left:11px;}
+  code{background:#fff1f2;padding:2px 6px;border-radius:5px;font-size:90%;color:#9f1239;}
+  pre{background:#4c0519;color:#fecdd3;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #fecdd3;padding:8px 11px;text-align:left;}
+  th{background:#ffe4e6;color:#9f1239;}
+  tr:nth-child(even){background:#fff1f2;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #e11d48;background:#fff1f2;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#be123c;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #fecdd3;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#be123c;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L15 学习路线图</a><span class='r'>AI 应用开发平台 · dify.zbjh.top</span></div><h1 id="api">应用发布：API、嵌入与分享</h1>
+<p>应用做好、调试满意后，最后一步是「发布」——让用户能用上。Dify 提供三种发布方式：<strong>WebApp 分享、网页嵌入、API 接入</strong>。这一章讲清每种方式怎么用、适合什么场景。</p>
+<h2 id="_1">发布前：别忘了「发布」动作</h2>
+<p>Dify 的编排界面有「草稿（Draft）」和「已发布（Published）」两个状态：</p>
+<ul>
+<li><strong>草稿</strong>：你正在编辑的版本，只有你能预览；</li>
+<li><strong>已发布</strong>：对外可访问的版本。</li>
+</ul>
+<p><strong>每次改完要手动点「发布」</strong>，新版本才生效。这是平台帮你做的「上线审批」——防止把半成品发出去。</p>
+<h2 id="webapp">方式一：WebApp 分享链接（最快）</h2>
+<p><strong>做法</strong>：应用 →「发布」→ 生成一个网页链接，发给用户即可。</p>
+<p><strong>特点</strong>：
+- 零开发，最快让用户用上；
+- Dify 托管页面（聊天界面、表单界面都有）；
+- 可设置访问密码、白名单。</p>
+<p><strong>适合</strong>：内部工具、给少量用户试用、快速验证产品想法。</p>
+<h2 id="_2">方式二：嵌入网页（一行代码）</h2>
+<p><strong>做法</strong>：Dify 生成一段 <code>&lt;iframe&gt;</code> 代码，贴进你的官网/系统页面：</p>
+<pre class="codehilite"><code class="language-html">&lt;iframe src=&quot;https://your-dify/app/xxx&quot; width=&quot;100%&quot; height=&quot;600&quot; style=&quot;border:none&quot;&gt;&lt;/iframe&gt;
+</code></pre>
+
+<p><strong>特点</strong>：
+- 用户不用离开你的网站；
+- 样式受 iframe 限制（界面是 Dify 的）；
+- 适合「在现有网站里加个 AI 助手」的场景。</p>
+<p><strong>进阶</strong>：Dify 提供「WebApp 嵌入」的多种形态（浮动按钮、iframe、自定义 CSS），可以调整到和你的站点风格接近。</p>
+<h2 id="api_1">方式三：API 接入（最强大）</h2>
+<p><strong>做法</strong>：应用发布后获得一个 API Endpoint + API Key，你的后端代码直接调用。</p>
+<p>Dify 提供两种 API 风格：</p>
+<p><strong>1. Chat Messages API</strong>（聊天助手专用）：</p>
+<pre class="codehilite"><code class="language-bash">curl -X POST 'https://your-dify/v1/chat-messages' \
+  -H 'Authorization: Bearer app-xxxxx' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    &quot;inputs&quot;: {},
+    &quot;query&quot;: &quot;报销流程是什么？&quot;,
+    &quot;response_mode&quot;: &quot;blocking&quot;,
+    &quot;user&quot;: &quot;user-123&quot;
+  }'
+</code></pre>
+
+<p><strong>2. Workflow Run API</strong>（工作流专用）：调用工作流，传开始节点定义的输入，拿结束节点的输出。</p>
+<p><strong>特点</strong>：
+- 完全集成进你自己的业务系统（APP、小程序、后台）；
+- 可以传 <code>user</code> 参数做用户隔离、传 <code>conversation_id</code> 做会话管理；
+- 按调用计费、有日志、可监控。</p>
+<p><strong>适合</strong>：真正的产品集成，把 AI 能力嵌进现有业务流程。</p>
+<h2 id="_3">三种方式怎么选</h2>
+<p>给一个决策参考：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>快速试用/内部</td>
+<td>WebApp 链接</td>
+</tr>
+<tr>
+<td>官网加助手</td>
+<td>嵌入 iframe</td>
+</tr>
+<tr>
+<td>接进 APP/小程序/后台</td>
+<td>API</td>
+</tr>
+<tr>
+<td>还没想清楚</td>
+<td>先 WebApp 验证，再决定</td>
+</tr>
+</tbody>
+</table>
+<p><strong>铁律</strong>：先发布一个最便宜的版本（WebApp）让用户用起来，验证价值后再投入做 API 集成——别一上来就做最重的。</p>
+<h2 id="api_2">API 接入的工程细节</h2>
+<p>如果你走 API 路线，这些细节很关键：</p>
+<p><strong>1. 用户隔离</strong>：每个用户传唯一 <code>user</code> 值，会话和日志才能按用户区分；</p>
+<p><strong>2. 会话管理</strong>：保存返回的 <code>conversation_id</code>，下次提问带上，对话才有记忆；</p>
+<p><strong>3. 错误处理</strong>：处理超时、限流（429）、模型错误等异常，给用户友好提示；</p>
+<p><strong>4. 安全</strong>：API Key 只在服务端保存，<strong>绝不放进前端代码</strong>（会被人抓走白嫖你的额度）。</p>
+<p><strong>5. 流式输出</strong>：<code>response_mode: streaming</code> 支持流式返回，用户能看到「打字机」效果，体验更好。</p>
+<h2 id="_4">日志与监控：发布后的眼睛</h2>
+<p>Dify 内置了完整的日志系统，每个应用的每次调用都有记录：</p>
+<ul>
+<li><strong>输入输出</strong>：用户问了什么、模型答了什么；</li>
+<li><strong>元数据</strong>：用了哪个模型、token 消耗、耗时；</li>
+<li><strong>评分</strong>：可以人工给回答打分，沉淀数据用于优化提示词。</li>
+</ul>
+<p><strong>发布后一定要养成看日志的习惯</strong>：哪类问题回答差、哪个模型太慢太贵、哪些用户用得最多——数据会告诉你下一步优化什么。</p>
+<h2 id="_5">一个完整的发布案例</h2>
+<p>把第 4 章的「公司制度问答助手」发布上线：</p>
+<pre class="codehilite"><code>1. 内部试用：生成 WebApp 链接发给 5 个同事，收集反馈
+2. 反馈分析：同事说「回答太啰嗦」「想嵌入 OA」
+3. 优化：调系统提示词（更简洁）、加访问白名单
+4. 嵌入 OA：生成 iframe 嵌入办公系统
+5. 后续扩展：产品化后改用 API 接入，接进 APP
+</code></pre>
+
+<p><strong>这就是真实的发布路径</strong>：先验证 → 再优化 → 再扩展。平台让每一步都只要几分钟。</p>
+<h2 id="_6">发布后的运营：别「发完就完事」</h2>
+<p>应用发布只是「开始被用」，后面的运营决定它好不好：</p>
+<p><strong>1. 日志周报</strong>：每周看一次日志统计——回答数、失败率、平均耗时、token 成本趋势；</p>
+<p><strong>2. 失败案例分析</strong>：挑出「用户重复问 / 回答被踩」的对话，逐个分析是检索问题还是提示词问题；</p>
+<p><strong>3. 知识库保鲜</strong>：业务变化时及时更新文档；高频问题沉淀成问答对；</p>
+<p><strong>4. 版本迭代节奏</strong>：每次发布记录「改了什么、数据上有什么变化」，形成版本史，别乱改一气。</p>
+<p><strong>一句话</strong>：发布是起点不是终点。<strong>一个「有人持续看日志、每周迭代」的应用，和一个「发布就没人管」的应用，半年后质量天差地别。</strong></p>
+<h2 id="_7">安全与合规速查</h2>
+<p>发布到公网前，过一遍安全清单：</p>
+<ul>
+<li>[ ] API Key 只在服务端，没进前端代码</li>
+<li>[ ] WebApp 有访问控制（密码/白名单）</li>
+<li>[ ] 用户输入有长度/频率限制（防滥用烧钱）</li>
+<li>[ ] 日志不记录敏感个人信息</li>
+<li>[ ] 知识库内容合规（不泄露机密/他人隐私）</li>
+<li>[ ] 有成本预算告警</li>
+</ul>
+<p><strong>安全不是发布后才想的事</strong>——发布前过一遍清单，能避免「上线即翻车」。</p>
+<h2 id="_8">小练习</h2>
+<ol>
+<li>把第 2 章的聊天助手发布成 WebApp，用手机打开链接试一下访问体验。</li>
+<li>用 iframe 把它嵌进一个本地 HTML 页面，调整宽度高度看效果。</li>
+<li>调用一次 Chat Messages API（用 curl 或 Postman），体验 API 调用与参数传递。</li>
+<li>进阶：给 API 调用实现「保存 conversation_id 实现多轮对话」的逻辑，模拟真实业务集成。</li>
+<li>进阶：用发布后的日志数据，挑 3 条「回答不佳」的对话，分析原因并改一版提示词重新发布。</li>
+</ol>
+<p>发布后应用就能「被用」了。最后一章，把所有能力组合起来——<strong>实战路线：用 Dify 做一个完整的业务应用</strong>。</p></body></html>

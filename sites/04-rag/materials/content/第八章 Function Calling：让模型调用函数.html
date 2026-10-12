@@ -1,0 +1,122 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第八章 Function Calling：让模型调用函数 | RAG与Agent L4</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#1f2430;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#0c4a6e;line-height:1.35;}
+  h1{border-bottom:3px solid #0891b2;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #0891b2;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#be185d;}
+  pre{background:#0b1f2a;color:#e2e8f0;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#cffafe;color:#0c4a6e;}
+  tr:nth-child(even){background:#f4fbfd;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #22d3ee;background:#ecfeff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#0891b2;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#0891b2;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L4 学习路线图</a><span class='r'>RAG 与 Agent · rag.zbjh.top</span></div><h1 id="function-calling">第八章 Function Calling：让模型调用函数</h1>
+<p>上一章我们说，Agent 有"工具"这个手脚，能查天气、算账、发邮件。本章就揭开工具机制的核心：<strong>Function Calling（函数调用 / 工具调用）</strong>——模型到底是怎么"决定调哪个函数、填什么参数"的。</p>
+<h2 id="_1">一、核心思想：给模型一份"函数说明书"</h2>
+<p>Function Calling 的本质，不是让模型去执行代码，而是让模型<strong>输出一个结构化的"调用意图"</strong>：我要调哪个函数、参数填什么。真正执行代码的，是你写的程序。</p>
+<p>要让模型会调函数，你得先<strong>把函数介绍给它</strong>——就像给新员工发一份"公司有哪些工具、各自怎么用"的说明手册。这份说明用 <strong>JSON Schema</strong> 描述，包含三要素：</p>
+<ul>
+<li><strong>name</strong>：函数名，如 <code>get_weather</code>；</li>
+<li><strong>description</strong>：这个函数干嘛的、什么时候用（模型靠它判断是否该调）；</li>
+<li><strong>parameters</strong>：参数定义（类型、是否必填、说明），用 JSON Schema 写。</li>
+</ul>
+<p>示例——一个"查天气"的函数说明：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;name&quot;: &quot;get_weather&quot;,
+  &quot;description&quot;: &quot;查询指定城市当天的天气&quot;,
+  &quot;parameters&quot;: {
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;properties&quot;: {
+      &quot;city&quot;:  { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;城市名，如 北京&quot; },
+      &quot;date&quot;:  { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;日期，如 2026-08-03&quot; }
+    },
+    &quot;required&quot;: [&quot;city&quot;]
+  }
+}
+</code></pre>
+
+<p>你把这份说明，连同用户问题，一起发给支持 Function Calling 的模型。</p>
+<h2 id="_2">二、模型返回的不是答案，是"调用意图"</h2>
+<p>关键点来了：<strong>模型不会真的去查天气</strong>。它读到你的问题"北京今天天气咋样"，再读到你提供的函数说明，判断"这个问题该调 get_weather，参数是 city=北京"，然后返回一个结构化调用请求：</p>
+<pre class="codehilite"><code class="language-json">{
+  &quot;name&quot;: &quot;get_weather&quot;,
+  &quot;arguments&quot;: { &quot;city&quot;: &quot;北京&quot;, &quot;date&quot;: &quot;2026-08-03&quot; }
+}
+</code></pre>
+
+<p>注意：这只是"意图"，不是天气数据。接下来<strong>你的程序</strong>接管：</p>
+<ol>
+<li>你的代码解析这个意图，真的去调用天气 API（或读库）；</li>
+<li>拿到结果，比如 <code>{"temp": 28, "cond": "晴"}</code>；</li>
+<li>把这个结果<strong>回填</strong>给模型，说"这是 get_weather 的返回"；</li>
+<li>模型结合结果，生成自然语言回答："北京今天晴，28℃"。</li>
+</ol>
+<h2 id="_3">三、一张图看清完整回合</h2>
+<pre class="codehilite"><code>你 ──问题&quot;北京天气?&quot;+ 函数说明──→ 模型
+                                  ↓
+                        返回 调用意图(get_weather, {city:北京})
+                                  ↓
+你的程序 ──真的调天气API──→ 拿到 {temp:28, cond:晴}
+                                  ↓
+回填结果 ─────────────────→ 模型
+                                  ↓
+                     生成回答&quot;北京晴 28℃&quot; ──→ 你
+</code></pre>
+
+<p>这就是"模型出主意，程序动手脚"的分工。模型负责<strong>决策</strong>（调谁、填啥），程序负责<strong>执行</strong>（真去查、真去算）。</p>
+<h2 id="json">四、为什么不直接让模型"自己输出 JSON"？</h2>
+<p>你可能会想：那我让模型直接打印一段 JSON 不就行了？何必用专门的 Function Calling 接口？</p>
+<p>区别在于<strong>可靠性</strong>：</p>
+<ul>
+<li>裸让模型输出 JSON，它经常格式飘忽（多逗号、少引号、把解释混进去），你的程序解析十次崩三次；</li>
+<li>专门的 Function Calling 接口，模型被训练成<strong>严格按 schema 输出结构化调用</strong>，参数类型、必填项都被约束，程序解析稳得多。</li>
+</ul>
+<p>简单说：Function Calling 是把"让模型调函数"这件容易出错的事，<strong>变成了模型被专门训练过的拿手好戏</strong>。</p>
+<h2 id="_4">五、多轮：模型看结果再决定下一步</h2>
+<p>真实 Agent 里，一次调用往往不够。模型拿到第一个工具的结果后，可能决定再调第二个工具。</p>
+<p>例：用户"北京今天适合穿啥？"
+1. 模型调 <code>get_weather</code> → 拿到 <code>28℃ 晴</code>；
+2. 模型想：28℃晴，该推荐薄装 → 再调 <code>search_products(category=薄外套, city=北京)</code>；
+3. 拿到商品列表 → 综合生成推荐。</p>
+<p>这就是<strong>多轮工具调用</strong>：每轮模型都基于"上一步工具结果"决定"下一步调什么"。Agent 的"思考→行动→观察"循环，底层就是靠 Function Calling 一轮轮串起来的。</p>
+<h2 id="_5">六、工程上必须处理的两件事</h2>
+<h3 id="1">1. 参数校验</h3>
+<p>模型偶尔会填错参数（比如 city 填成数字）。你的程序在真正调函数前，要按 JSON Schema <strong>校验参数</strong>，不对就提示模型重填，而不是直接崩。</p>
+<h3 id="2">2. 函数执行失败</h3>
+<p>天气 API 挂了、数据库连不上——函数可能报错。要把<strong>错误信息</strong>也回填给模型，让它决定"重试 / 换工具 / 老实告诉用户失败"，而不是让整个 Agent 卡死。</p>
+<h2 id="_6">七、一个常见误区</h2>
+<blockquote>
+<p>"开了 Function Calling，模型就自动会用我的系统了。"</p>
+</blockquote>
+<p><strong>不对。</strong> 模型只知道你<strong>明确告诉它</strong>的那些函数。你没登记的函数，它根本不知道存在。所以<strong>工具清单（函数说明）的质量，直接决定 Agent 的能力边界</strong>——这也是为什么"给模型写清楚每个工具的用途和参数"如此重要。</p>
+<h2 id="_7">八、本章小结</h2>
+<ul>
+<li>Function Calling = 让模型输出<strong>结构化调用意图</strong>（调哪个函数 + 参数），<strong>真正执行的是你的程序</strong>。</li>
+<li>使用前提：用 JSON Schema 给模型写<strong>函数说明</strong>（name/description/parameters），它靠 description 判断何时该调。</li>
+<li>模型返回意图 → <strong>你的程序执行函数</strong> → <strong>回填结果</strong> → 模型生成回答。分工：模型决策，程序动手。</li>
+<li>比"裸让模型输出 JSON"可靠得多（格式受 schema 约束）。</li>
+<li>多轮调用串起 Agent 的"思考→行动→观察"循环。</li>
+<li>工程必做：<strong>参数校验</strong> + <strong>执行失败处理</strong>；模型只知你登记过的函数，工具清单质量决定能力边界。</li>
+</ul>
+<h2 id="_8">九、小练习</h2>
+<ol>
+<li>用户问"帮我算 123 乘以 456"。如果只靠模型自己答，和用 Function Calling 调一个 <code>multiply</code> 函数，哪种更可靠？为什么？</li>
+<li>下面哪个 JSON Schema 字段，是模型用来"判断该不该调这个函数"的主要依据？</li>
+<li>A. name</li>
+<li>B. description</li>
+<li>C. parameters.type</li>
+<li>你的 Agent 调 <code>get_weather</code> 时天气 API 超时报错了。填空题：你应当把 <strong><em>_</em>_ 回填给模型，让它决定重试还是告知用户，而不是让 Agent </strong>____。</li>
+</ol>
+<hr />
+<p><em>Function Calling 解决了"模型怎么调一个函数"。但面对"订机票再订酒店再安排接机"这种多步骤目标，模型怎么知道</em><em>先调谁、后调谁、中途卡住怎么办</em><em>？下一章讲 Agent 的经典思维方式：</em><em>ReAct（边想边做）</em><em>。</em></p></body></html>

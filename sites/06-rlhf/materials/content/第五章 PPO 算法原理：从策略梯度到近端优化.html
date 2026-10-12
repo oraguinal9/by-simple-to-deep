@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>第五章 PPO 算法原理：从策略梯度到近端优化 | RLHF 人类反馈强化学习 L6</title>
+<style>
+  body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;max-width:880px;margin:0 auto;padding:28px 22px 80px;color:#221c33;line-height:1.85;background:#fff;}
+  h1,h2,h3,h4{color:#4c1d95;line-height:1.35;}
+  h1{border-bottom:3px solid #6366f1;padding-bottom:8px;}
+  h2{margin-top:34px;border-left:5px solid #6366f1;padding-left:11px;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:5px;font-size:90%;color:#7c3aed;}
+  pre{background:#1a1430;color:#e9e3ff;padding:16px;border-radius:10px;overflow:auto;line-height:1.6;}
+  pre code{background:none;color:inherit;padding:0;}
+  table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14px;}
+  th,td{border:1px solid #e5e7eb;padding:8px 11px;text-align:left;}
+  th{background:#eef2ff;color:#4c1d95;}
+  tr:nth-child(even){background:#faf9ff;}
+  img{max-width:100%;border:1px solid #eee;border-radius:8px;margin:8px 0;}
+  blockquote{border-left:4px solid #8b5cf6;background:#f5f3ff;margin:14px 0;padding:10px 16px;color:#374151;}
+  a{color:#6366f1;}
+  ul,ol{padding-left:24px;}
+  hr{border:none;border-top:1px solid #e5e7eb;margin:28px 0;}
+  .topbar{position:sticky;top:0;background:#6366f1;color:#fff;padding:9px 14px;margin:-28px -22px 24px;z-index:9;}
+  .topbar a{color:#fff;font-weight:700;text-decoration:none;}
+  .topbar a:hover{text-decoration:underline;}
+  .topbar .r{float:right;font-weight:400;font-size:13px;opacity:.9;}
+</style>
+</head><body><div class='topbar'><a href='../../index.html'>&larr; 返回 L6 学习路线图</a><span class='r'>RLHF 人类反馈强化学习 · rlhf.zbjh.top</span></div><h1 id="ppo">第五章 PPO 算法原理：从策略梯度到近端优化</h1>
+<p>前面铺垫够了，这一章正式登场 RLHF 的主力算法——<strong>PPO（Proximal Policy Optimization，近端策略优化）</strong>。它是 OpenAI 在 2017 年提出的，后来成了 InstructGPT / ChatGPT 对齐流程的核心。</p>
+<p>别被名字吓到。PPO 的本质可以用一句话概括：<strong>一边朝「高奖励」方向更新模型，一边用「别更新太猛」的约束把模型按住，防止翻车。</strong></p>
+<h2 id="policy-gradient">一、起点：策略梯度（Policy Gradient）</h2>
+<p>最朴素的思路叫<strong>策略梯度</strong>。设想我们对一条轨迹算出一个「优势」A（第四章），如果 A&gt;0（这步选得好），我们就<strong>增大</strong>模型选这个动作的概率；如果 A&lt;0，就<strong>减小</strong>。</p>
+<p>写成更新方向（直觉版）：</p>
+<blockquote>
+<p>朝「优势 × 对数概率」增大的方向调参数</p>
+</blockquote>
+<p>这能保证「平均来看，好动作越来越可能被选中」。问题在哪？这个方向可能<strong>一步跨太大</strong>：模型突然从「比较礼貌」变成「过度谄媚」，或者生成乱码来骗奖励。我们需要刹车。</p>
+<h2 id="importance-ratio">二、第一个刹车：重要性采样比（Importance Ratio）</h2>
+<p>PPO 是 on-policy，但工程上它用一个技巧：用「旧策略 π_old」采样得到的Batch，来更新「新策略 π_new」。两者之间的差异用一个比值衡量：</p>
+<blockquote>
+<p>r_t = π_new(a|s) / π_old(a|s)</p>
+</blockquote>
+<ul>
+<li>r_t &gt; 1：新策略比旧策略更倾向于这个动作；</li>
+<li>r_t ≈ 1：两者差不多；</li>
+<li>r_t &lt; 1：新策略更不愿意这么做。</li>
+</ul>
+<p>PPO 的优化目标，本质上是「<strong>在 r_t 不太离谱的前提下，最大化优势带来的收益</strong>」。</p>
+<h2 id="clipppo">三、第二个刹车：Clip（裁剪）——PPO 的灵魂</h2>
+<p>这是 PPO 名字里「Proximal（近端）」的由来，也是它稳的关键。</p>
+<p>直接把 r_t 乘上优势去优化，如果某个动作优势很大，r_t 会被一路推高，模型疯狂偏向它——翻车。PPO 的做法是<strong>把 r_t 裁剪（clip）到一个区间，比如 [1−ε, 1+ε]，ε 通常取 0.2</strong>。</p>
+<p>直观效果：</p>
+<ul>
+<li>当优势为正、r_t 想冲过 1+ε 时，超出的部分被「削平」，不让模型贪婪冒进；</li>
+<li>当优势为负、r_t 想跌破 1−ε 时，同样被夹住，不让模型过度回避。</li>
+</ul>
+<p>换句话说，<strong>每次更新只允许模型「小步挪动」</strong>，离旧策略太远就白费力气。这就是「近端」——只在旧策略附近（proximal）做优化。</p>
+<blockquote>
+<p>比喻：就像练字，老师（优势信号）说「这一笔不错，再多一点」，但你不能一笔甩出纸外——PPO 的 clip 就是那只按住你手腕的手。</p>
+</blockquote>
+<h2 id="kl-rlhf">四、第三个刹车：KL 散度约束（RLHF 专属）</h2>
+<p>PPO 本身有 clip 还不够。RLHF 还有一个特殊风险：模型为了讨好奖励模型，<strong>跑得太远</strong>，连原本的语言能力、安全性都丢了（所谓「策略塌陷」）。</p>
+<p>所以 RLHF 版本会在损失里再加一项 <strong>KL 散度惩罚</strong>：衡量「当前策略」和「初始参考模型（通常是 SFT 模型）」差多远，差太远就罚。这保证模型在「变得更好」的同时，<strong>不要忘了自己本来是谁</strong>。</p>
+<blockquote>
+<p>参考模型（reference model）在 RLHF 里是固定不变的锚点；KL 项就是一根拴在锚上的绳。</p>
+</blockquote>
+<h2 id="ppo_1">五、把零件拼起来：PPO 的目标函数</h2>
+<p>（不想看公式可跳过，看下面白话）</p>
+<blockquote>
+<p>L_PPO = E[ min( r_t · A_t ,  clip(r_t, 1−ε, 1+ε) · A_t ) ] − β · KL(π_new ‖ π_ref)</p>
+</blockquote>
+<p>白话翻译：</p>
+<ul>
+<li>第一项：想让「优势×比值」变大（朝好动作走）；</li>
+<li>min + clip：但比值太大就别贪，夹住它（防过冲）；</li>
+<li>最后 −β·KL：但别跑离参考模型太远（防塌陷）。</li>
+</ul>
+<p>三个部分合力，把「想变好」和「别乱来」平衡在一起。</p>
+<h2 id="ppo-rlhf">六、PPO 为什么适合 RLHF</h2>
+<ul>
+<li><strong>样本效率尚可</strong>：比纯策略梯度稳，比 off-policy 方法可控；</li>
+<li><strong>稳定</strong>：clip + KL 双重保险，不易训崩；</li>
+<li><strong>生态成熟</strong>：有 TRL、NeMo-Aligner、OpenRLHF 等成熟实现，工业界用得多。</li>
+</ul>
+<p>代价是<strong>贵</strong>：on-policy 意味着要频繁重新生成样本，还要同时跑好几个模型（下一章讲），显存和算力开销都大。这也为更便宜的 DPO（第八章）埋下伏笔。</p>
+<h2 id="_1">本章小结</h2>
+<ul>
+<li>PPO 一句话：<strong>朝高奖励更新，但用约束按住，防止翻车</strong>。</li>
+<li>三道保险：① 重要性比值 r_t 衡量新旧策略差异；② <strong>Clip 裁剪</strong>只许小步挪动（PPO 灵魂）；③ <strong>KL 惩罚</strong>拴住参考模型、防塌陷。</li>
+<li>目标函数 = 优势收益（带 clip）− β·KL，平衡「变好」与「别乱来」。</li>
+<li>优点稳定成熟，缺点贵（on-policy + 多模型并发）——催生了 DPO。</li>
+</ul>
+<h2 id="_2">思考与延伸</h2>
+<ul>
+<li>如果没有 clip，单纯「最大化优势×概率」会发生什么？（提示：回到第一节的「贪婪冒进」）</li>
+<li>KL 约束惩罚的是「离参考模型多远」。如果 β 设得太大或太小，分别会有什么问题？</li>
+<li>延伸：搜索「PPO clipped surrogate objective」查看原论文图解。</li>
+</ul></body></html>
